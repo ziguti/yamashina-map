@@ -3,118 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex, nofollow"> 
-    <title>山科歴史デジタルアーカイブ | 内部資料</title>
+    <title>山科歴史デジタルアーカイブ</title>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-    
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Shippori+Mincho&display=swap" rel="stylesheet">
+
     <style>
         :root {
-            --font-serif: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "MS PMincho", serif;
-            --primary-brown: #4e342e;
+            --bg-color: #f8f5f0;
+            --main-dark: #2c2c2c;
+            --accent-red: #8b0000;
             --accent-gold: #bda06d;
-            --bg-cream: #fdfaf2;
-            --header-height: 70px;
+            --glass: rgba(255, 255, 255, 0.85);
         }
 
-        body, html { margin: 0; padding: 0; background-color: var(--bg-cream); font-family: var(--font-serif); color: #333; overflow-x: hidden; scroll-behavior: smooth; }
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            font-family: 'Shippori Mincho', serif;
+            background-color: var(--bg-color); color: var(--main-dark);
+            overflow: hidden;
+        }
 
+        /* --- ロック画面 --- */
+        #lock-screen {
+            position: fixed; inset: 0; background: var(--bg-color);
+            z-index: 10000; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center;
+        }
+        .lock-card {
+            background: white; padding: 40px; border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1); border-top: 5px solid var(--accent-red);
+        }
+        .pass-btn {
+            margin-top: 20px; padding: 12px 40px; border-radius: 30px;
+            border: none; background: var(--main-dark); color: white;
+            cursor: pointer; font-family: inherit; transition: 0.3s;
+        }
+        .pass-btn:hover { background: var(--accent-red); transform: translateY(-2px); }
+
+        /* --- ヘッダー --- */
         header {
-            position: fixed; top: 0; left: 0; width: 100%; height: var(--header-height);
-            background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between;
-            padding: 0 20px; z-index: 2000; box-sizing: border-box;
+            position: fixed; top: 0; width: 100%; height: 60px;
+            background: var(--glass); backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px; z-index: 5000; box-sizing: border-box;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
         }
-        .logo-group { display: flex; flex-direction: column; }
-        .header-logo { font-size: 1.1rem; font-weight: bold; color: var(--primary-brown); text-decoration: none; letter-spacing: 0.1rem; }
-        .header-sub-logo { font-size: 0.6rem; color: var(--primary-brown); opacity: 0.8; }
-        .header-nav a { margin-left: 15px; text-decoration: none; color: #444; font-size: 1.3rem; }
+        .brand { font-weight: 700; letter-spacing: 2px; color: var(--accent-red); cursor: pointer; }
+        .nav-icons a { color: var(--main-dark); margin-left: 20px; font-size: 1.2rem; text-decoration: none; transition: 0.3s; }
+        .nav-icons a:hover { color: var(--accent-red); }
 
-        .page { display: none; min-height: 100vh; box-sizing: border-box; }
-        .page-content { padding-top: var(--header-height); }
+        /* --- ページ構成 --- */
+        .page { display: none; width: 100%; height: 100vh; position: absolute; top: 0; left: 0; padding-top: 60px; box-sizing: border-box; overflow-y: auto; }
+        .active { display: block; }
 
-        /* HERO & NAV */
-        .hero { position: relative; width: 100%; height: 50vh; background: #000; display: flex; align-items: center; justify-content: center; }
-        .hero-img { position: absolute; width: 100%; height: 100%; object-fit: cover; opacity: 0.6; }
-        .hero-title { position: relative; color: #fff; font-size: 2.2rem; letter-spacing: 0.5rem; text-align: center; z-index: 10; }
+        /* --- 地図ページ --- */
+        #map { width: 100%; height: 100%; }
+        .map-ui {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 450px; background: var(--glass);
+            backdrop-filter: blur(10px); padding: 20px; border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.3);
+            text-align: center; z-index: 6000;
+        }
+        #year-display { font-size: 1.1rem; font-weight: 700; color: var(--accent-red); margin-bottom: 10px; display: block; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--accent-red); }
 
-        .nav-container { display: flex; flex-direction: column; gap: 15px; max-width: 600px; margin: -40px auto 40px; padding: 0 20px; position: relative; z-index: 100; }
-        .nav-card { position: relative; width: 100%; height: 150px; background: #000; border-radius: 8px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); text-decoration: none; display: block; }
-        .nav-card img { width: 100%; height: 100%; object-fit: cover; opacity: 0.7; transition: 0.4s; }
-        .nav-card:hover img { opacity: 0.5; transform: scale(1.05); }
-        .nav-card-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.5rem; font-weight: bold; }
+        /* --- アーカイブ一覧 --- */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; padding: 40px 20px; }
+        .card { 
+            background: white; border-radius: 15px; overflow: hidden; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05); transition: 0.3s; cursor: pointer;
+        }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
+        .card img { width: 100%; height: 200px; object-fit: cover; }
+        .card-info { padding: 15px; }
+        .card-info h3 { margin: 0; font-size: 1rem; color: var(--main-dark); }
+        .card-info span { font-size: 0.8rem; color: #888; }
 
-        /* ARCHIVE */
-        .archive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; padding: 20px; }
-        .archive-item { background: #fff; padding: 10px; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); cursor: pointer; }
-        .archive-item img { width: 100%; height: 180px; object-fit: cover; }
-
-        /* MAP */
-        #map { width: 100%; height: calc(100vh - var(--header-height)); margin-top: var(--header-height); }
-        .map-overlay { position: absolute; bottom: 30px; left: 10px; right: 10px; z-index: 1000; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; max-width: 400px; margin: auto; }
-        
-        .camera-pin { background: var(--primary-brown); color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; cursor: pointer; }
-        .popup-card { width: 180px; font-family: var(--font-serif); }
-        .popup-card img { width: 100%; height: 100px; object-fit: cover; border-radius: 4px; }
-        .popup-link { display: inline-block; background: var(--accent-gold); color: white; padding: 4px 10px; border-radius: 10px; text-decoration: none; font-size: 0.8rem; margin-top: 5px; }
-
-        #lock-screen { position: fixed; inset: 0; background: var(--bg-cream); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        /* --- ピン --- */
+        .camera-pin { 
+            background: white; color: var(--accent-red); width: 35px; height: 35px; 
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2); border: 2px solid var(--accent-red); cursor: pointer;
+        }
+        .mapboxgl-popup-content, .maplibregl-popup-content { border-radius: 12px; padding: 10px; font-family: inherit; }
     </style>
 </head>
 <body>
 
 <div id="lock-screen">
-    <i class="fa-solid fa-lock" style="font-size: 3rem; color: var(--primary-brown); margin-bottom: 20px;"></i>
-    <h2>関係者専用アーカイブ</h2>
-    <p>閲覧には合言葉が必要です。</p>
-    <button onclick="promptPassword()" style="padding: 10px 30px; background: var(--primary-brown); color: white; border: none; border-radius: 5px; cursor: pointer;">合言葉を入力</button>
+    <div class="lock-card">
+        <i class="fa-solid fa-gem" style="font-size: 3rem; color: var(--accent-red); margin-bottom: 15px;"></i>
+        <h1 style="margin: 0; letter-spacing: 4px;">山科の記憶</h1>
+        <p style="color: #666; font-size: 0.9rem;">内部研究資料データベース</p>
+        <button class="pass-btn" onclick="promptPassword()">合言葉で入室</button>
+    </div>
 </div>
 
 <header id="main-header" style="display:none;">
-    <div class="logo-group">
-        <a href="javascript:showPage('home')" class="header-logo">山科歴史アーカイブ</a>
-        <span class="header-sub-logo">INTERNAL USE ONLY</span>
+    <div class="brand" onclick="showPage('home')">山科歴史アーカイブ</div>
+    <div class="nav-icons">
+        <a href="javascript:showPage('archive')" title="一覧"><i class="fa-solid fa-table-list"></i></a>
+        <a href="javascript:showPage('map')" title="地図"><i class="fa-solid fa-map-location-dot"></i></a>
     </div>
-    <nav class="header-nav">
-        <a href="javascript:showPage('archive')"><i class="fa-solid fa-box-archive"></i></a>
-        <a href="javascript:showPage('map')"><i class="fa-solid fa-map-location-dot"></i></a>
-    </nav>
 </header>
 
-<div id="home-page" class="page">
-    <section class="hero">
-        <img src="1885.png" class="hero-img" onerror="this.src='https://via.placeholder.com/800x400?text=Yamashina+Archive'">
-        <h1 class="hero-title">山科の記憶</h1>
-    </section>
-    <div class="nav-container">
-        <a href="javascript:showPage('archive')" class="nav-card">
-            <div class="nav-card-overlay">古写真検索</div>
-        </a>
-        <a href="javascript:showPage('map')" class="nav-card">
-            <div class="nav-card-overlay">歴史比較マップ</div>
-        </a>
+<div id="home-page" class="page active">
+    <div style="height: 60vh; background: url('https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=2070&auto=format&fit=crop') center/cover; display: flex; align-items: center; justify-content: center;">
+        <h2 style="color: white; font-size: 2.5rem; text-shadow: 0 5px 15px rgba(0,0,0,0.5); letter-spacing: 10px;">温故知新</h2>
+    </div>
+    <div style="padding: 50px 20px; text-align: center; max-width: 700px; margin: auto;">
+        <h3>ふるさとの歴史を歩く</h3>
+        <p style="line-height: 2; color: #555;">このアーカイブは、山科区の郷土史を後世へ語り継ぐため、古写真と古地図を統合した研究用資料です。</p>
+        <div style="margin-top: 30px;">
+            <button class="pass-btn" onclick="showPage('map')">地図を見る</button>
+        </div>
     </div>
 </div>
 
-<div id="archive-page" class="page page-content">
-    <div style="padding: 20px;"><input type="text" id="search-input" style="width:100%; padding:10px;" placeholder="キーワード検索..." oninput="filterData()"></div>
-    <div id="archive-list" class="archive-grid"></div>
+<div id="archive-page" class="page">
+    <div class="grid" id="archive-list"></div>
 </div>
 
-<div id="detail-page" class="page page-content">
-    <div id="detail-content" style="padding: 20px; max-width: 800px; margin: auto;"></div>
-    <center style="padding-bottom: 40px;"><a href="javascript:showPage('archive')" style="background:var(--primary-brown); color:white; padding:10px 30px; text-decoration:none; border-radius:30px;">一覧に戻る</a></center>
-</div>
-
-<div id="map-page" class="page">
+<div id="map-page" class="page" style="padding-top: 0;">
     <div id="map"></div>
-    <div class="map-overlay">
-        <span id="year-display" style="font-weight:bold; color:var(--primary-brown);">明治18年 (1885)</span><br>
-        <input type="range" id="time-slider" min="0" max="2" step="1" value="0" style="width:90%; margin:10px 0;">
-        <div style="display:flex; justify-content:space-between; font-size:0.7rem;">
-            <span>1885</span><span>1922</span><span>現代</span>
+    <div class="map-ui">
+        <span id="year-display">明治18年 (1885)</span>
+        <input type="range" id="time-slider" min="0" max="2" step="1" value="0">
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #777; margin-top: 5px;">
+            <span>明治</span><span>大正</span><span>現代</span>
         </div>
     </div>
 </div>
@@ -125,20 +145,20 @@
     let archiveData = [];
     let map;
 
-    // PMTiles Protocol
+    // PMTiles初期化
     let protocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
 
     function promptPassword() {
         const pass = prompt("合言葉を入力してください");
         if (pass === SECRET_PASSWORD) {
-            localStorage.setItem("yamashina_auth_v2", "true");
+            localStorage.setItem("yamashina_auth_v3", "true");
             location.reload();
-        }
+        } else { alert("合言葉が違います。"); }
     }
 
     window.onload = function() {
-        if (localStorage.getItem("yamashina_auth_v2") === "true") {
+        if (localStorage.getItem("yamashina_auth_v3") === "true") {
             document.getElementById('lock-screen').style.display = 'none';
             document.getElementById('main-header').style.display = 'flex';
             initApp();
@@ -147,8 +167,9 @@
 
     async function initApp() {
         await loadData();
-        showPage('home');
         initMap();
+        // 万が一地図が重くても、3秒後にホーム画面を表示
+        setTimeout(() => showPage('home'), 500);
     }
 
     async function loadData() {
@@ -161,41 +182,35 @@
                 return {
                     id: index,
                     drive_id: cols[1],
-                    title: cols[4] || "名称未設定",
+                    title: cols[4] || "無題",
                     coords: cols[6],
-                    year: cols[7] || "年代不明",
+                    year: cols[7] || "不明",
                     desc: cols[9] || ""
                 };
             }).filter(d => d.drive_id);
-            renderArchive(archiveData);
-        } catch (e) { console.error("Data load error:", e); }
+            renderArchive();
+        } catch (e) { console.error("Data error", e); }
     }
 
-    function showPage(pageId, recordId = null) {
-        document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
-        document.getElementById(pageId + '-page').style.display = 'block';
-        if(pageId === 'map' && map) setTimeout(() => map.resize(), 300);
-        if(pageId === 'detail') renderDetail(recordId);
+    function showPage(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(pageId + '-page').classList.add('active');
+        if(pageId === 'map' && map) {
+            setTimeout(() => map.resize(), 100);
+        }
     }
 
-    function renderArchive(data) {
-        document.getElementById('archive-list').innerHTML = data.map(item => `
-            <div class="archive-item" onclick="showPage('detail', ${item.id})">
-                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w600" loading="lazy">
-                <h4>${item.title}</h4>
-                <div style="font-size:0.75rem;">${item.year}</div>
+    function renderArchive() {
+        const list = document.getElementById('archive-list');
+        list.innerHTML = archiveData.map(item => `
+            <div class="card" onclick="alert('${item.desc}')">
+                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w600">
+                <div class="card-info">
+                    <h3>${item.title}</h3>
+                    <span>${item.year}</span>
+                </div>
             </div>
         `).join('');
-    }
-
-    function renderDetail(id) {
-        const item = archiveData.find(d => d.id === id);
-        document.getElementById('detail-content').innerHTML = `
-            <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w1200" style="width:100%; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.1);">
-            <h2 style="border-bottom:2px solid var(--primary-brown); padding-bottom:10px;">${item.title}</h2>
-            <p style="line-height:1.8;">${item.desc}</p>
-            <div style="color:#666; font-size:0.9rem;">年代：${item.year}</div>
-        `;
     }
 
     function initMap() {
@@ -217,8 +232,8 @@
         });
 
         map.on('load', () => {
-            console.log("Map Loaded. Rendering markers...");
             renderMarkersOnMap();
+            map.resize();
         });
 
         document.getElementById('time-slider').oninput = (e) => {
@@ -254,24 +269,16 @@
                     new maplibregl.Marker(el)
                         .setLngLat([lng, lat])
                         .setPopup(new maplibregl.Popup({offset: 25}).setHTML(`
-                            <div class="popup-card">
-                                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w400">
-                                <div style="padding:5px;">
-                                    <strong>${item.title}</strong><br>
-                                    <a href="javascript:showPage('detail', ${item.id})" class="popup-link">詳細を見る</a>
-                                </div>
+                            <div style="font-family:'Shippori Mincho',serif; width:150px;">
+                                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w300" style="width:100%; border-radius:8px;">
+                                <strong>${item.title}</strong><br>
+                                <span style="font-size:0.8rem; color:#666;">${item.year}</span>
                             </div>
                         `))
                         .addTo(map);
                 }
             }
         });
-    }
-
-    function filterData() {
-        const q = document.getElementById('search-input').value.toLowerCase();
-        const filtered = archiveData.filter(d => d.title.toLowerCase().includes(q) || d.desc.toLowerCase().includes(q));
-        renderArchive(filtered);
     }
 </script>
 </body>
