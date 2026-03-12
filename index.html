@@ -241,11 +241,11 @@
             const display = document.getElementById('year-display');
             if (val == 0) {
                 display.innerText = "明治18年 (1885)";
-                map.getSource('historic').setUrl("pmtiles://1885.pmtiles");
+                map.getSource('historic').setUrl("1885.pmtiles");
                 map.setPaintProperty('historic-layer', 'raster-opacity', 1);
             } else if (val == 1) {
                 display.innerText = "大正11年 (1922)";
-                map.getSource('historic').setUrl("pmtiles://1922.pmtiles");
+                map.getSource('historic').setUrl("1922.pmtiles");
                 map.setPaintProperty('historic-layer', 'raster-opacity', 1);
             } else {
                 display.innerText = "現代 (OSM)";
@@ -283,3 +283,4 @@
 </script>
 </body>
 </html>
+
