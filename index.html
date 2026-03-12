@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>山科アーカイブ（1885/1922）</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+    let protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol("pmtiles", protocol.tile);
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            version: 8,
+            sources: {
+                "yamashina_1885": {
+                    type: "raster",
+                    url: "pmtiles://1885.pmtiles",
+                    tileSize: 256
+                }
+            },
+            layers: [{
+                id: "raster-layer",
+                type: "raster",
+                source: "yamashina_1885"
+            }]
+        },
+        center: [135.81, 34.99], // 山科駅付近
+        zoom: 13
+    });
+</script>
+</body>
+</html>
