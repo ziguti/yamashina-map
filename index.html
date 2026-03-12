@@ -10,10 +10,17 @@
     <style>
         body { margin: 0; padding: 0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .menu { position: absolute; top: 10px; left: 10px; background: white; padding: 10px; border-radius: 5px; z-index: 1000; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
+<div class="menu">
+    <strong>山科郷土史アーカイブ</strong><br>
+    <input type="radio" name="layer" value="1885" checked onclick="switchMap('1885')"> 明治18年(1885)<br>
+    <input type="radio" name="layer" value="1922" onclick="switchMap('1922')"> 大正11年(1922)
+</div>
 <div id="map"></div>
+
 <script>
     let protocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
@@ -23,21 +30,28 @@
         style: {
             version: 8,
             sources: {
-                "yamashina_1885": {
+                "historic_map": {
                     type: "raster",
-                    url: "pmtiles://1885.pmtiles",
+                    url: "pmtiles://1885.pmtiles", // 拡張子s付きを確認！
                     tileSize: 256
                 }
             },
             layers: [{
-                id: "raster-layer",
+                id: "historic_layer",
                 type: "raster",
-                source: "yamashina_1885"
+                source: "historic_map"
             }]
         },
-        center: [135.81, 34.99], // 山科駅付近
-        zoom: 13
+        center: [135.816, 34.992],
+        zoom: 14
     });
+
+    function switchMap(year) {
+        const url = `pmtiles://${year}.pmtiles`;
+        map.getSource('historic_map').setUrl(url);
+    }
+
+    map.addControl(new maplibregl.NavigationControl());
 </script>
 </body>
 </html>
