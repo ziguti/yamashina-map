@@ -3,85 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>山科歴史デジタルアーカイブ</title>
+    <title>山科歴史デジタルアーカイブ | 研究資料</title>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&display=swap" rel="stylesheet">
+
     <style>
-        :root { --bg: #f8f5f0; --accent: #8b0000; --dark: #2c2c2c; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Shippori Mincho', serif; background: var(--bg); overflow: hidden; }
+        :root { --bg: #f8f5f0; --accent: #8b0000; --dark: #2c2c2c; --glass: rgba(255, 255, 255, 0.9); }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Shippori Mincho', serif; background: var(--bg); color: var(--dark); overflow: hidden; }
+        
+        /* ロック画面 */
         #lock-screen { position: fixed; inset: 0; background: var(--bg); z-index: 10000; display: flex; align-items: center; justify-content: center; }
-        .lock-card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.1); text-align: center; border-top: 5px solid var(--accent); }
-        header { position: fixed; top: 0; width: 100%; height: 60px; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 5000; border-bottom: 1px solid rgba(0,0,0,0.05); box-sizing: border-box; }
-        .page { display: none; width: 100%; height: 100vh; padding-top: 60px; box-sizing: border-box; }
+        .lock-card { background: white; padding: 50px; border-radius: 20px; box-shadow: 0 30px 60px rgba(0,0,0,0.12); text-align: center; border-top: 6px solid var(--accent); max-width: 400px; width: 90%; }
+        .btn-main { margin-top: 25px; padding: 12px 40px; border-radius: 30px; border: none; background: var(--dark); color: white; cursor: pointer; font-size: 1rem; transition: 0.3s; }
+        .btn-main:hover { background: var(--accent); transform: translateY(-2px); }
+
+        /* ヘッダー */
+        header { position: fixed; top: 0; width: 100%; height: 65px; background: var(--glass); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: space-between; padding: 0 25px; z-index: 5000; border-bottom: 1px solid rgba(0,0,0,0.08); box-sizing: border-box; }
+        .brand { font-weight: 700; color: var(--accent); letter-spacing: 3px; cursor: pointer; font-size: 1.2rem; }
+        nav a { color: var(--dark); margin-left: 20px; font-size: 1.3rem; text-decoration: none; transition: 0.3s; }
+        nav a:hover { color: var(--accent); }
+
+        /* ページ制御 */
+        .page { display: none; width: 100%; height: 100vh; padding-top: 65px; box-sizing: border-box; overflow-y: auto; }
         .active { display: block; }
-        #map { width: 100%; height: 100%; background: #e0e0e0; }
-        .map-ui { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; z-index: 6000; }
-        input[type=range] { width: 100%; accent-color: var(--accent); }
-        .camera-pin { background: white; color: var(--accent); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); border: 2px solid var(--accent); cursor: pointer; }
+
+        /* 地図エリア */
+        #map { width: 100%; height: 100%; background: #ddd; }
+        .map-control-panel { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 420px; background: var(--glass); backdrop-filter: blur(15px); padding: 25px; border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.2); text-align: center; z-index: 6000; border: 1px solid rgba(255,255,255,0.4); }
+        #year-label { font-size: 1.2rem; font-weight: 700; color: var(--accent); margin-bottom: 12px; display: block; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--accent); height: 8px; border-radius: 5px; }
+
+        /* ピン・ポップアップ */
+        .camera-pin { background: white; color: var(--accent); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.25); border: 2px solid var(--accent); cursor: pointer; transition: 0.2s; }
+        .camera-pin:hover { transform: scale(1.2); background: var(--accent); color: white; }
+        .maplibregl-popup-content { border-radius: 15px; padding: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
 
 <div id="lock-screen">
     <div class="lock-card">
-        <h2 style="letter-spacing:4px;">山科の記憶</h2>
-        <button onclick="promptPassword()" style="margin-top:20px; padding:10px 30px; border-radius:20px; border:none; background:var(--dark); color:white; cursor:pointer;">合言葉を入力</button>
+        <i class="fa-solid fa-building-columns" style="font-size: 3rem; color: var(--accent); margin-bottom: 20px;"></i>
+        <h2 style="margin:0; letter-spacing:2px;">山科歴史アーカイブ</h2>
+        <p style="font-size:0.85rem; color:#777; margin-top:10px;">地域史研究用デジタル資料</p>
+        <button class="btn-main" onclick="handleAuth()">研究室へ入室</button>
     </div>
 </div>
 
 <header id="main-header" style="display:none;">
-    <div style="font-weight:bold; color:var(--accent);" onclick="showPage('home')">山科歴史アーカイブ</div>
+    <div class="brand" onclick="showPage('home')">YAMASHINA ARCHIVE</div>
     <nav>
-        <a href="javascript:showPage('archive')" style="margin-left:15px; color:var(--dark);"><i class="fa-solid fa-list"></i></a>
-        <a href="javascript:showPage('map')" style="margin-left:15px; color:var(--dark);"><i class="fa-solid fa-map"></i></a>
+        <a href="javascript:showPage('archive')" title="一覧"><i class="fa-solid fa-box-archive"></i></a>
+        <a href="javascript:showPage('map')" title="地図比較"><i class="fa-solid fa-map-location-dot"></i></a>
     </nav>
 </header>
 
 <div id="home-page" class="page active">
-    <div style="padding:100px 20px; text-align:center;">
-        <h1>温故知新</h1>
-        <p>郷土の歩みをデジタルで辿る</p>
-        <button onclick="showPage('map')" style="padding:15px 40px; background:var(--accent); color:white; border:none; border-radius:30px; cursor:pointer; margin-top:20px;">地図を開始</button>
+    <div style="height:50vh; background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1571842751347-9759473e047f?q=80&w=2000') center/cover; display:flex; align-items:center; justify-content:center; color:white;">
+        <h1 style="font-size:3rem; letter-spacing:15px; text-shadow: 0 10px 20px rgba(0,0,0,0.5);">山科を歩く</h1>
+    </div>
+    <div style="max-width:800px; margin: -50px auto 50px; background:white; padding:40px; border-radius:15px; box-shadow:0 10px 30px rgba(0,0,0,0.1); text-align:center;">
+        <h2 style="color:var(--accent);">過去と現在を繋ぐ</h2>
+        <p style="line-height:2; color:#444;">古写真と古地図を重ね合わせ、山科の変遷を視覚的に捉える試みです。スライダーを動かして、失われた風景や道筋を探ってみましょう。</p>
+        <button class="btn-main" onclick="showPage('map')">アーカイブ地図を開く</button>
     </div>
 </div>
 
 <div id="archive-page" class="page">
-    <div id="archive-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:20px; padding:20px;"></div>
+    <div id="archive-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:30px; padding:40px;"></div>
 </div>
 
 <div id="map-page" class="page" style="padding-top:0;">
     <div id="map"></div>
-    <div class="map-ui">
-        <b id="year-display" style="color:var(--accent);">明治18年 (1885)</b><br>
+    <div class="map-control-panel">
+        <span id="year-label">明治18年 (1885)</span>
         <input type="range" id="time-slider" min="0" max="2" step="1" value="0">
-        <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#888;">
-            <span>明治</span><span>大正</span><span>現代</span>
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#666; margin-top:8px; font-weight:bold;">
+            <span>1885</span><span>1922</span><span>現代</span>
         </div>
     </div>
 </div>
 
 <script>
-    const SECRET_PASSWORD = "yamashina_rekishi";
+    const SECRET = "yamashina_rekishi";
     const SHEET_ID = '1JNOhsD4k1GzEVnUqS2ftN8ytw2GbraXjEFysoxwVl_A';
     let archiveData = [];
     let map;
 
-    // PMTilesプロトコルの追加
+    // PMTilesプロトコルの登録
     let protocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
 
-    function promptPassword() {
-        if (prompt("合言葉を入力してください") === SECRET_PASSWORD) {
-            localStorage.setItem("yamashina_auth_v5", "true");
+    function handleAuth() {
+        const input = prompt("合言葉を入力してください");
+        if (input === SECRET) {
+            localStorage.setItem("yamashina_vFinal", "true");
             location.reload();
-        }
+        } else { alert("認証に失敗しました。"); }
     }
 
     window.onload = function() {
-        if (localStorage.getItem("yamashina_auth_v5") === "true") {
+        if (localStorage.getItem("yamashina_vFinal") === "true") {
             document.getElementById('lock-screen').style.display = 'none';
             document.getElementById('main-header').style.display = 'flex';
             initApp();
@@ -89,42 +114,45 @@
     };
 
     async function initApp() {
-        await loadData();
+        await loadSpreadsheet();
         initMap();
     }
 
-    async function loadData() {
+    async function loadSpreadsheet() {
         try {
-            const res = await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`);
-            const csv = await res.text();
-            const rows = csv.split('\n').slice(1);
-            archiveData = rows.map((row, index) => {
-                const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/"/g, '').trim());
-                return { id: index, drive_id: cols[1], title: cols[4] || "無題", coords: cols[6], year: cols[7] };
-            }).filter(d => d.drive_id);
+            const response = await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`);
+            const data = await response.text();
+            const lines = data.split('\n').slice(1);
+            archiveData = lines.map((line, idx) => {
+                const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/"/g, '').trim());
+                return { id: idx, drive_id: parts[1], title: parts[4] || "記録", coords: parts[6], year: parts[7] };
+            }).filter(item => item.drive_id);
             renderArchive();
-        } catch (e) { console.error(e); }
+        } catch (err) { console.error("Data Load Error:", err); }
     }
 
     function renderArchive() {
         document.getElementById('archive-list').innerHTML = archiveData.map(item => `
-            <div style="background:white; border-radius:10px; overflow:hidden; box-shadow:0 5px 15px rgba(0,0,0,0.05);">
-                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w400" style="width:100%; height:150px; object-fit:cover;">
-                <div style="padding:10px;"><b>${item.title}</b><br><small>${item.year}</small></div>
+            <div style="background:white; border-radius:12px; overflow:hidden; box-shadow:0 8px 20px rgba(0,0,0,0.06); transition:0.3s; cursor:pointer;" onclick="showPage('map')">
+                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w600" style="width:100%; height:200px; object-fit:cover;">
+                <div style="padding:20px;">
+                    <h3 style="margin:0; font-size:1.1rem;">${item.title}</h3>
+                    <p style="color:var(--accent); font-size:0.9rem; margin-top:5px;">${item.year}</p>
+                </div>
             </div>
         `).join('');
     }
 
-    function showPage(p) {
-        document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
-        document.getElementById(p + '-page').classList.add('active');
-        if(p === 'map' && map) setTimeout(() => map.resize(), 200);
+    function showPage(id) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(id + '-page').classList.add('active');
+        if(id === 'map' && map) setTimeout(() => map.resize(), 300);
     }
 
     function initMap() {
-        // あなたのサイトのベースとなるURLを直接指定（最も確実な方法）
-        const fullPath = "https://ziguti.github.io/yamashina-map/";
-
+        // パス解決：自動翻訳やGitHub Pagesの構造に左右されない絶対パスを生成
+        const rootPath = window.location.origin + window.location.pathname.replace('index.html', '');
+        
         map = new maplibregl.Map({
             container: 'map',
             style: {
@@ -133,7 +161,7 @@
                     "osm": { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256 },
                     "historic": { 
                         type: "raster", 
-                        url: "pmtiles://" + fullPath + "1885.pmtiles", 
+                        url: "pmtiles://" + rootPath + "1885.pmtiles", 
                         tileSize: 256 
                     }
                 },
@@ -147,26 +175,47 @@
         });
 
         map.on('load', () => {
-            renderMarkersOnMap();
             map.resize();
+            // ピンの描画
+            archiveData.forEach(item => {
+                if (item.coords && item.coords.includes(',')) {
+                    const [lat, lng] = item.coords.split(',').map(n => parseFloat(n.trim()));
+                    if(!isNaN(lat) && !isNaN(lng)) {
+                        const el = document.createElement('div');
+                        el.className = 'camera-pin';
+                        el.innerHTML = '<i class="fa-solid fa-camera"></i>';
+                        new maplibregl.Marker(el)
+                            .setLngLat([lng, lat])
+                            .setPopup(new maplibregl.Popup({offset:30}).setHTML(`
+                                <div style="font-family:'Shippori Mincho',serif; text-align:center;">
+                                    <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w300" style="width:100%; border-radius:8px;">
+                                    <h4 style="margin:10px 0 5px;">${item.title}</h4>
+                                    <small>${item.year}</small>
+                                </div>
+                            `))
+                            .addTo(map);
+                    }
+                }
+            });
         });
 
+        // スライダー連動
         document.getElementById('time-slider').oninput = (e) => {
             const val = e.target.value;
-            const display = document.getElementById('year-display');
+            const label = document.getElementById('year-label');
             const source = map.getSource('historic');
             if(!source) return;
 
             if (val == 0) {
-                display.innerText = "明治18年 (1885)";
-                source.setUrl("pmtiles://" + fullPath + "1885.pmtiles");
+                label.innerText = "明治18年 (1885)";
+                source.setUrl("pmtiles://" + rootPath + "1885.pmtiles");
                 map.setPaintProperty('historic-layer', 'raster-opacity', 1);
             } else if (val == 1) {
-                display.innerText = "大正11年 (1922)";
-                source.setUrl("pmtiles://" + fullPath + "1922.pmtiles");
+                label.innerText = "大正11年 (1922)";
+                source.setUrl("pmtiles://" + rootPath + "1922.pmtiles");
                 map.setPaintProperty('historic-layer', 'raster-opacity', 1);
             } else {
-                display.innerText = "現代 (OSM)";
+                label.innerText = "現代 (OpenStreetMap)";
                 map.setPaintProperty('historic-layer', 'raster-opacity', 0);
             }
         };
@@ -174,4 +223,3 @@
 </script>
 </body>
 </html>
-
