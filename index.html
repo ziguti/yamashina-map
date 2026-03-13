@@ -10,16 +10,15 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #f8f5f0; --accent: #8b0000; --dark: #2c2c2c; }
+        :root { --accent: #8b0000; --bg: #f8f5f0; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Shippori Mincho', serif; background: var(--bg); overflow: hidden; }
         #lock-screen { position: fixed; inset: 0; background: var(--bg); z-index: 10000; display: flex; align-items: center; justify-content: center; }
         header { position: fixed; top: 0; width: 100%; height: 60px; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 5000; border-bottom: 1px solid rgba(0,0,0,0.05); box-sizing: border-box; }
         .page { display: none; width: 100%; height: 100vh; padding-top: 60px; box-sizing: border-box; }
         .active { display: block; }
-        #map { width: 100%; height: 100%; background: #e0e0e0; }
-        .map-ui { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; z-index: 6000; }
-        input[type=range] { width: 100%; accent-color: var(--accent); }
-        .camera-pin { background: white; color: var(--accent); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); border: 2px solid var(--accent); cursor: pointer; }
+        #map { width: 100%; height: 100%; background: #ddd; }
+        .map-ui { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 420px; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; z-index: 6000; }
+        input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
     </style>
 </head>
 <body>
@@ -27,28 +26,28 @@
 <div id="lock-screen">
     <div style="text-align:center; background:white; padding:40px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,0.1);">
         <h2 style="letter-spacing:4px;">山科の記憶</h2>
-        <button onclick="promptPassword()" style="margin-top:20px; padding:10px 30px; border-radius:20px; border:none; background:var(--dark); color:white; cursor:pointer;">合言葉を入力</button>
+        <button onclick="handleAuth()" style="margin-top:20px; padding:10px 30px; border-radius:20px; border:none; background:#222; color:white; cursor:pointer;">アーカイブを開く</button>
     </div>
 </div>
 
 <header id="main-header" style="display:none;">
     <div style="font-weight:bold; color:var(--accent); cursor:pointer;" onclick="showPage('home')">山科歴史アーカイブ</div>
     <nav>
-        <a href="javascript:showPage('archive')" style="margin-left:15px; color:var(--dark); text-decoration:none;"><i class="fa-solid fa-list"></i></a>
-        <a href="javascript:showPage('map')" style="margin-left:15px; color:var(--dark); text-decoration:none;"><i class="fa-solid fa-map"></i></a>
+        <a href="javascript:showPage('archive')" style="margin-left:15px; color:#222; text-decoration:none;"><i class="fa-solid fa-list"></i></a>
+        <a href="javascript:showPage('map')" style="margin-left:15px; color:#222; text-decoration:none;"><i class="fa-solid fa-map"></i></a>
     </nav>
 </header>
 
 <div id="home-page" class="page active">
     <div style="padding:100px 20px; text-align:center;">
         <h1>温故知新</h1>
-        <p>郷土の歩みをデジタルで辿る</p>
+        <p>Googleドライブ連携による地図配信モード</p>
         <button onclick="showPage('map')" style="padding:15px 40px; background:var(--accent); color:white; border:none; border-radius:30px; cursor:pointer; margin-top:20px;">地図を開始</button>
     </div>
 </div>
 
 <div id="archive-page" class="page">
-    <div id="archive-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:20px; padding:20px;"></div>
+    <div id="archive-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:20px; padding:20px;"></div>
 </div>
 
 <div id="map-page" class="page" style="padding-top:0;">
@@ -63,23 +62,27 @@
 </div>
 
 <script>
-    const SECRET_PASSWORD = "yamashina_rekishi";
+    const SECRET = "yamashina_rekishi";
     const SHEET_ID = '1JNOhsD4k1GzEVnUqS2ftN8ytw2GbraXjEFysoxwVl_A';
+    
+    // Googleドライブ直リンク形式に変換
+    const URL_1885 = "https://drive.google.com/uc?export=download&id=1e9-e5GOpg1jFh_Xl27Oq1-h-GjOHm8o1";
+    const URL_1922 = "https://drive.google.com/uc?export=download&id=1wb7eexQH5PssPnSpcimYi4u3p8l5Tl0k";
+
     let archiveData = [];
     let map;
-
     let protocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
 
-    function promptPassword() {
-        if (prompt("合言葉を入力してください") === SECRET_PASSWORD) {
-            localStorage.setItem("yamashina_auth_vX", "true");
+    function handleAuth() {
+        if (prompt("合言葉を入力してください") === SECRET) {
+            localStorage.setItem("yamashina_drive_v1", "true");
             location.reload();
         }
     }
 
     window.onload = function() {
-        if (localStorage.getItem("yamashina_auth_vX") === "true") {
+        if (localStorage.getItem("yamashina_drive_v1") === "true") {
             document.getElementById('lock-screen').style.display = 'none';
             document.getElementById('main-header').style.display = 'flex';
             initApp();
@@ -87,20 +90,30 @@
     };
 
     async function initApp() {
-        await loadData();
+        await loadSpreadsheet();
         initMap();
     }
 
-    async function loadData() {
+    async function loadSpreadsheet() {
         try {
             const res = await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`);
             const csv = await res.text();
             const rows = csv.split('\n').slice(1);
-            archiveData = rows.map((row, index) => {
+            archiveData = rows.map((row, idx) => {
                 const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/"/g, '').trim());
-                return { id: index, drive_id: cols[1], title: cols[4] || "無題", coords: cols[6], year: cols[7] };
+                return { id: idx, drive_id: cols[1], title: cols[4], coords: cols[6], year: cols[7] };
             }).filter(d => d.drive_id);
+            renderArchive();
         } catch (e) { console.error(e); }
+    }
+
+    function renderArchive() {
+        document.getElementById('archive-list').innerHTML = archiveData.map(item => `
+            <div style="background:white; border-radius:12px; overflow:hidden; box-shadow:0 5px 15px rgba(0,0,0,0.05);">
+                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w400" style="width:100%; height:180px; object-fit:cover;">
+                <div style="padding:15px;"><b>${item.title}</b><br><small>${item.year}</small></div>
+            </div>
+        `).join('');
     }
 
     function showPage(p) {
@@ -110,16 +123,14 @@
     }
 
     function initMap() {
-        const fullPath = window.location.origin + window.location.pathname.replace('index.html', '');
-        
         map = new maplibregl.Map({
             container: 'map',
             style: {
                 version: 8,
                 sources: {
                     "osm": { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256 },
-                    "m1885": { type: "raster", url: "pmtiles://" + fullPath + "1885.pmtiles", tileSize: 256 },
-                    "t1922": { type: "raster", url: "pmtiles://" + fullPath + "1922.pmtiles", tileSize: 256 }
+                    "m1885": { type: "raster", url: "pmtiles://" + URL_1885, tileSize: 256 },
+                    "t1922": { type: "raster", url: "pmtiles://" + URL_1922, tileSize: 256 }
                 },
                 layers: [
                     { id: "osm-layer", type: "raster", source: "osm" },
@@ -136,30 +147,20 @@
                 if (item.coords && item.coords.includes(',')) {
                     const [lat, lng] = item.coords.split(',').map(n => parseFloat(n.trim()));
                     const el = document.createElement('div');
-                    el.className = 'camera-pin';
-                    el.innerHTML = '<i class="fa-solid fa-camera"></i>';
+                    el.style.color = 'var(--accent)';
+                    el.innerHTML = '<i class="fa-solid fa-camera" style="font-size:24px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); cursor:pointer;"></i>';
                     new maplibregl.Marker(el).setLngLat([lng, lat]).setPopup(new maplibregl.Popup({offset:25}).setHTML(`<b>${item.title}</b>`)).addTo(map);
                 }
             });
         });
 
         document.getElementById('time-slider').oninput = (e) => {
+            if (!map.isStyleLoaded()) return;
             const val = e.target.value;
             const display = document.getElementById('year-display');
-            
-            // 全てのレイヤーを一旦非表示にする
-            map.setPaintProperty('m1885-layer', 'raster-opacity', 0);
-            map.setPaintProperty('t1922-layer', 'raster-opacity', 0);
-
-            if (val == 0) {
-                display.innerText = "明治18年 (1885)";
-                map.setPaintProperty('m1885-layer', 'raster-opacity', 1);
-            } else if (val == 1) {
-                display.innerText = "大正11年 (1922)";
-                map.setPaintProperty('t1922-layer', 'raster-opacity', 1);
-            } else {
-                display.innerText = "現代 (OSM)";
-            }
+            map.setPaintProperty('m1885-layer', 'raster-opacity', val == 0 ? 1 : 0);
+            map.setPaintProperty('t1922-layer', 'raster-opacity', val == 1 ? 1 : 0);
+            display.innerText = val == 0 ? "明治18年 (1885)" : val == 1 ? "大正11年 (1922)" : "現代 (OpenStreetMap)";
         };
     }
 </script>
