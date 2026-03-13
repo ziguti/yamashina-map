@@ -8,157 +8,80 @@
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Shippori+Mincho&display=swap" rel="stylesheet">
-
+    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-color: #f8f5f0;
-            --main-dark: #2c2c2c;
-            --accent-red: #8b0000;
-            --accent-gold: #bda06d;
-            --glass: rgba(255, 255, 255, 0.85);
-        }
-
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            font-family: 'Shippori Mincho', serif;
-            background-color: var(--bg-color); color: var(--main-dark);
-            overflow: hidden;
-        }
-
-        /* --- ロック画面 --- */
-        #lock-screen {
-            position: fixed; inset: 0; background: var(--bg-color);
-            z-index: 10000; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; text-align: center;
-        }
-        .lock-card {
-            background: white; padding: 40px; border-radius: 20px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.1); border-top: 5px solid var(--accent-red);
-        }
-        .pass-btn {
-            margin-top: 20px; padding: 12px 40px; border-radius: 30px;
-            border: none; background: var(--main-dark); color: white;
-            cursor: pointer; font-family: inherit; transition: 0.3s;
-        }
-        .pass-btn:hover { background: var(--accent-red); transform: translateY(-2px); }
-
-        /* --- ヘッダー --- */
-        header {
-            position: fixed; top: 0; width: 100%; height: 60px;
-            background: var(--glass); backdrop-filter: blur(8px);
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0 20px; z-index: 5000; box-sizing: border-box;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-        }
-        .brand { font-weight: 700; letter-spacing: 2px; color: var(--accent-red); cursor: pointer; }
-        .nav-icons a { color: var(--main-dark); margin-left: 20px; font-size: 1.2rem; text-decoration: none; transition: 0.3s; }
-        .nav-icons a:hover { color: var(--accent-red); }
-
-        /* --- ページ構成 --- */
-        .page { display: none; width: 100%; height: 100vh; position: absolute; top: 0; left: 0; padding-top: 60px; box-sizing: border-box; overflow-y: auto; }
+        :root { --bg: #f8f5f0; --accent: #8b0000; --dark: #2c2c2c; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Shippori Mincho', serif; background: var(--bg); overflow: hidden; }
+        #lock-screen { position: fixed; inset: 0; background: var(--bg); z-index: 10000; display: flex; align-items: center; justify-content: center; }
+        .lock-card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.1); text-align: center; border-top: 5px solid var(--accent); }
+        header { position: fixed; top: 0; width: 100%; height: 60px; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 5000; border-bottom: 1px solid rgba(0,0,0,0.05); box-sizing: border-box; }
+        .page { display: none; width: 100%; height: 100vh; padding-top: 60px; box-sizing: border-box; }
         .active { display: block; }
-
-        /* --- 地図ページ --- */
-        #map { width: 100%; height: 100%; }
-        .map-ui {
-            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 450px; background: var(--glass);
-            backdrop-filter: blur(10px); padding: 20px; border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.3);
-            text-align: center; z-index: 6000;
-        }
-        #year-display { font-size: 1.1rem; font-weight: 700; color: var(--accent-red); margin-bottom: 10px; display: block; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--accent-red); }
-
-        /* --- アーカイブ一覧 --- */
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; padding: 40px 20px; }
-        .card { 
-            background: white; border-radius: 15px; overflow: hidden; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05); transition: 0.3s; cursor: pointer;
-        }
-        .card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
-        .card img { width: 100%; height: 200px; object-fit: cover; }
-        .card-info { padding: 15px; }
-        .card-info h3 { margin: 0; font-size: 1rem; color: var(--main-dark); }
-        .card-info span { font-size: 0.8rem; color: #888; }
-
-        /* --- ピン --- */
-        .camera-pin { 
-            background: white; color: var(--accent-red); width: 35px; height: 35px; 
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.2); border: 2px solid var(--accent-red); cursor: pointer;
-        }
-        .mapboxgl-popup-content, .maplibregl-popup-content { border-radius: 12px; padding: 10px; font-family: inherit; }
+        #map { width: 100%; height: 100%; background: #e0e0e0; }
+        .map-ui { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; z-index: 6000; }
+        input[type=range] { width: 100%; accent-color: var(--accent); }
+        .camera-pin { background: white; color: var(--accent); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); border: 2px solid var(--accent); cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="lock-screen">
     <div class="lock-card">
-        <i class="fa-solid fa-gem" style="font-size: 3rem; color: var(--accent-red); margin-bottom: 15px;"></i>
-        <h1 style="margin: 0; letter-spacing: 4px;">山科の記憶</h1>
-        <p style="color: #666; font-size: 0.9rem;">内部研究資料データベース</p>
-        <button class="pass-btn" onclick="promptPassword()">合言葉で入室</button>
+        <h2 style="letter-spacing:4px;">山科の記憶</h2>
+        <button onclick="promptPassword()" style="margin-top:20px; padding:10px 30px; border-radius:20px; border:none; background:var(--dark); color:white; cursor:pointer;">合言葉を入力</button>
     </div>
 </div>
 
 <header id="main-header" style="display:none;">
-    <div class="brand" onclick="showPage('home')">山科歴史アーカイブ</div>
-    <div class="nav-icons">
-        <a href="javascript:showPage('archive')" title="一覧"><i class="fa-solid fa-table-list"></i></a>
-        <a href="javascript:showPage('map')" title="地図"><i class="fa-solid fa-map-location-dot"></i></a>
-    </div>
+    <div style="font-weight:bold; color:var(--accent);" onclick="showPage('home')">山科歴史アーカイブ</div>
+    <nav>
+        <a href="javascript:showPage('archive')" style="margin-left:15px; color:var(--dark);"><i class="fa-solid fa-list"></i></a>
+        <a href="javascript:showPage('map')" style="margin-left:15px; color:var(--dark);"><i class="fa-solid fa-map"></i></a>
+    </nav>
 </header>
 
 <div id="home-page" class="page active">
-    <div style="height: 60vh; background: url('https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=2070&auto=format&fit=crop') center/cover; display: flex; align-items: center; justify-content: center;">
-        <h2 style="color: white; font-size: 2.5rem; text-shadow: 0 5px 15px rgba(0,0,0,0.5); letter-spacing: 10px;">温故知新</h2>
-    </div>
-    <div style="padding: 50px 20px; text-align: center; max-width: 700px; margin: auto;">
-        <h3>ふるさとの歴史を歩く</h3>
-        <p style="line-height: 2; color: #555;">このアーカイブは、山科区の郷土史を後世へ語り継ぐため、古写真と古地図を統合した研究用資料です。</p>
-        <div style="margin-top: 30px;">
-            <button class="pass-btn" onclick="showPage('map')">地図を見る</button>
-        </div>
+    <div style="padding:100px 20px; text-align:center;">
+        <h1>温故知新</h1>
+        <p>郷土の歩みをデジタルで辿る</p>
+        <button onclick="showPage('map')" style="padding:15px 40px; background:var(--accent); color:white; border:none; border-radius:30px; cursor:pointer; margin-top:20px;">地図を開始</button>
     </div>
 </div>
 
 <div id="archive-page" class="page">
-    <div class="grid" id="archive-list"></div>
+    <div id="archive-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:20px; padding:20px;"></div>
 </div>
 
-<div id="map-page" class="page" style="padding-top: 0;">
+<div id="map-page" class="page" style="padding-top:0;">
     <div id="map"></div>
     <div class="map-ui">
-        <span id="year-display">明治18年 (1885)</span>
+        <b id="year-display" style="color:var(--accent);">明治18年 (1885)</b><br>
         <input type="range" id="time-slider" min="0" max="2" step="1" value="0">
-        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #777; margin-top: 5px;">
+        <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#888;">
             <span>明治</span><span>大正</span><span>現代</span>
         </div>
     </div>
 </div>
 
 <script>
-    const SECRET_PASSWORD = "yamashina_rekishi"; 
+    const SECRET_PASSWORD = "yamashina_rekishi";
     const SHEET_ID = '1JNOhsD4k1GzEVnUqS2ftN8ytw2GbraXjEFysoxwVl_A';
     let archiveData = [];
     let map;
 
-    // PMTiles初期化
+    // PMTilesプロトコルの追加
     let protocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
 
     function promptPassword() {
-        const pass = prompt("合言葉を入力してください");
-        if (pass === SECRET_PASSWORD) {
-            localStorage.setItem("yamashina_auth_v3", "true");
+        if (prompt("合言葉を入力してください") === SECRET_PASSWORD) {
+            localStorage.setItem("yamashina_auth_v5", "true");
             location.reload();
-        } else { alert("合言葉が違います。"); }
+        }
     }
 
     window.onload = function() {
-        if (localStorage.getItem("yamashina_auth_v3") === "true") {
+        if (localStorage.getItem("yamashina_auth_v5") === "true") {
             document.getElementById('lock-screen').style.display = 'none';
             document.getElementById('main-header').style.display = 'flex';
             initApp();
@@ -168,8 +91,6 @@
     async function initApp() {
         await loadData();
         initMap();
-        // 万が一地図が重くても、3秒後にホーム画面を表示
-        setTimeout(() => showPage('home'), 500);
     }
 
     async function loadData() {
@@ -179,48 +100,44 @@
             const rows = csv.split('\n').slice(1);
             archiveData = rows.map((row, index) => {
                 const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/"/g, '').trim());
-                return {
-                    id: index,
-                    drive_id: cols[1],
-                    title: cols[4] || "無題",
-                    coords: cols[6],
-                    year: cols[7] || "不明",
-                    desc: cols[9] || ""
-                };
+                return { id: index, drive_id: cols[1], title: cols[4] || "無題", coords: cols[6], year: cols[7] };
             }).filter(d => d.drive_id);
             renderArchive();
-        } catch (e) { console.error("Data error", e); }
-    }
-
-    function showPage(pageId) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.getElementById(pageId + '-page').classList.add('active');
-        if(pageId === 'map' && map) {
-            setTimeout(() => map.resize(), 100);
-        }
+        } catch (e) { console.error(e); }
     }
 
     function renderArchive() {
-        const list = document.getElementById('archive-list');
-        list.innerHTML = archiveData.map(item => `
-            <div class="card" onclick="alert('${item.desc}')">
-                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w600">
-                <div class="card-info">
-                    <h3>${item.title}</h3>
-                    <span>${item.year}</span>
-                </div>
+        document.getElementById('archive-list').innerHTML = archiveData.map(item => `
+            <div style="background:white; border-radius:10px; overflow:hidden; box-shadow:0 5px 15px rgba(0,0,0,0.05);">
+                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w400" style="width:100%; height:150px; object-fit:cover;">
+                <div style="padding:10px;"><b>${item.title}</b><br><small>${item.year}</small></div>
             </div>
         `).join('');
     }
 
+    function showPage(p) {
+        document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+        document.getElementById(p + '-page').classList.add('active');
+        if(p === 'map' && map) setTimeout(() => map.resize(), 200);
+    }
+
     function initMap() {
+        // 現在のURLからパスを特定（自動翻訳対策）
+        const path = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+        const origin = window.location.origin;
+        const fullPath = origin + path;
+
         map = new maplibregl.Map({
             container: 'map',
             style: {
                 version: 8,
                 sources: {
                     "osm": { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256 },
-                    "historic": { type: "raster", url: "pmtiles://1885.pmtiles", tileSize: 256 }
+                    "historic": { 
+                        type: "raster", 
+                        url: "pmtiles://" + fullPath + "1885.pmtiles", 
+                        tileSize: 256 
+                    }
                 },
                 layers: [
                     { id: "osm-layer", type: "raster", source: "osm" },
@@ -232,20 +149,30 @@
         });
 
         map.on('load', () => {
-            renderMarkersOnMap();
-            map.resize();
+            archiveData.forEach(item => {
+                if (item.coords && item.coords.includes(',')) {
+                    const [lat, lng] = item.coords.split(',').map(n => parseFloat(n.trim()));
+                    const el = document.createElement('div');
+                    el.className = 'camera-pin';
+                    el.innerHTML = '<i class="fa-solid fa-camera"></i>';
+                    new maplibregl.Marker(el).setLngLat([lng, lat]).setPopup(new maplibregl.Popup({offset:25}).setHTML(`<b>${item.title}</b>`)).addTo(map);
+                }
+            });
         });
 
         document.getElementById('time-slider').oninput = (e) => {
             const val = e.target.value;
             const display = document.getElementById('year-display');
+            const source = map.getSource('historic');
+            if(!source) return;
+
             if (val == 0) {
                 display.innerText = "明治18年 (1885)";
-                map.getSource('historic').setUrl("1885.pmtiles");
+                source.setUrl("pmtiles://" + fullPath + "1885.pmtiles");
                 map.setPaintProperty('historic-layer', 'raster-opacity', 1);
             } else if (val == 1) {
                 display.innerText = "大正11年 (1922)";
-                map.getSource('historic').setUrl("1922.pmtiles");
+                source.setUrl("pmtiles://" + fullPath + "1922.pmtiles");
                 map.setPaintProperty('historic-layer', 'raster-opacity', 1);
             } else {
                 display.innerText = "現代 (OSM)";
@@ -253,34 +180,6 @@
             }
         };
     }
-
-    function renderMarkersOnMap() {
-        archiveData.forEach(item => {
-            if (item.coords && item.coords.includes(',')) {
-                const parts = item.coords.split(',');
-                const lat = parseFloat(parts[0].trim());
-                const lng = parseFloat(parts[1].trim());
-
-                if (!isNaN(lat) && !isNaN(lng)) {
-                    const el = document.createElement('div');
-                    el.className = 'camera-pin';
-                    el.innerHTML = '<i class="fa-solid fa-camera"></i>';
-                    
-                    new maplibregl.Marker(el)
-                        .setLngLat([lng, lat])
-                        .setPopup(new maplibregl.Popup({offset: 25}).setHTML(`
-                            <div style="font-family:'Shippori Mincho',serif; width:150px;">
-                                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w300" style="width:100%; border-radius:8px;">
-                                <strong>${item.title}</strong><br>
-                                <span style="font-size:0.8rem; color:#666;">${item.year}</span>
-                            </div>
-                        `))
-                        .addTo(map);
-                }
-            }
-        });
-    }
 </script>
 </body>
 </html>
-
