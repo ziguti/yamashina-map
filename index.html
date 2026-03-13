@@ -122,10 +122,8 @@
     }
 
     function initMap() {
-        // 現在のURLからパスを特定（自動翻訳対策）
-        const path = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-        const origin = window.location.origin;
-        const fullPath = origin + path;
+        // あなたのサイトのベースとなるURLを直接指定（最も確実な方法）
+        const fullPath = "https://ziguti.github.io/yamashina-map/";
 
         map = new maplibregl.Map({
             container: 'map',
@@ -149,15 +147,8 @@
         });
 
         map.on('load', () => {
-            archiveData.forEach(item => {
-                if (item.coords && item.coords.includes(',')) {
-                    const [lat, lng] = item.coords.split(',').map(n => parseFloat(n.trim()));
-                    const el = document.createElement('div');
-                    el.className = 'camera-pin';
-                    el.innerHTML = '<i class="fa-solid fa-camera"></i>';
-                    new maplibregl.Marker(el).setLngLat([lng, lat]).setPopup(new maplibregl.Popup({offset:25}).setHTML(`<b>${item.title}</b>`)).addTo(map);
-                }
-            });
+            renderMarkersOnMap();
+            map.resize();
         });
 
         document.getElementById('time-slider').oninput = (e) => {
@@ -183,3 +174,4 @@
 </script>
 </body>
 </html>
+
