@@ -26,7 +26,7 @@
 <div id="lock-screen">
     <div style="text-align:center; background:white; padding:40px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,0.1);">
         <h2 style="letter-spacing:4px;">山科の記憶</h2>
-        <button onclick="handleAuth()" style="margin-top:20px; padding:10px 30px; border-radius:20px; border:none; background:#222; color:white; cursor:pointer;">アーカイブを開く</button>
+        <button onclick="handleAuth()" style="margin-top:20px; padding:10px 30px; border-radius:20px; border:none; background:#222; color:white; cursor:pointer;">アーカイブを閲覧</button>
     </div>
 </div>
 
@@ -41,7 +41,7 @@
 <div id="home-page" class="page active">
     <div style="padding:100px 20px; text-align:center;">
         <h1>温故知新</h1>
-        <p>Googleドライブ連携による地図配信モード</p>
+        <p>GitHub Release 連携による地図配信</p>
         <button onclick="showPage('map')" style="padding:15px 40px; background:var(--accent); color:white; border:none; border-radius:30px; cursor:pointer; margin-top:20px;">地図を開始</button>
     </div>
 </div>
@@ -65,9 +65,9 @@
     const SECRET = "yamashina_rekishi";
     const SHEET_ID = '1JNOhsD4k1GzEVnUqS2ftN8ytw2GbraXjEFysoxwVl_A';
     
-    // Googleドライブ直リンク形式に変換
-    const URL_1885 = "https://drive.google.com/uc?export=download&id=1e9-e5GOpg1jFh_Xl27Oq1-h-GjOHm8o1";
-    const URL_1922 = "https://drive.google.com/uc?export=download&id=1wb7eexQH5PssPnSpcimYi4u3p8l5Tl0k";
+    // 【保存された Release リンク】
+    const URL_1885 = "https://github.com/ziguti/yamashina-map/releases/download/data/1885.pmtiles";
+    const URL_1922 = "https://github.com/ziguti/yamashina-map/releases/download/data/1922.pmtiles";
 
     let archiveData = [];
     let map;
@@ -76,13 +76,13 @@
 
     function handleAuth() {
         if (prompt("合言葉を入力してください") === SECRET) {
-            localStorage.setItem("yamashina_drive_v1", "true");
+            localStorage.setItem("yamashina_final_v1", "true");
             location.reload();
         }
     }
 
     window.onload = function() {
-        if (localStorage.getItem("yamashina_drive_v1") === "true") {
+        if (localStorage.getItem("yamashina_final_v1") === "true") {
             document.getElementById('lock-screen').style.display = 'none';
             document.getElementById('main-header').style.display = 'flex';
             initApp();
