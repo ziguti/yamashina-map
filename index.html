@@ -12,13 +12,21 @@
     <style>
         :root { --accent: #8b0000; --bg: #f8f5f0; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Shippori Mincho', serif; background: var(--bg); overflow: hidden; }
+        
+        /* ロック画面 */
         #lock-screen { position: fixed; inset: 0; background: var(--bg); z-index: 10000; display: flex; align-items: center; justify-content: center; }
+        
+        /* ヘッダー */
         header { position: fixed; top: 0; width: 100%; height: 60px; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 5000; border-bottom: 1px solid rgba(0,0,0,0.05); box-sizing: border-box; }
+        
         .page { display: none; width: 100%; height: 100vh; padding-top: 60px; box-sizing: border-box; }
         .active { display: block; }
+        
         #map { width: 100%; height: 100%; background: #ddd; }
+        
+        /* 地図UIコンテナ */
         .map-ui { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 420px; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; z-index: 6000; }
-        input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+        input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; margin: 15px 0; }
     </style>
 </head>
 <body>
@@ -26,6 +34,7 @@
 <div id="lock-screen">
     <div style="text-align:center; background:white; padding:40px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,0.1);">
         <h2 style="letter-spacing:4px;">山科の記憶</h2>
+        <p style="color:#666; font-size:0.9rem;">郷土史研究デジタルアーカイブ</p>
         <button onclick="handleAuth()" style="margin-top:20px; padding:10px 30px; border-radius:20px; border:none; background:#222; color:white; cursor:pointer;">アーカイブを閲覧</button>
     </div>
 </div>
@@ -40,24 +49,28 @@
 
 <div id="home-page" class="page active">
     <div style="padding:100px 20px; text-align:center;">
-        <h1>温故知新</h1>
-        <p>GitHub Release 連携による地図配信</p>
-        <button onclick="showPage('map')" style="padding:15px 40px; background:var(--accent); color:white; border:none; border-radius:30px; cursor:pointer; margin-top:20px;">地図を開始</button>
+        <h1 style="font-size:2.5rem; margin-bottom:10px;">温故知新</h1>
+        <p>13歳の郷土史研究家によるデジタル復元プロジェクト</p>
+        <hr style="width:50px; border:1px solid var(--accent); margin:30px auto;">
+        <p style="font-size:0.9rem; color:#555;">明治・大正の古地図と現代を重ね合わせ、<br>山科の変遷を論理的に考察します。</p>
+        <button onclick="showPage('map')" style="padding:15px 40px; background:var(--accent); color:white; border:none; border-radius:30px; cursor:pointer; margin-top:40px; box-shadow:0 4px 15px rgba(139,0,0,0.3);">地図の比較を開始</button>
     </div>
 </div>
 
 <div id="archive-page" class="page">
-    <div id="archive-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:20px; padding:20px;"></div>
+    <div style="padding:20px;"><h2 style="border-left:4px solid var(--accent); padding-left:10px;">収集資料一覧</h2></div>
+    <div id="archive-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:20px; padding:0 20px 40px 20px;"></div>
 </div>
 
 <div id="map-page" class="page" style="padding-top:0;">
     <div id="map"></div>
     <div class="map-ui">
-        <b id="year-display" style="color:var(--accent);">明治18年 (1885)</b><br>
+        <b id="year-display" style="color:var(--accent); font-size:1.1rem;">明治18年 (1885)</b><br>
         <input type="range" id="time-slider" min="0" max="2" step="1" value="0">
-        <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#888;">
-            <span>明治</span><span>大正</span><span>現代</span>
+        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#888; font-weight:bold;">
+            <span>明治18年</span><span>大正11年</span><span>現代(OSM)</span>
         </div>
+        <p style="font-size:0.7rem; color:#aaa; margin-top:10px;">※スライダーを動かして時代を切り替え</p>
     </div>
 </div>
 
@@ -65,24 +78,26 @@
     const SECRET = "yamashina_rekishi";
     const SHEET_ID = '1JNOhsD4k1GzEVnUqS2ftN8ytw2GbraXjEFysoxwVl_A';
     
-    // 【保存された Release リンク】
-    const URL_1885 = "https://github.com/ziguti/yamashina-map/releases/download/data/1885.pmtiles";
-    const URL_1922 = "https://github.com/ziguti/yamashina-map/releases/download/data/1922.pmtiles";
+    // 【重要：CORS制限を突破するための Statically 経由の URL】
+    const URL_1885 = "https://cdn.statically.io/gh/ziguti/yamashina-map/data/1885.pmtiles";
+    const URL_1922 = "https://cdn.statically.io/gh/ziguti/yamashina-map/data/1922.pmtiles";
 
     let archiveData = [];
     let map;
+    
+    // PMTilesプロトコルの設定
     let protocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
 
     function handleAuth() {
         if (prompt("合言葉を入力してください") === SECRET) {
-            localStorage.setItem("yamashina_final_v1", "true");
+            localStorage.setItem("yamashina_auth_ok", "true");
             location.reload();
         }
     }
 
     window.onload = function() {
-        if (localStorage.getItem("yamashina_final_v1") === "true") {
+        if (localStorage.getItem("yamashina_auth_ok") === "true") {
             document.getElementById('lock-screen').style.display = 'none';
             document.getElementById('main-header').style.display = 'flex';
             initApp();
@@ -104,14 +119,14 @@
                 return { id: idx, drive_id: cols[1], title: cols[4], coords: cols[6], year: cols[7] };
             }).filter(d => d.drive_id);
             renderArchive();
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("スプレッドシート読み込み失敗:", e); }
     }
 
     function renderArchive() {
         document.getElementById('archive-list').innerHTML = archiveData.map(item => `
             <div style="background:white; border-radius:12px; overflow:hidden; box-shadow:0 5px 15px rgba(0,0,0,0.05);">
                 <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w400" style="width:100%; height:180px; object-fit:cover;">
-                <div style="padding:15px;"><b>${item.title}</b><br><small>${item.year}</small></div>
+                <div style="padding:15px;"><b>${item.title}</b><br><small style="color:#888;">${item.year}</small></div>
             </div>
         `).join('');
     }
@@ -119,7 +134,9 @@
     function showPage(p) {
         document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
         document.getElementById(p + '-page').classList.add('active');
-        if(p === 'map' && map) setTimeout(() => map.resize(), 200);
+        if(p === 'map' && map) {
+            setTimeout(() => map.resize(), 300);
+        }
     }
 
     function initMap() {
@@ -128,7 +145,7 @@
             style: {
                 version: 8,
                 sources: {
-                    "osm": { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256 },
+                    "osm": { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, attribution: "&copy; OSM" },
                     "m1885": { type: "raster", url: "pmtiles://" + URL_1885, tileSize: 256 },
                     "t1922": { type: "raster", url: "pmtiles://" + URL_1922, tileSize: 256 }
                 },
@@ -142,6 +159,7 @@
             zoom: 14
         });
 
+        // スプレッドシートの写真を地図上にプロット
         map.on('load', () => {
             archiveData.forEach(item => {
                 if (item.coords && item.coords.includes(',')) {
@@ -149,18 +167,33 @@
                     const el = document.createElement('div');
                     el.style.color = 'var(--accent)';
                     el.innerHTML = '<i class="fa-solid fa-camera" style="font-size:24px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); cursor:pointer;"></i>';
-                    new maplibregl.Marker(el).setLngLat([lng, lat]).setPopup(new maplibregl.Popup({offset:25}).setHTML(`<b>${item.title}</b>`)).addTo(map);
+                    
+                    new maplibregl.Marker(el)
+                        .setLngLat([lng, lat])
+                        .setPopup(new maplibregl.Popup({offset:25}).setHTML(`
+                            <div style="text-align:center;">
+                                <img src="https://drive.google.com/thumbnail?id=${item.drive_id}&sz=w200" style="width:100%; border-radius:5px;">
+                                <br><b>${item.title}</b>
+                            </div>
+                        `))
+                        .addTo(map);
                 }
             });
         });
 
+        // 時代切り替えスライダーの制御
         document.getElementById('time-slider').oninput = (e) => {
             if (!map.isStyleLoaded()) return;
             const val = e.target.value;
             const display = document.getElementById('year-display');
+            
+            // 全レイヤーを一旦非表示に近い状態にする
             map.setPaintProperty('m1885-layer', 'raster-opacity', val == 0 ? 1 : 0);
             map.setPaintProperty('t1922-layer', 'raster-opacity', val == 1 ? 1 : 0);
-            display.innerText = val == 0 ? "明治18年 (1885)" : val == 1 ? "大正11年 (1922)" : "現代 (OpenStreetMap)";
+            
+            if (val == 0) display.innerText = "明治18年 (1885)";
+            else if (val == 1) display.innerText = "大正11年 (1922)";
+            else display.innerText = "現代 (OpenStreetMap)";
         };
     }
 </script>
