@@ -12,19 +12,11 @@
     <style>
         :root { --accent: #8b0000; --bg: #f8f5f0; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Shippori Mincho', serif; background: var(--bg); overflow: hidden; }
-        
-        /* ロック画面 */
         #lock-screen { position: fixed; inset: 0; background: var(--bg); z-index: 10000; display: flex; align-items: center; justify-content: center; }
-        
-        /* ヘッダー */
         header { position: fixed; top: 0; width: 100%; height: 60px; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 5000; border-bottom: 1px solid rgba(0,0,0,0.05); box-sizing: border-box; }
-        
         .page { display: none; width: 100%; height: 100vh; padding-top: 60px; box-sizing: border-box; }
         .active { display: block; }
-        
         #map { width: 100%; height: 100%; background: #ddd; }
-        
-        /* 地図UIコンテナ */
         .map-ui { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 420px; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; z-index: 6000; }
         input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; margin: 15px 0; }
     </style>
@@ -52,7 +44,6 @@
         <h1 style="font-size:2.5rem; margin-bottom:10px;">温故知新</h1>
         <p>13歳の郷土史研究家によるデジタル復元プロジェクト</p>
         <hr style="width:50px; border:1px solid var(--accent); margin:30px auto;">
-        <p style="font-size:0.9rem; color:#555;">明治・大正の古地図と現代を重ね合わせ、<br>山科の変遷を論理的に考察します。</p>
         <button onclick="showPage('map')" style="padding:15px 40px; background:var(--accent); color:white; border:none; border-radius:30px; cursor:pointer; margin-top:40px; box-shadow:0 4px 15px rgba(139,0,0,0.3);">地図の比較を開始</button>
     </div>
 </div>
@@ -70,7 +61,6 @@
         <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#888; font-weight:bold;">
             <span>明治18年</span><span>大正11年</span><span>現代(OSM)</span>
         </div>
-        <p style="font-size:0.7rem; color:#aaa; margin-top:10px;">※スライダーを動かして時代を切り替え</p>
     </div>
 </div>
 
@@ -78,14 +68,13 @@
     const SECRET = "yamashina_rekishi";
     const SHEET_ID = '1JNOhsD4k1GzEVnUqS2ftN8ytw2GbraXjEFysoxwVl_A';
     
-    // 【重要：CORS制限を突破するための Statically 経由の URL】
+    // 【最重要：https かつ Statically 経由で CORS を回避】
     const URL_1885 = "https://cdn.statically.io/gh/ziguti/yamashina-map/data/1885.pmtiles";
     const URL_1922 = "https://cdn.statically.io/gh/ziguti/yamashina-map/data/1922.pmtiles";
 
     let archiveData = [];
     let map;
     
-    // PMTilesプロトコルの設定
     let protocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
 
@@ -159,7 +148,6 @@
             zoom: 14
         });
 
-        // スプレッドシートの写真を地図上にプロット
         map.on('load', () => {
             archiveData.forEach(item => {
                 if (item.coords && item.coords.includes(',')) {
@@ -181,13 +169,10 @@
             });
         });
 
-        // 時代切り替えスライダーの制御
         document.getElementById('time-slider').oninput = (e) => {
             if (!map.isStyleLoaded()) return;
             const val = e.target.value;
             const display = document.getElementById('year-display');
-            
-            // 全レイヤーを一旦非表示に近い状態にする
             map.setPaintProperty('m1885-layer', 'raster-opacity', val == 0 ? 1 : 0);
             map.setPaintProperty('t1922-layer', 'raster-opacity', val == 1 ? 1 : 0);
             
