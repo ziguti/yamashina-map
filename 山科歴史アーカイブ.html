@@ -1,0 +1,2547 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>山科歴史アーカイブ | Yamashina Historical Archive</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Sawarabi+Mincho&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+<style>
+/* ============================================================
+   山科歴史アーカイブ — デザイントークン
+   (仕様書のCSS指定には拠らず、京都・山科の歴史風土にふさわしい
+    落ち着いた和モダンのビジュアル言語として独自に設計)
+   ============================================================ */
+:root{
+  --ink-900:#241a16;
+  --ink-800:#3a2a22;
+  --wood-700:#5c4030;
+  --wood-500:#8a6248;
+  --gold-600:#b6873f;
+  --gold-400:#d3ab6a;
+  --gold-200:#e8d3ab;
+  --paper-50:#faf6ee;
+  --paper-100:#f3ead9;
+  --paper-200:#ece0c9;
+  --blue-500:#2f6f8f;
+  --green-600:#2f6b46;
+  --red-600:#a13a2c;
+  --white:#ffffff;
+  --shadow-soft:0 6px 24px rgba(36,26,22,.14);
+  --shadow-deep:0 14px 40px rgba(36,26,22,.28);
+  --header-h:68px;
+  --sub-h:58px;
+  --ease:all .3s cubic-bezier(.4,0,.2,1);
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+html{font-size:105%;-webkit-text-size-adjust:100%;}
+html,body{
+  height:100%;overflow:hidden;overflow-x:hidden;margin:0;
+  background:var(--paper-50);
+  font-family:'Noto Serif JP','Sawarabi Mincho',serif;
+  color:var(--ink-900);
+}
+img{max-width:100%;}
+button,input,select{font-family:inherit;}
+a{color:inherit;text-decoration:none;}
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-thumb{background:var(--gold-400);border-radius:6px;}
+::-webkit-scrollbar-track{background:var(--paper-100);}
+
+/* ---------- ヘッダー ---------- */
+#main-header{
+  position:fixed;top:0;left:0;right:0;height:var(--header-h);
+  background:linear-gradient(180deg,#fffdf8,var(--paper-50));
+  border-bottom:3px solid var(--gold-600);
+  box-shadow:var(--shadow-soft);
+  z-index:3000;
+}
+.header-container{
+  max-width:1400px;height:100%;margin:0 auto;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 26px;
+}
+.brand-area{display:flex;flex-direction:column;justify-content:center;cursor:pointer;min-width:0;}
+.brand-area .archive-title{
+  font-size:1.4rem;font-weight:700;color:var(--ink-800);
+  letter-spacing:1.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw;
+}
+.brand-area .archive-subtitle{
+  font-size:.68rem;color:var(--gold-600);text-transform:uppercase;letter-spacing:2px;
+}
+.nav-group{display:flex;align-items:center;gap:12px;}
+.nav-btn{
+  background:transparent;border:1px solid var(--gold-200);border-radius:6px;
+  padding:8px 18px;font-size:.92rem;color:var(--ink-800);cursor:pointer;
+  display:inline-flex;align-items:center;gap:8px;transition:var(--ease);
+}
+.nav-btn i{font-size:1.05rem;}
+.nav-btn:hover{background:var(--paper-100);border-color:var(--gold-600);}
+.nav-btn.active{background:var(--wood-700);border-color:var(--wood-700);color:#fff;box-shadow:0 4px 10px rgba(92,64,48,.35);}
+
+.nav-dropdown{position:relative;}
+.dropdown-menu{
+  position:absolute;top:calc(100% + 5px);right:0;min-width:250px;
+  background:#fff;border:1px solid var(--gold-400);border-radius:8px;
+  box-shadow:var(--shadow-deep);opacity:0;visibility:hidden;transform:translateY(-6px);
+  transition:var(--ease);overflow:hidden;
+}
+.nav-dropdown:hover .dropdown-menu{opacity:1;visibility:visible;transform:translateY(0);}
+.dropdown-item{
+  display:flex;align-items:center;gap:10px;padding:12px 20px;font-size:.9rem;font-weight:700;
+  border-bottom:1px solid var(--paper-200);color:var(--ink-800);
+}
+.dropdown-item:last-child{border-bottom:none;}
+.dropdown-item:hover{background:var(--paper-50);color:var(--gold-600);}
+
+/* ---------- サブヘッダー(マップ専用) ---------- */
+#map-ui{
+  position:fixed;top:var(--header-h);left:0;right:0;height:var(--sub-h);
+  display:none;align-items:center;gap:15px;padding:0 20px;
+  background:rgba(255,255,255,.95);backdrop-filter:blur(8px);
+  border-bottom:1px solid #ddd;z-index:2500;
+}
+.control-group{display:flex;gap:10px;flex-shrink:0;}
+.sub-nav-btn{
+  background:#fff;border:1px solid #ddd;color:var(--wood-500);
+  border-radius:20px;padding:6px 14px;font-size:.9rem;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;transition:var(--ease);
+}
+.sub-nav-btn.active{background:var(--gold-600);color:#fff;border-color:var(--gold-600);}
+#slider-box{display:none;align-items:center;gap:10px;flex-grow:1;max-width:600px;}
+.slider-arrow-btn{
+  width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid var(--gold-600);
+  color:var(--wood-700);cursor:pointer;flex-shrink:0;
+}
+.slider-arrow-btn:hover{background:var(--wood-700);color:#fff;}
+#era-slider{
+  flex-grow:1;height:6px;background:#e0e0e0;border-radius:3px;appearance:none;outline:none;cursor:pointer;
+}
+#era-slider::-webkit-slider-thumb{
+  appearance:none;width:20px;height:20px;background:var(--gold-600);border:3px solid #fff;
+  border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:pointer;
+}
+#era-label{min-width:150px;text-align:right;font-size:.9rem;color:var(--ink-800);white-space:nowrap;}
+
+/* ---------- ページ切替 ---------- */
+#content-wrapper{
+  position:absolute;top:var(--header-h);left:0;right:0;bottom:0;overflow:hidden;
+}
+#content-wrapper.on-map{top:calc(var(--header-h) + var(--sub-h));}
+.page{
+  position:absolute;inset:0;visibility:hidden;opacity:0;pointer-events:none;
+  transition:opacity .2s ease;overflow-y:auto;background:var(--paper-50);
+}
+.page.active{visibility:visible;opacity:1;pointer-events:auto;}
+.scroll-container{max-width:1300px;margin:0 auto;padding:30px 24px 60px;}
+.scroll-container.flush{padding:0 0 60px;}
+
+/* ---------- ポータル: カルーセル ---------- */
+.carousel-container{
+  position:relative;height:560px;overflow:hidden;background:#231913;box-shadow:var(--shadow-soft);
+}
+.carousel-track{display:flex;height:100%;transition:transform .6s cubic-bezier(.25,1,.5,1);}
+.carousel-slide{min-width:100%;height:100%;position:relative;}
+.carousel-slide img{width:100%;height:100%;object-fit:cover;filter:saturate(0.92);}
+.carousel-overlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;
+  padding:44px;background:linear-gradient(to top,rgba(10,6,4,.85),transparent 68%);color:#fff;
+}
+.carousel-overlay h3{font-size:2rem;font-weight:700;letter-spacing:1.5px;text-shadow:1px 1px 6px rgba(0,0,0,.6);margin:0 0 8px;}
+.carousel-overlay p{font-size:1.05rem;color:var(--gold-200);line-height:1.6;text-shadow:1px 1px 5px rgba(0,0,0,.6);max-width:640px;margin:0;}
+.carousel-arrow{
+  position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;
+  background:rgba(0,0,0,.35);color:#fff;border:none;font-size:1.3rem;cursor:pointer;z-index:10;transition:var(--ease);
+}
+.carousel-arrow:hover{background:rgba(0,0,0,.7);}
+.carousel-arrow.prev{left:20px;}
+.carousel-arrow.next{right:20px;}
+.carousel-dots{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:12px;z-index:10;}
+.carousel-dot{width:11px;height:11px;border-radius:50%;background:rgba(255,255,255,.4);cursor:pointer;transition:var(--ease);}
+.carousel-dot.active{background:#fff;transform:scale(1.25);}
+
+.portal-description{
+  background:#fff;padding:26px 30px;box-shadow:var(--shadow-soft);
+  border:1px solid rgba(182,135,63,.2);line-height:1.85;font-size:1.02rem;margin-top:34px;
+}
+.portal-description p{margin:0 0 12px;}
+.portal-description p:last-child{margin:0;}
+.portal-section-title{
+  font-size:1.5rem;color:var(--ink-800);border-bottom:2px solid var(--gold-600);
+  display:inline-block;padding-bottom:6px;margin:44px 0 22px;
+}
+.portal-nav-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:26px;}
+.portal-nav-card{
+  background:#fff;overflow:hidden;box-shadow:var(--shadow-soft);height:300px;display:flex;flex-direction:column;
+  border:1px solid rgba(182,135,63,.2);cursor:pointer;transition:var(--ease);
+}
+.portal-nav-card:hover{transform:translateY(-8px);box-shadow:var(--shadow-deep);border-color:var(--gold-600);}
+.portal-card-banner{height:160px;background-size:cover;background-position:center;position:relative;}
+.portal-card-tag{
+  position:absolute;top:10px;right:10px;background:var(--wood-700);color:#fff;font-size:.7rem;
+  font-weight:700;letter-spacing:1px;padding:4px 10px;border-radius:3px;
+}
+.portal-card-info{padding:18px;text-align:center;flex:1;display:flex;flex-direction:column;justify-content:center;}
+.portal-card-info h3{margin:0 0 8px;font-size:1.2rem;color:var(--ink-800);}
+.portal-card-info p{margin:0;font-size:.85rem;color:var(--wood-500);line-height:1.55;}
+
+.animate-on-scroll{opacity:0;transform:translateY(30px);transition:opacity .8s cubic-bezier(.25,1,.5,1),transform .8s cubic-bezier(.25,1,.5,1);}
+.animate-on-scroll.is-visible{opacity:1;transform:translateY(0);}
+
+/* ---------- 検索ヒーロー/パネル 共通 ---------- */
+.db-hero{
+  height:260px;background-size:cover;background-position:center;position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;
+}
+.db-hero::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(58,42,34,.88),rgba(182,135,63,.55));}
+.db-hero h2,.db-hero p{position:relative;z-index:1;text-shadow:1px 1px 5px rgba(0,0,0,.6);}
+.db-hero h2{font-size:1.8rem;margin:0 0 6px;letter-spacing:1px;}
+.db-hero p{margin:0;font-size:.95rem;letter-spacing:1px;color:var(--gold-200);}
+.search-panel{
+  background:#fff;border-radius:14px;box-shadow:var(--shadow-soft);padding:26px;
+  max-width:1200px;margin:-36px auto 26px;position:relative;z-index:5;
+}
+.search-panel .field-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-top:12px;}
+.search-panel label{display:block;font-size:.72rem;color:var(--wood-500);margin-bottom:3px;}
+.search-panel input,.search-panel select{
+  width:100%;padding:8px 10px;border:1px solid var(--paper-200);border-radius:6px;font-size:.88rem;background:var(--paper-50);
+}
+.search-panel input:focus,.search-panel select:focus{outline:2px solid var(--gold-400);background:#fff;}
+.search-wide{width:100%;padding:12px 14px;border:1px solid var(--paper-200);border-radius:8px;font-size:1rem;margin-bottom:4px;}
+.search-btn{
+  display:block;margin:18px auto 0;padding:11px 34px;border:none;border-radius:22px;
+  background:var(--wood-700);color:#fff;font-weight:700;cursor:pointer;font-size:.95rem;transition:var(--ease);
+}
+.search-btn:hover{background:var(--ink-800);}
+.notice-box{font-size:.8rem;color:var(--wood-500);background:var(--paper-100);border-left:3px solid var(--gold-600);padding:10px 14px;border-radius:4px;margin-bottom:8px;}
+.omni-tabs{display:flex;gap:8px;margin-bottom:14px;}
+.omni-tab{padding:8px 20px;border-radius:20px;background:var(--paper-100);cursor:pointer;font-size:.9rem;font-weight:700;color:var(--wood-500);}
+.omni-tab.active{background:var(--gold-600);color:#fff;}
+.checkbox-row{display:flex;flex-wrap:wrap;gap:10px 16px;font-size:.82rem;margin-top:10px;color:var(--ink-800);}
+.checkbox-row label{display:flex;align-items:center;gap:5px;}
+
+/* ---------- グリッド/カード ---------- */
+.photo-grid,.gallery-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;
+  max-width:1200px;margin:0 auto;padding:0 24px;
+}
+.photo-card{
+  background:#2e2422;color:#fff;border-radius:0;overflow:hidden;cursor:pointer;position:relative;
+  box-shadow:var(--shadow-soft);transition:var(--ease);height:230px;
+}
+.photo-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-deep);}
+.photo-card img{width:100%;height:100%;object-fit:cover;display:block;}
+.photo-card p{
+  position:absolute;left:0;right:0;bottom:0;margin:0;padding:10px 12px 8px;
+  background:linear-gradient(to top,rgba(0,0,0,.85),transparent);font-size:.85rem;
+}
+.gallery-card{
+  background:#fff;border-radius:8px;overflow:hidden;box-shadow:var(--shadow-soft);cursor:pointer;transition:var(--ease);
+  border:1px solid var(--paper-200);
+}
+.gallery-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-deep);}
+.gallery-card img,.gallery-card .ph-thumb{width:100%;height:170px;object-fit:cover;display:block;}
+.gallery-card h3{font-size:.98rem;margin:10px;text-align:center;color:var(--ink-800);}
+.omni-result-card{
+  background:#fff;border-radius:8px;overflow:hidden;box-shadow:var(--shadow-soft);cursor:pointer;position:relative;border:1px solid var(--paper-200);
+}
+.omni-result-card img,.omni-result-card .ph-thumb{width:100%;height:150px;object-fit:cover;background:var(--paper-100);}
+.omni-result-card .orc-title{padding:8px 10px;font-size:.85rem;color:var(--ink-800);}
+.omni-badge{position:absolute;top:8px;left:8px;color:#fff;font-size:.65rem;font-weight:700;padding:3px 8px;border-radius:10px;}
+.pagination-container{display:flex;justify-content:center;gap:8px;margin:26px 0;flex-wrap:wrap;}
+.pagination-btn{
+  width:36px;height:36px;border-radius:50%;border:1px solid var(--paper-200);background:#fff;color:var(--wood-500);cursor:pointer;
+}
+.pagination-btn.active{background:var(--wood-700);color:#fff;border-color:var(--wood-700);}
+
+/* ---------- マップ ---------- */
+#page-map{padding:0;overflow:hidden;}
+#map{width:100%;height:100%;background:#eee;}
+.map-overlay-controls{
+  position:absolute;right:20px;bottom:30px;z-index:1000;width:220px;padding:18px;border-radius:12px;
+  background:rgba(255,255,255,.95);backdrop-filter:blur(8px);box-shadow:var(--shadow-soft);border:1px solid var(--gold-200);
+}
+.control-label{font-size:.82rem;font-weight:700;color:var(--ink-800);margin-bottom:10px;}
+#opacity-slider{width:100%;accent-color:var(--gold-600);}
+.location-btn{
+  position:absolute;left:15px;bottom:90px;z-index:1000;width:44px;height:44px;border-radius:50%;background:#fff;
+  border:2px solid rgba(0,0,0,.2);box-shadow:var(--shadow-soft);color:var(--wood-700);font-size:1.15rem;cursor:pointer;
+}
+.location-btn:hover{background:#f4f4f4;color:var(--gold-600);}
+
+.marker-wrapper{width:44px;height:44px;position:relative;display:flex;align-items:center;justify-content:center;}
+.marker-photo-pin{
+  width:32px;height:32px;background:#fff;border-radius:0% 50% 50% 50%;transform:rotate(45deg);
+  border:3.5px solid #0288d1;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);
+}
+.marker-wrapper.no-direction .marker-photo-pin{border-radius:50%;transform:none;}
+.marker-photo-pin i{transform:rotate(-45deg);font-size:.9rem;}
+.marker-3d-pin{
+  width:34px;height:34px;border-radius:6px 6px 50% 50%;background:#990000;border:3px solid #fff;
+  display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35);
+}
+.marker-3d-pin.origin{background:#ff9999;}
+.marker-cluster-photo-custom div{
+  background:var(--wood-700);color:#fff;border-radius:50%;width:40px;height:40px;line-height:40px;
+  text-align:center;font-weight:700;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+.marker-cluster-model div{
+  background:#990000;color:#fff;border-radius:50%;width:40px;height:40px;line-height:40px;
+  text-align:center;font-weight:700;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+.map-popup-custom{font-family:'Noto Serif JP',serif;font-size:.85rem;text-align:center;min-width:170px;}
+.map-popup-custom img{width:100%;height:100px;object-fit:cover;border-radius:4px;margin:6px 0;}
+.map-popup-custom b{color:var(--ink-800);}
+.popup-badge3d{display:inline-block;margin-top:4px;background:var(--gold-600);color:#fff;font-size:.65rem;padding:2px 8px;border-radius:10px;}
+.chiban-assets-container{max-height:250px;overflow-y:auto;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:4px;}
+.asset-mini-card{min-height:44px;background:var(--paper-50);border:1px solid var(--paper-200);border-radius:6px;padding:6px;font-size:.72rem;cursor:pointer;text-align:center;}
+.asset-mini-card img{width:100%;height:44px;object-fit:cover;border-radius:3px;}
+.asset-type-badge{display:inline-block;font-size:.6rem;color:#fff;padding:1px 6px;border-radius:8px;margin-top:2px;}
+
+/* ---------- スポット設定パネル ---------- */
+#spot-settings-wrapper{
+  position:fixed;top:calc(var(--header-h) + var(--sub-h));right:0;bottom:0;width:420px;max-width:90%;
+  z-index:4000;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);pointer-events:none;
+}
+#spot-settings-wrapper.open{transform:translateX(0);pointer-events:auto;}
+#spot-settings-tab{
+  position:absolute;left:-42px;top:50%;transform:translateY(-50%);width:42px;height:75px;
+  background:#fff;border:2px solid var(--gold-600);border-right:none;border-radius:8px 0 0 8px;
+  display:flex;align-items:center;justify-content:center;color:var(--wood-700);font-size:1.2rem;cursor:pointer;
+}
+#spot-settings-tab:hover{background:var(--paper-100);}
+.spot-settings-box-content{
+  width:100%;height:100%;background:rgba(255,255,255,.98);border-left:3px solid var(--gold-600);
+  box-shadow:-10px 0 35px rgba(0,0,0,.2);padding:26px 22px;overflow-y:auto;
+}
+.spot-settings-box-content h3{color:var(--ink-800);border-bottom:2px solid var(--gold-400);padding-bottom:8px;margin:0 0 16px;font-size:1.05rem;}
+.spot-section{margin-bottom:18px;}
+.spot-section h4{font-size:.9rem;margin:0 0 8px;display:flex;align-items:center;gap:6px;}
+.spot-section hr{border:none;border-top:1px solid var(--paper-200);margin:18px 0;}
+.spot-check{display:flex;align-items:center;gap:8px;font-size:.9rem;padding:6px 0;}
+.btn-block{
+  width:100%;text-align:center;justify-content:center;padding:9px;border-radius:8px;
+  background:#fff;border:1px solid var(--gold-400);color:var(--wood-700);cursor:pointer;font-size:.9rem;
+}
+.btn-block.active{background:var(--blue-500);color:#fff;border-color:var(--blue-500);}
+.spatial-status{font-size:.78rem;color:var(--wood-500);line-height:1.5;margin-top:6px;}
+.dist-check-list{display:flex;flex-direction:column;gap:5px;font-size:.82rem;}
+.year-range{display:flex;gap:8px;align-items:center;}
+.year-range input{width:100%;}
+
+/* ---------- 詳細モーダル ---------- */
+#detail-modal,#simple-detail-modal{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;
+  align-items:center;justify-content:center;padding:20px;
+}
+.modal-content{
+  background:#fff;width:95%;max-width:1150px;height:85vh;overflow:hidden;display:flex;box-shadow:var(--shadow-deep);
+}
+.close-btn{
+  position:absolute;top:15px;right:15px;width:45px;height:45px;border-radius:50%;
+  background:rgba(255,255,255,.95);border:2px solid var(--gold-600);color:var(--wood-700);font-size:1.5rem;
+  cursor:pointer;z-index:20100;transition:var(--ease);
+}
+.close-btn:hover{transform:scale(1.1);background:#fff;}
+#modal-body{display:flex;flex:1;min-height:0;overflow:hidden;position:relative;}
+.modal-image-section{flex:1;background:#1a1a1a;display:flex;align-items:center;justify-content:center;position:relative;}
+.modal-image-section img{width:100%;height:100%;object-fit:contain;cursor:zoom-in;}
+model-viewer{width:100%;height:100%;}
+.texture-toggle{
+  position:absolute;top:20px;left:20px;z-index:100;background:rgba(255,255,255,.85);padding:8px 12px;
+  border-radius:4px;border:1px solid var(--gold-600);font-size:.8rem;
+}
+.info-section-wrapper{width:440px;min-width:440px;background:#fff;position:relative;transition:width .3s,min-width .3s;}
+.info-section-wrapper.collapsed{width:0!important;min-width:0!important;}
+.info-section-wrapper.collapsed .modal-info-section{opacity:0;overflow:hidden;pointer-events:none;border-left:none!important;}
+.info-section-wrapper.collapsed .modal-pane-toggle{left:-32px;border-right:2px solid var(--gold-600);border-radius:8px 0 0 8px;}
+.modal-info-section{width:100%;height:100%;padding:30px;overflow-y:auto;border-left:1px solid rgba(182,135,63,.2);box-sizing:border-box;}
+.modal-info-section h2{margin:0 0 16px;font-size:1.3rem;color:var(--ink-800);}
+.modal-pane-toggle{
+  position:absolute;left:-32px;top:50%;transform:translateY(-50%);width:32px;height:75px;background:#fff;
+  border:2px solid var(--gold-600);border-right:none;border-radius:8px 0 0 8px;display:flex;align-items:center;
+  justify-content:center;cursor:pointer;z-index:1000;color:var(--wood-700);
+}
+.meta-info-list{display:flex;flex-direction:column;gap:10px;font-size:.88rem;}
+.meta-item{display:flex;flex-direction:column;gap:2px;border-bottom:1px dashed var(--paper-200);padding-bottom:6px;}
+.meta-label{color:var(--wood-500);font-size:.72rem;}
+.meta-value{color:var(--ink-800);line-height:1.5;}
+.modal-map-container{width:100%;height:220px;border-radius:8px;overflow:hidden;border:1px solid var(--gold-400);margin-top:6px;}
+.map-focus-btn{
+  margin-top:14px;width:100%;padding:10px;border:none;border-radius:8px;background:var(--wood-700);color:#fff;
+  cursor:pointer;font-size:.88rem;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.compare-btn{
+  margin-top:8px;width:100%;padding:10px;border:none;border-radius:8px;background:var(--primary-brown,var(--ink-800));color:#fff;
+  cursor:pointer;font-size:.88rem;align-items:center;justify-content:center;gap:8px;
+}
+.kokumei-wrap{display:flex;border:1px solid #c9c5b9;border-radius:6px;overflow-x:auto;margin:10px 0;}
+.kokumei-cell-wrapper{flex:1;min-width:70px;}
+.kokumei-box-3to1{
+  aspect-ratio:3/1;min-height:130px;border-left:1px solid #c9c5b9;padding:8px 4px;font-size:.78rem;
+  white-space:pre-wrap;text-align:center;writing-mode:vertical-rl;text-orientation:upright;color:var(--ink-800);
+}
+.kokumei-cell-wrapper:first-child .kokumei-box-3to1{border-left:1px solid #c9c5b9;}
+.kokumei-cap{text-align:center;font-size:.72rem;color:var(--wood-500);padding-top:4px;}
+
+/* ---------- 全画面ズーム ---------- */
+#full-screen-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:20000;
+  align-items:center;justify-content:center;cursor:zoom-out;touch-action:none;overflow:hidden;
+}
+#full-screen-img{max-width:95%;max-height:95%;object-fit:contain;transform-origin:center center;cursor:grab;transition:transform .15s ease-out;}
+#full-screen-img.dragging{cursor:grabbing;}
+
+/* ---------- ビフォーアフター比較 ---------- */
+#before-after-overlay{
+  display:none;position:fixed;inset:0;width:100vw;height:100vh;background:#000;overflow:hidden;
+  align-items:center;justify-content:center;user-select:none;z-index:30000;
+}
+.ba-close-btn{position:absolute;top:20px;right:20px;z-index:30100;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;font-size:1.3rem;cursor:pointer;}
+.ba-slider-container{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.ba-image-before,.ba-image-after{max-width:100%;max-height:100%;object-fit:contain;position:absolute;}
+.ba-after-wrapper{position:absolute;top:0;right:0;height:100%;width:50%;overflow:hidden;}
+.ba-after-wrapper img{position:absolute;right:0;top:0;height:100%;object-fit:contain;}
+.ba-handle{position:absolute;left:50%;top:0;width:2px;height:100%;background:var(--gold-600);z-index:30050;}
+.ba-handle-button{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:50%;
+  background:var(--wood-700);border:2px solid var(--gold-600);color:#fff;display:flex;align-items:center;justify-content:center;
+  cursor:ew-resize;font-size:1.1rem;
+}
+
+/* ---------- トースト ---------- */
+#notification-toast{
+  position:fixed;bottom:40px;left:50%;transform:translateX(-50%) translateY(100px);opacity:0;
+  background:rgba(36,26,22,.95);color:#fff;padding:14px 28px;border-radius:50px;font-size:.95rem;
+  z-index:21000;box-shadow:0 10px 30px rgba(0,0,0,.3);transition:all .4s;pointer-events:none;
+}
+#notification-toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+
+.placeholder-msg{text-align:center;padding:80px 20px;color:var(--wood-500);}
+.placeholder-msg i{font-size:2.4rem;color:var(--gold-400);margin-bottom:14px;display:block;}
+.map-no-location{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:#eee;color:#888;font-size:.85rem;gap:8px;}
+.leaflet-control-layers-toggle{background-image:linear-gradient(135deg,#fff 45%,#f5f5dc 45%,#f5f5dc 55%,#fff 55%)!important;}
+.result-map-box{height:400px;border-radius:12px;border:1px solid var(--gold-400);box-shadow:var(--shadow-soft);overflow:hidden;max-width:1200px;margin:0 auto;}
+
+/* ---------- レスポンシブ ---------- */
+@media (max-width:768px){
+  .archive-subtitle{display:none;}
+  .archive-title{font-size:1.05rem;max-width:150px;}
+  .header-container{padding:0 10px;}
+  .nav-btn span{display:none;}
+  .nav-btn{padding:8px 10px;}
+  #map-ui{flex-direction:column;height:auto;padding:10px 15px;gap:10px;align-items:flex-start;}
+  #content-wrapper.on-map{top:calc(var(--header-h) + 108px);}
+  #slider-box{width:100%;max-width:100%;}
+  .carousel-container{height:420px;}
+  .carousel-overlay h3{font-size:1.35rem;}
+  .portal-nav-grid{grid-template-columns:repeat(2,1fr);gap:12px;}
+  .portal-nav-card{height:210px;}
+  .portal-card-banner{height:90px;}
+  #detail-modal{align-items:flex-start;padding:10px;}
+  .modal-content{height:95vh;flex-direction:column;overflow-y:auto;}
+  .modal-image-section{flex:none;height:38vh;}
+  .info-section-wrapper{width:100%!important;min-width:100%!important;height:auto;}
+  .modal-pane-toggle{display:none;}
+}
+</style>
+</head>
+<body>
+<!-- ============ ヘッダー ============ -->
+<header id="main-header">
+  <div class="header-container">
+    <div class="brand-area" id="btn-portal-brand" onclick="showPage('portal')">
+      <span class="archive-title">山科歴史アーカイブ</span>
+      <span class="archive-subtitle">Yamashina Historical Archive</span>
+    </div>
+    <div class="nav-group">
+      <button class="nav-btn active" id="btn-portal" onclick="showPage('portal')"><i class="fa-solid fa-house"></i><span>トップ</span></button>
+      <button class="nav-btn" id="btn-map" onclick="showPage('map')"><i class="fa-solid fa-map-location-dot"></i><span>マップ</span></button>
+      <div class="nav-dropdown">
+        <button class="nav-btn"><i class="fa-solid fa-database"></i><span>データベース</span><i class="fa-solid fa-chevron-down" style="font-size:.75rem;"></i></button>
+        <div class="dropdown-menu">
+          <a class="dropdown-item" onclick="showPage('omni')"><i class="fa-solid fa-magnifying-glass"></i>総合（横断）検索</a>
+          <a class="dropdown-item" onclick="showPage('db')"><i class="fa-solid fa-camera-retro"></i>古写真データベース</a>
+          <a class="dropdown-item" onclick="showPage('map-db')"><i class="fa-solid fa-map"></i>古地図データベース</a>
+          <a class="dropdown-item" onclick="showPage('doc')"><i class="fa-solid fa-scroll"></i>文書・史料データベース</a>
+          <a class="dropdown-item" onclick="showPage('td')"><i class="fa-solid fa-cube"></i>石造物データベース</a>
+          <a class="dropdown-item" onclick="showPage('nature-db')"><i class="fa-solid fa-leaf"></i>自然系データベース</a>
+          <a class="dropdown-item" onclick="showPage('oldroad-db')"><i class="fa-solid fa-route"></i>古道データベース</a>
+          <a class="dropdown-item" onclick="showPage('building-db')"><i class="fa-solid fa-landmark"></i>歴史的建造物データベース</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ サブヘッダー(マップ専用) ============ -->
+<div id="map-ui">
+  <div class="control-group">
+    <button class="sub-nav-btn active" id="m-btn-layers" onclick="switchControl('layers')"><i class="fa-solid fa-layer-group"></i>レイヤ選択</button>
+    <button class="sub-nav-btn" id="m-btn-slider" onclick="switchControl('slider')"><i class="fa-solid fa-clock-rotate-left"></i>時代スライダー</button>
+    <button class="sub-nav-btn" id="m-btn-spot" onclick="toggleSpotSettings()"><i class="fa-solid fa-location-dot"></i>スポット設定</button>
+  </div>
+  <div id="slider-box">
+    <button class="slider-arrow-btn" onclick="stepEra(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+    <input type="range" id="era-slider" min="0" max="0" step="1" value="0" oninput="updateEraUI(this.value)">
+    <button class="slider-arrow-btn" onclick="stepEra(1)"><i class="fa-solid fa-chevron-right"></i></button>
+    <span id="era-label">古地図読込中…</span>
+  </div>
+</div>
+
+<!-- ============ メインコンテンツ ============ -->
+<div id="content-wrapper">
+
+<!-- ---- スポット設定パネル ---- -->
+<div id="spot-settings-wrapper">
+  <div id="spot-settings-tab" onclick="toggleSpotSettings()"><i class="fa-solid fa-chevron-left" id="spot-tab-icon"></i></div>
+  <div class="spot-settings-box-content" id="spot-settings-box">
+    <h3><i class="fa-solid fa-sliders"></i> スポット設定</h3>
+
+    <div class="spot-section">
+      <label class="spot-check"><input type="checkbox" id="chk-photo-pins" checked onchange="toggleMapPins('photo')"> 古写真ピンを表示</label>
+    </div>
+    <hr>
+    <div class="spot-section">
+      <h4 style="color:#2f6f8f;"><i class="fa-solid fa-crosshairs"></i> 被写地点から絞り込み</h4>
+      <button class="btn-block" id="btn-spatial-filter" onclick="toggleSpatialFilterMode()"><i class="fa-solid fa-map-pin"></i> <span>被写地点を指定 (無効)</span></button>
+      <p class="spatial-status" id="spatial-status">地図上をクリックしてターゲットピンを立て、その地点を視野扇形に収めている古写真のみを厳密に抽出します。</p>
+    </div>
+    <hr>
+    <div class="spot-section">
+      <h4 style="color:#2f6f8f;"><i class="fa-solid fa-eye"></i> 見通し距離から絞り込み</h4>
+      <div class="dist-check-list">
+        <label><input type="checkbox" class="chk-dist-filter" value="10,20,50" checked onchange="applyMapFilters()"> 近景 (10〜50m)</label>
+        <label><input type="checkbox" class="chk-dist-filter" value="100,200,300,400,500" checked onchange="applyMapFilters()"> 中景 (100〜500m)</label>
+        <label><input type="checkbox" class="chk-dist-filter" value="600,700,800,900,1000,1500,2000,2500,3000" checked onchange="applyMapFilters()"> 遠景 (600〜3000m)</label>
+        <label><input type="checkbox" class="chk-dist-filter" value="3500,4000" checked onchange="applyMapFilters()"> 超遠景 (3.5〜4km)</label>
+        <label><input type="checkbox" class="chk-dist-filter" value="4500,5000,6000,7000,8000" checked onchange="applyMapFilters()"> 広角・空撮 (4.5〜8km〜)</label>
+      </div>
+    </div>
+    <hr>
+    <div class="spot-section">
+      <h4 style="color:#2f6b46;"><i class="fa-solid fa-cube"></i> 石造物分類で絞り込み</h4>
+      <select id="spot-3d-category-filter" onchange="applyMapFilters()"><option value="">全ての分類</option></select>
+    </div>
+    <hr>
+    <div class="spot-section">
+      <h4 style="color:#2f6f8f;"><i class="fa-solid fa-calendar-days"></i> 年代から絞り込み</h4>
+      <div class="year-range">
+        <input type="number" id="filter-year-start" placeholder="開始年" oninput="applyMapFilters()">〜
+        <input type="number" id="filter-year-end" placeholder="終了年" oninput="applyMapFilters()">
+      </div>
+      <div class="checkbox-row">
+        <label><input type="checkbox" class="chk-era-filter" value="明治" checked onchange="applyMapFilters()"> 明治</label>
+        <label><input type="checkbox" class="chk-era-filter" value="大正" checked onchange="applyMapFilters()"> 大正</label>
+        <label><input type="checkbox" class="chk-era-filter" value="昭和" checked onchange="applyMapFilters()"> 昭和</label>
+        <label><input type="checkbox" class="chk-era-filter" value="平成" checked onchange="applyMapFilters()"> 平成</label>
+      </div>
+    </div>
+    <hr>
+    <div class="spot-section">
+      <label class="spot-check"><input type="checkbox" id="chk-3d-pins" checked onchange="toggleMapPins('3d')"> 石造物データピンを表示</label>
+    </div>
+  </div>
+</div>
+<!-- ---- ポータルページ ---- -->
+<div class="page active" id="page-portal">
+  <div class="scroll-container">
+    <div class="carousel-container animate-on-scroll">
+      <div class="carousel-track" id="carousel-track">
+        <div class="carousel-slide"><img id="slide-img-0" src="https://images.unsplash.com/photo-1524413840807-0c3cb6fa808d?w=1400&q=80" alt=""><div class="carousel-overlay"><h3 id="slide-title-0">山科盆地の空中変遷</h3><p id="slide-desc-0">現代のオルソ画像から戦前の地籍、昭和の測量図まで遡る空間探求</p></div></div>
+        <div class="carousel-slide"><img id="slide-img-1" src="https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=1400&q=80" alt=""><div class="carousel-overlay"><h3 id="slide-title-1">歴史的遺産の3D立体復元</h3><p id="slide-desc-1">失われた大正・戦前モダン建築の姿や道標をデジタル空間上に精密復元</p></div></div>
+        <div class="carousel-slide"><img id="slide-img-2" src="https://images.unsplash.com/photo-1553342385-111fd6bc6ab3?w=1400&q=80" alt=""><div class="carousel-overlay"><h3 id="slide-title-2">山科の古写真アーカイブ</h3><p id="slide-desc-2">地域に遺された貴重な写真を地図上の位置情報と結びつけて保存・公開</p></div></div>
+        <div class="carousel-slide"><img id="slide-img-3" src="https://images.unsplash.com/photo-1509023464722-18d996393ca8?w=1400&q=80" alt=""><div class="carousel-overlay"><h3 id="slide-title-3">古地図データベース</h3><p id="slide-desc-3">江戸期の絵図、近世測量絵図等の詳細インデックスと高精細画像</p></div></div>
+        <div class="carousel-slide"><img id="slide-img-4" src="https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=1400&q=80" alt=""><div class="carousel-overlay"><h3 id="slide-title-4">文書・史料データベース</h3><p id="slide-desc-4">書籍、古文書（手書き）、近現代行政文書などの総合検索</p></div></div>
+      </div>
+      <button class="carousel-arrow prev" onclick="moveCarousel(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+      <button class="carousel-arrow next" onclick="moveCarousel(1)"><i class="fa-solid fa-chevron-right"></i></button>
+      <div class="carousel-dots" id="carousel-dots">
+        <div class="carousel-dot active" onclick="setCarouselSlide(0)"></div><div class="carousel-dot" onclick="setCarouselSlide(1)"></div>
+        <div class="carousel-dot" onclick="setCarouselSlide(2)"></div><div class="carousel-dot" onclick="setCarouselSlide(3)"></div>
+        <div class="carousel-dot" onclick="setCarouselSlide(4)"></div>
+      </div>
+    </div>
+
+    <div class="portal-description animate-on-scroll">
+      <p><strong>山科歴史デジタルアーカイブ</strong>は、京都府京都市山科区に伝わる歴史資料を、地籍図のジオリファレンス、GIS歴史地図オーバーレイ、3Dモデリングによる建築物復元などの技術を用いて、時間と空間を横断して探索できるプラットフォームです。</p>
+      <p>本アーカイブに収録される戦前から高度経済成長期にかけての古写真約700点をはじめとする多くの史料は、<strong>山科を語り継ぐ会</strong>のご厚意によりご提供いただいたものです。地域の記憶を未来へつなぐ活動に、心より感謝申し上げます。</p>
+    </div>
+
+    <h2 class="portal-section-title animate-on-scroll">地図から探索</h2>
+    <div class="portal-nav-grid animate-on-scroll">
+      <div class="portal-nav-card" onclick="showPage('map')">
+        <div class="portal-card-banner" id="map-banner" style="background-image:url('https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80');"><span class="portal-card-tag">GIS MAP</span></div>
+        <div class="portal-card-info"><h3 id="map-card-title">歴史地図ビューアー</h3><p id="map-card-desc">1884年地籍図から昭和期の測量図まで。GCPで歪み補正された歴史空間を分析・探索できます。</p></div>
+      </div>
+    </div>
+
+    <h2 class="portal-section-title animate-on-scroll">データベース一覧</h2>
+    <div class="portal-nav-grid animate-on-scroll">
+      <div class="portal-nav-card" onclick="showPage('omni')">
+        <div class="portal-card-banner" id="db-banner-omni" style="background-image:url('https://placehold.co/800x400/2c1e1a/e8d3ab?text=Omni+Search');"><span class="portal-card-tag">SEARCH</span></div>
+        <div class="portal-card-info"><h3 id="db-title-omni">総合検索</h3><p id="db-desc-omni">全てのデータベースを横断して、キーワードや年代から一括検索します。</p></div>
+      </div>
+      <div class="portal-nav-card" onclick="showPage('db')">
+        <div class="portal-card-banner" id="db-banner-photo" style="background-image:url('https://placehold.co/800x400/4e342e/ffffff?text=Photo+Database');"><span class="portal-card-tag">PHOTO DB</span></div>
+        <div class="portal-card-info"><h3 id="db-title-photo">古写真データベース</h3><p id="db-desc-photo">約700点の古写真を、撮影地・年代・撮影者などから検索できます。</p></div>
+      </div>
+      <div class="portal-nav-card" onclick="showPage('map-db')">
+        <div class="portal-card-banner" id="db-banner-map" style="background-image:url('https://placehold.co/800x400/bda06d/2c1e1a?text=Old+Maps');"><span class="portal-card-tag">ARCHIVE</span></div>
+        <div class="portal-card-info"><h3 id="db-title-map">古地図データベース</h3><p id="db-desc-map">江戸期から近代の絵図・測量図をアーカイブしています。</p></div>
+      </div>
+      <div class="portal-nav-card" onclick="showPage('doc')">
+        <div class="portal-card-banner" id="db-banner-doc" style="background-image:url('https://placehold.co/800x400/7b5e57/ffffff?text=Documents');"><span class="portal-card-tag">NEW</span></div>
+        <div class="portal-card-info"><h3 id="db-title-doc">文書・史料データベース</h3><p id="db-desc-doc">古文書・行政文書などの史料インデックスを整備しています。</p></div>
+      </div>
+      <div class="portal-nav-card" onclick="showPage('td')">
+        <div class="portal-card-banner" id="db-banner-td" style="background-image:url('https://placehold.co/800x400/e67e22/ffffff?text=3D+Models');"><span class="portal-card-tag">3D ARCHIVE</span></div>
+        <div class="portal-card-info"><h3 id="db-title-td">石造物データベース</h3><p id="db-desc-td">石碑・道標などをフォトグラメトリで3D計測し公開しています。</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ---- 総合検索ページ ---- -->
+<div class="page" id="page-omni">
+  <div class="scroll-container flush">
+    <div class="db-hero"><h2>総合（横断）検索</h2><p>Comprehensive Cross-Search</p></div>
+    <div class="search-panel">
+      <div class="omni-tabs">
+        <div class="omni-tab active" id="tab-omni-simple" onclick="toggleOmniMode('simple')">簡易検索</div>
+        <div class="omni-tab" id="tab-omni-detail" onclick="toggleOmniMode('detail')">詳細検索</div>
+      </div>
+      <div id="omni-simple-ui">
+        <input type="text" class="search-wide" id="omni-q-simple" placeholder="史料名、場所、キーワードなど...">
+        <div class="field-grid" style="grid-template-columns:200px;">
+          <div><label>年代</label><select id="omni-era-simple"><option value="">指定なし</option><option>明治期</option><option>大正期</option><option>昭和期</option></select></div>
+        </div>
+      </div>
+      <div id="omni-detail-ui" style="display:none;">
+        <div class="field-grid">
+          <div><label>整理番号</label><input id="omni-id"></div>
+          <div><label>資料名</label><input id="omni-title"></div>
+          <div><label>フリーワード</label><input id="omni-q-detail"></div>
+        </div>
+        <div class="field-grid">
+          <div><label>年代</label><select id="omni-era-detail"><option value="">指定なし</option><option>江戸</option><option>明治</option><option>大正</option><option>昭和</option></select></div>
+          <div><label>期間(西暦)開始</label><input type="number" id="omni-year-start"></div>
+          <div><label>期間(西暦)終了</label><input type="number" id="omni-year-end"></div>
+        </div>
+        <div class="field-grid">
+          <div><label>ジャンル</label><input id="omni-genre"></div>
+          <div><label>所有者名</label><input id="omni-owner"></div>
+        </div>
+        <p style="font-size:.78rem;color:var(--wood-500);margin:12px 0 4px;">対象データベース</p>
+        <div class="checkbox-row">
+          <label><input type="checkbox" id="omni-db-photo" checked>古写真</label>
+          <label><input type="checkbox" id="omni-db-map" checked>古地図</label>
+          <label><input type="checkbox" id="omni-db-doc" checked>文書・史料</label>
+          <label><input type="checkbox" id="omni-db-td" checked>石造物</label>
+          <label><input type="checkbox" id="omni-db-nature" checked>自然系</label>
+          <label><input type="checkbox" id="omni-db-oldroad" checked>古道</label>
+          <label><input type="checkbox" id="omni-db-building" checked>歴史的建造物</label>
+        </div>
+      </div>
+      <button class="search-btn" onclick="executeOmniSearch()"><i class="fa-solid fa-magnifying-glass"></i> 横断検索を実行</button>
+    </div>
+    <div id="omni-results-container" style="display:none;max-width:1200px;margin:0 auto;padding:0 24px;"></div>
+  </div>
+</div>
+
+<!-- ---- マップページ ---- -->
+<div class="page" id="page-map">
+  <div id="map"></div>
+  <div class="map-overlay-controls">
+    <div class="control-label" id="opacity-target">調整：未選択</div>
+    <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="1">
+  </div>
+  <button class="location-btn" onclick="requestLocation()"><i class="fa-solid fa-location-crosshairs"></i></button>
+</div>
+<!-- ---- 古写真データベースページ ---- -->
+<div class="page" id="page-db">
+  <div class="scroll-container flush">
+    <div class="db-hero"><h2>古写真データベース</h2><p>Yamashina Historical Photo Database</p></div>
+    <div class="search-panel">
+      <p class="notice-box"><i class="fa-solid fa-circle-info"></i> 戦前〜高度経済成長期の古写真約700点は、「山科を語り継ぐ会」よりご提供いただいた内部史料です。</p>
+      <div class="field-grid">
+        <div><label>整理番号</label><input id="db-seiri"></div>
+        <div><label>キーワード</label><input id="db-q"></div>
+        <div><label>年代</label><select id="db-era"><option value="">指定なし</option><option>明治</option><option>大正</option><option>昭和</option></select></div>
+      </div>
+      <div class="field-grid">
+        <div><label>字地名</label><input id="db-place"></div>
+        <div><label>撮影年(開始)</label><input type="number" id="db-year-start"></div>
+        <div><label>撮影年(終了)</label><input type="number" id="db-year-end"></div>
+        <div><label>撮影者</label><input id="db-author"></div>
+        <div><label>所有者・所蔵</label><input id="db-storage"></div>
+      </div>
+      <button class="search-btn" onclick="filterDB()"><i class="fa-solid fa-magnifying-glass"></i> 検索</button>
+    </div>
+    <div class="photo-grid" id="photo-list"><p class="placeholder-msg" style="grid-column:1/-1;"><i class="fa-solid fa-camera-retro"></i>検索条件を指定し、「検索」ボタンを押してください。</p></div>
+    <div class="pagination-container" id="pagination-container"></div>
+    <div id="search-result-map-container" style="display:none;max-width:1200px;margin:30px auto;padding:0 24px;">
+      <h3 style="color:var(--ink-800);margin-bottom:10px;">検索結果ピンマップ</h3>
+      <div class="result-map-box"><div id="result-map" style="width:100%;height:100%;"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ---- 古地図データベースページ ---- -->
+<div class="page" id="page-map-db">
+  <div class="scroll-container flush">
+    <div class="db-hero" id="map-db-hero" style="background-image:url('https://images.unsplash.com/photo-1524661135-423995f22d0b?w=1400&q=80');"><h2 id="map-db-hero-title">古地図データベース</h2><p id="map-db-hero-desc">Historical Map Archive</p></div>
+    <div class="placeholder-msg"><i class="fa-solid fa-map"></i>古地図データベースは現在メタデータ構築中です。時代スライダーとレイヤ選択から、マップページ上で古地図タイルをご覧いただけます。</div>
+  </div>
+</div>
+
+<!-- ---- 文書・史料データベースページ ---- -->
+<div class="page" id="page-doc">
+  <div class="scroll-container flush">
+    <div class="db-hero" id="doc-db-hero" style="background-image:url('https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=1400&q=80');"><h2 id="doc-db-hero-title">文書・史料データベース</h2><p id="doc-db-hero-desc">Documents &amp; Historical Records</p></div>
+    <div class="placeholder-msg"><i class="fa-solid fa-scroll"></i>文書・史料データベースは現在インデックス作成中です。公開まで今しばらくお待ちください。</div>
+  </div>
+</div>
+
+<!-- ---- 石造物データベースページ ---- -->
+<div class="page" id="page-td">
+  <div class="scroll-container flush">
+    <div class="db-hero" id="td-db-hero" style="background-image:url('https://images.unsplash.com/photo-1580414057403-c5f451f30e1c?w=1400&q=80');"><h2 id="td-db-hero-title">石造物データベース</h2><p id="td-db-hero-desc">3D Scanned Stone Monuments</p></div>
+    <div class="search-panel">
+      <input type="text" class="search-wide" id="td-search-all" placeholder="全項目から横断検索...">
+      <div class="field-grid">
+        <div><label>名称</label><input id="td-search-name"></div>
+        <div><label>刻銘</label><input id="td-search-inscription"></div>
+        <div><label>整理番号</label><input id="td-search-id"></div>
+        <div><label>分類</label><select id="td-search-category"><option value="">全ての分類</option></select></div>
+        <div><label>撮影日</label><input id="td-search-date"></div>
+        <div><label>材質</label><input id="td-search-material"></div>
+        <div><label>現存状態</label><input id="td-search-condition"></div>
+        <div><label>歴史解説</label><input id="td-search-info"></div>
+        <div><label>年代</label><input id="td-search-era"></div>
+        <div><label>年(開始)</label><input type="number" id="td-search-year-start"></div>
+        <div><label>年(終了)</label><input type="number" id="td-search-year-end"></div>
+      </div>
+      <button class="search-btn" onclick="filterTD()"><i class="fa-solid fa-magnifying-glass"></i> 検索</button>
+    </div>
+    <div class="photo-grid" id="td-grid"><p class="placeholder-msg" style="grid-column:1/-1;"><i class="fa-solid fa-magnifying-glass"></i>検索条件を指定してください。</p></div>
+  </div>
+</div>
+<!-- ---- 自然系データベースページ ---- -->
+<div class="page" id="page-nature-db">
+  <div class="scroll-container flush" style="background:#f7f7f7;">
+    <div class="db-hero" style="background-image:url('https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1400&q=80');"><h2>自然系データベース</h2><p>Natural Heritage &amp; Environment Database</p></div>
+    <div class="search-panel">
+      <input type="text" class="search-wide" id="nature-search-q" placeholder="全項目から横断検索...">
+      <div class="field-grid">
+        <div><label>整理番号</label><input id="nature-search-id"></div>
+        <div><label>名称</label><input id="nature-search-name"></div>
+        <div><label>種別</label><input id="nature-search-type"></div>
+        <div><label>発生年</label><input id="nature-search-year-start"></div>
+        <div><label>消失年</label><input id="nature-search-year-end"></div>
+        <div><label>現存状況</label><input id="nature-search-status"></div>
+        <div><label>状態</label><input id="nature-search-condition"></div>
+        <div><label>地番キー</label><input id="nature-search-chiban"></div>
+      </div>
+      <button class="search-btn" style="background:#228b22;" onclick="filterNatureDB()"><i class="fa-solid fa-magnifying-glass"></i> 検索</button>
+    </div>
+    <div class="gallery-grid" id="nature-gallery-container"><p class="placeholder-msg" style="grid-column:1/-1;"><i class="fa-solid fa-leaf"></i>検索条件を指定してください。</p></div>
+    <div class="pagination-container" id="nature-pagination-container"></div>
+    <div id="nature-result-map-container" style="display:none;max-width:1200px;margin:30px auto;padding:0 24px;">
+      <div class="result-map-box"><div id="nature-result-map" style="width:100%;height:100%;"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ---- 古道データベースページ ---- -->
+<div class="page" id="page-oldroad-db">
+  <div class="scroll-container flush" style="background:#f7f7f7;">
+    <div class="db-hero" style="background-image:url('https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=1400&q=80');"><h2>古道データベース</h2><p>Historical Roads Database</p></div>
+    <div class="search-panel">
+      <input type="text" class="search-wide" id="oldroad-search-q" placeholder="全項目から横断検索...">
+      <div class="field-grid">
+        <div><label>整理番号</label><input id="oldroad-search-id"></div>
+        <div><label>名称</label><input id="oldroad-search-name"></div>
+        <div><label>種別</label><input id="oldroad-search-type"></div>
+        <div><label>造成年代</label><input id="oldroad-search-year-build"></div>
+        <div><label>消失・変更年代</label><input id="oldroad-search-year-loss"></div>
+        <div><label>現存状況</label><input id="oldroad-search-status"></div>
+        <div><label>状態</label><input id="oldroad-search-condition"></div>
+        <div><label>地番キー</label><input id="oldroad-search-chiban"></div>
+        <div><label>施工者</label><input id="oldroad-search-builder"></div>
+      </div>
+      <button class="search-btn" style="background:#008b8b;" onclick="filterOldRoadDB()"><i class="fa-solid fa-magnifying-glass"></i> 検索</button>
+    </div>
+    <div class="gallery-grid" id="oldroad-gallery-container"><p class="placeholder-msg" style="grid-column:1/-1;"><i class="fa-solid fa-route"></i>検索条件を指定してください。</p></div>
+    <div class="pagination-container" id="oldroad-pagination-container"></div>
+    <div id="oldroad-result-map-container" style="display:none;max-width:1200px;margin:30px auto;padding:0 24px;">
+      <div class="result-map-box"><div id="oldroad-result-map" style="width:100%;height:100%;"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ---- 歴史的建造物データベースページ ---- -->
+<div class="page" id="page-building-db">
+  <div class="scroll-container flush" style="background:#f7f7f7;">
+    <div class="db-hero" style="background-image:url('https://images.unsplash.com/photo-1478436127897-769e1b3f0f36?w=1400&q=80');"><h2>歴史的建造物・石造物データベース</h2><p>Historical Buildings &amp; 3D Heritage Database</p></div>
+    <div class="search-panel">
+      <input type="text" class="search-wide" id="bldg-search-q" placeholder="全項目から横断検索...">
+      <div class="field-grid">
+        <div><label>整理番号</label><input id="bldg-search-id"></div>
+        <div><label>名称</label><input id="bldg-search-name"></div>
+        <div><label>種別</label><input id="bldg-search-type"></div>
+        <div><label>建造年</label><input id="bldg-search-year-build"></div>
+        <div><label>消失年</label><input id="bldg-search-year-loss"></div>
+        <div><label>現存状況</label><input id="bldg-search-status"></div>
+        <div><label>設計・施工者</label><input id="bldg-search-builder"></div>
+        <div><label>所有者</label><input id="bldg-search-owner"></div>
+        <div><label>文化財指定</label><input id="bldg-search-heritage"></div>
+        <div><label>状態</label><input id="bldg-search-condition"></div>
+        <div><label>3Dデータ有無</label><select id="bldg-search-has3d"><option value="">指定なし</option><option value="yes">あり</option><option value="no">なし</option></select></div>
+      </div>
+      <button class="search-btn" style="background:#000080;" onclick="filterBuildingDB()"><i class="fa-solid fa-magnifying-glass"></i> 検索</button>
+    </div>
+    <div class="gallery-grid" id="bldg-gallery-container"><p class="placeholder-msg" style="grid-column:1/-1;"><i class="fa-solid fa-landmark"></i>検索条件を指定してください。</p></div>
+    <div class="pagination-container" id="bldg-pagination-container"></div>
+    <div id="bldg-result-map-container" style="display:none;max-width:1200px;margin:30px auto;padding:0 24px;">
+      <div class="result-map-box"><div id="bldg-result-map" style="width:100%;height:100%;"></div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content-wrapper -->
+<!-- ============ 汎用詳細モーダル ============ -->
+<div id="detail-modal" onclick="closeModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <button class="close-btn" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ============ 汎用シンプル詳細モーダル(自然/古道/建造物) ============ -->
+<div id="simple-detail-modal" onclick="closeSimpleModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <button class="close-btn" onclick="closeSimpleModal()"><i class="fa-solid fa-xmark"></i></button>
+    <div id="simple-modal-body"></div>
+  </div>
+</div>
+
+<!-- ============ 全画面画像ズーム ============ -->
+<div id="full-screen-overlay" onclick="closeFullScreenImage()">
+  <button class="close-btn" onclick="closeFullScreenImage()" style="color:#fff;"><i class="fa-solid fa-xmark"></i></button>
+  <img id="full-screen-img" onclick="event.stopPropagation()">
+</div>
+
+<!-- ============ ビフォーアフター比較 ============ -->
+<div id="before-after-overlay">
+  <button class="ba-close-btn" onclick="closeBeforeAfter()"><i class="fa-solid fa-xmark"></i></button>
+  <div class="ba-slider-container" id="ba-slider-container">
+    <img class="ba-image-before" id="ba-image-before">
+    <div class="ba-after-wrapper" id="ba-after-wrapper"><img class="ba-image-after" id="ba-image-after"></div>
+    <div class="ba-handle" id="ba-handle"><div class="ba-handle-button"><i class="fa-solid fa-arrows-left-right"></i></div></div>
+  </div>
+</div>
+
+<!-- ============ トースト通知 ============ -->
+<div id="notification-toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<script>
+/* ============================================================
+   山科歴史アーカイブ — アプリケーションロジック
+   ============================================================ */
+
+/* ---- データソースURL ---- */
+const SHEET = id => `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`;
+const CONFIG_CSV_URL   = SHEET('1wrMKOuJyWd0vX9rucIbtx61C1m39Y1bveGQnEeM80hA');
+const PHOTO_CSV_URL    = SHEET('1JNOhsD4k1GzEVnUqS2ftN8ytw2GbraXjEFysoxwVl_A');
+const TD_CSV_URL       = SHEET('1bHNUXMbosjkH-jggqNM1HDjY2PrqwQCc09Uqbcp8nRA');
+const BUILDING_CSV_URL = SHEET('1rot_ixK2aCtJWuucgFXrQF3Op_B3o7uGOPHBDDKcbRs');
+const NATURE_CSV_URL   = SHEET('1bxKjeGOTkj-PcsXQQMup0ZAk20PyRGFF2GxoaahlMFE');
+const OLDROAD_CSV_URL  = SHEET('1eWRJR5YcwfEYb2JVNHmy6ku6Helt0-29Bxhm0IV2sy0');
+const DOC_CSV_URL      = SHEET('1Jqu-5IWYqmV6s1tXF9pzP2rSpSWQBchkgAjb4eVaD90');
+const MAP_CSV_URL      = SHEET('1wrMKOuJyWd0vX9rucIbtx61C1m39Y1bveGQnEeM80hA'); // ポータル設定シート内に古地図一覧が無いため、専用の古地図シートIDが仕様書に明記されていない箇所は運用時に差し替え
+const CHIBAN_GEOJSON_URL = 'https://drive.google.com/uc?export=download&id=14Hn37XO3xFgoOZQ1_6rviVMt1nFF3M4i';
+const YAMASHINA_CENTER = [34.992, 135.813];
+
+/* ---- グローバル状態 ---- */
+let map, layers = {}, eras = [], activeOverlays = [];
+let photoClusterGroup, modelClusterGroup;
+let archiveData = [], models = [], mapDataRows = [], buildingData = [], natureData = [], oldRoadData = [], docData = [];
+let currentActivePageId = 'portal';
+let userMarker, userCircle, watchPositionId;
+let isSpatialFilterSelectMode = false, spatialFilterLatLng = null, spatialFilterMarker = null, activeSectorLayer = null;
+let currentCarouselIndex = 0, carouselInterval = null;
+let pagedFilteredData = [], currentPage = 1;
+const itemsPerPage = 50;
+let resultLeafletMap = null;
+let pagedFilteredNatureData = [], pagedFilteredOldRoadData = [], pagedFilteredBuildingData = [];
+let currentNaturePage = 1, currentOldRoadPage = 1, currentBuildingPage = 1;
+const galleryPerPage = 30;
+let omniResults = [];
+let window_chibanMap = {};
+window.chibanMap = {};
+let chibanLayer = null, chibanGeoData = null;
+let inlineMapInstances = [];
+
+/* ---- CSVパーサ (RFC 4180準拠) ---- */
+function parseCSV(text) {
+  const lines = [];
+  let row = [""];
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], next = text[i + 1];
+    if (c === '"') {
+      if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; }
+      else { inQuotes = !inQuotes; }
+    } else if (c === ',' && !inQuotes) {
+      row.push('');
+    } else if ((c === '\r' || c === '\n') && !inQuotes) {
+      if (c === '\r' && next === '\n') i++;
+      lines.push(row);
+      row = [""];
+    } else {
+      row[row.length - 1] += c;
+    }
+  }
+  if (row.length > 1 || row[0] !== "") lines.push(row);
+  return lines;
+}
+
+/* ---- Google Drive画像URL変換 ---- */
+function getImg(val) {
+  if (!val) return null;
+  const m = val.match(/[-\w]{25,}/);
+  if (m) return `https://lh3.googleusercontent.com/d/${m[0]}=s800`;
+  return val;
+}
+/* ---- GitHub raw URL変換 ---- */
+function toRawUrl(val) {
+  if (!val) return val;
+  return val.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+}
+/* ---- 複数画像URL(カンマ/改行区切り)分解 ---- */
+function splitUrls(val) {
+  if (!val) return [];
+  return val.split(/[,\n]/).map(s => s.trim()).filter(Boolean).map(getImg);
+}
+
+/* ---- 方位文字列→角度 ---- */
+function getDirectionAngle(dirStr) {
+  if (!dirStr) return null;
+  const cleanDir = dirStr.trim().replace(/[左右]/g, "");
+  const compass = {
+    "北":0,"北北東":22.5,"北東":45,"東北東":67.5,"東":90,"東南東":112.5,"南東":135,"南南東":157.5,
+    "南":180,"南南西":202.5,"南西":225,"西南西":247.5,"西":270,"西北西":292.5,"北西":315,"北北西":337.5
+  };
+  if (compass[cleanDir] !== undefined) return compass[cleanDir];
+  const numMatch = cleanDir.match(/\d+/);
+  if (numMatch) return parseFloat(numMatch[0]);
+  return null;
+}
+/* ---- 距離文字列正規化 ---- */
+function normDist(raw) {
+  return (raw || '').replace(/ｍ/g, 'm').replace(/～/g, '-').replace(/\s/g, '');
+}
+/* ---- 距離→色 ---- */
+function getDistanceColor(distanceRaw) {
+  if (!distanceRaw) return '#0288d1';
+  const t = normDist(distanceRaw);
+  if (["10","20","50"].some(v => t.includes(v))) return '#4fc3f7';
+  if (["100","200","300","400","500"].some(v => t.includes(v))) return '#29b6f6';
+  if (["600","700","800","900","1000","1500","2000","2500","3000"].some(v => t.includes(v))) return '#0288d1';
+  if (["3500","4000"].some(v => t.includes(v))) return '#01579b';
+  if (["4500","5000","6000","7000","8000"].some(v => t.includes(v))) return '#0d47a1';
+  return '#0288d1';
+}
+/* ---- 距離テキスト→km ---- */
+function parseDistanceToKm(text) {
+  if (!text) return 0.05;
+  const t = normDist(text);
+  const f = parseFloat(t);
+  if (!isNaN(f)) return t.includes('km') ? f : f / 1000.0;
+  return 0.3;
+}
+/* ---- 年代文字列→西暦抽出 ---- */
+function extractYearFromEraString(eraStr) {
+  if (!eraStr) return null;
+  const m = eraStr.match(/\d{3,4}/);
+  return m ? parseInt(m[0], 10) : null;
+}
+
+/* ---- 視野扇形計算(球面三角法) ---- */
+function calculateSectorPoints(lon, lat, bearing, fov, distanceKm, segments = 16) {
+  const EARTH_RADIUS = 6371.0;
+  const toRad = d => d * Math.PI / 180, toDeg = r => r * 180 / Math.PI;
+  const latRad = toRad(lat), lonRad = toRad(lon);
+  const delta = distanceKm / EARTH_RADIUS;
+  const startAngle = bearing - (fov / 2), endAngle = bearing + (fov / 2);
+  const coords = [[lat, lon]];
+  for (let i = 0; i <= segments; i++) {
+    const currentBearing = startAngle + ((endAngle - startAngle) * i / segments);
+    const bRad = toRad(currentBearing);
+    const targetLatRad = Math.asin(Math.sin(latRad) * Math.cos(delta) + Math.cos(latRad) * Math.sin(delta) * Math.cos(bRad));
+    const targetLonRad = lonRad + Math.atan2(Math.sin(bRad) * Math.sin(delta) * Math.cos(latRad), Math.cos(delta) - Math.sin(latRad) * Math.sin(targetLatRad));
+    coords.push([toDeg(targetLatRad), toDeg(targetLonRad)]);
+  }
+  coords.push([lat, lon]);
+  return coords;
+}
+
+/* ---- トースト通知 ---- */
+function showNotification(msg) {
+  const t = document.getElementById('notification-toast');
+  t.innerText = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+/* ---- ページ切替システム ---- */
+function showPage(pageId) {
+  if (currentActivePageId !== pageId) clearPageCache(currentActivePageId);
+  currentActivePageId = pageId;
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+  const pageEl = document.getElementById(`page-${pageId}`);
+  if (pageEl) pageEl.classList.add('active');
+  const btnEl = document.getElementById(`btn-${pageId}`);
+  if (btnEl) btnEl.classList.add('active');
+
+  document.getElementById('map-ui').style.display = (pageId === 'map') ? 'flex' : 'none';
+  document.getElementById('content-wrapper').classList.toggle('on-map', pageId === 'map');
+
+  document.getElementById('spot-settings-wrapper').classList.remove('open');
+  const spotIcon = document.getElementById('spot-tab-icon');
+  if (spotIcon) spotIcon.className = 'fa-solid fa-chevron-left';
+  const spotBtn = document.getElementById('m-btn-spot');
+  if (spotBtn) spotBtn.classList.remove('active');
+
+  if (pageId === 'map' && map) {
+    setTimeout(() => map.invalidateSize(), 200);
+    if (!chibanGeoData) fetchChibanData();
+  }
+  window.scrollTo(0, 0);
+}
+window.showPage = showPage;
+
+function clearInputs(ids) { ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); }
+
+function clearPageCache(pageId) {
+  switch (pageId) {
+    case 'db':
+      clearInputs(['db-seiri','db-q','db-era','db-place','db-year-start','db-year-end','db-author','db-storage']);
+      pagedFilteredData = [];
+      document.getElementById('photo-list').innerHTML = '<p class="placeholder-msg" style="grid-column:1/-1;"><i class="fa-solid fa-camera-retro"></i>検索条件を指定し、「検索」ボタンを押してください。</p>';
+      document.getElementById('pagination-container').innerHTML = '';
+      document.getElementById('search-result-map-container').style.display = 'none';
+      break;
+    case 'td':
+      clearInputs(['td-search-all','td-search-name','td-search-inscription','td-search-id','td-search-category','td-search-date','td-search-material','td-search-condition','td-search-info','td-search-era','td-search-year-start','td-search-year-end']);
+      document.getElementById('td-grid').innerHTML = '<p class="placeholder-msg" style="grid-column:1/-1;"><i class="fa-solid fa-magnifying-glass"></i>検索条件を指定してください。</p>';
+      add3DMarkers();
+      break;
+    case 'map-db':
+      break;
+    case 'nature-db':
+      clearInputs(['nature-search-q','nature-search-id','nature-search-name','nature-search-type','nature-search-year-start','nature-search-year-end','nature-search-status','nature-search-condition','nature-search-chiban']);
+      break;
+    case 'oldroad-db':
+      clearInputs(['oldroad-search-q','oldroad-search-id','oldroad-search-name','oldroad-search-type','oldroad-search-year-build','oldroad-search-year-loss','oldroad-search-status','oldroad-search-condition','oldroad-search-chiban','oldroad-search-builder']);
+      break;
+    case 'building-db':
+      clearInputs(['bldg-search-q','bldg-search-id','bldg-search-name','bldg-search-type','bldg-search-year-build','bldg-search-year-loss','bldg-search-status','bldg-search-builder','bldg-search-owner','bldg-search-heritage','bldg-search-condition','bldg-search-has3d']);
+      break;
+    case 'doc':
+      break;
+    case 'omni':
+      clearInputs(['omni-q-simple','omni-era-simple','omni-title','omni-q-detail','omni-era-detail']);
+      break;
+    case 'map':
+      clearSpatialTarget();
+      if (activeSectorLayer) { map.removeLayer(activeSectorLayer); activeSectorLayer = null; }
+      if (map) map.closePopup();
+      break;
+  }
+}
+
+/* ---- メインマップ初期化 ---- */
+function initMap() {
+  map = L.map('map', {
+    zoomControl: false, maxZoom: 22, zoomSnap: 0, zoomDelta: 0.5,
+    wheelPxPerZoomLevel: 60, wheelDebounceTime: 40,
+    zoomAnimation: true, fadeAnimation: true, inertia: true, inertiaDeceleration: 3000
+  }).setView(YAMASHINA_CENTER, 15);
+
+  L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+  L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+    minZoom: 2, maxNativeZoom: 18, maxZoom: 22, attribution: '地理院タイル'
+  }).addTo(map);
+
+  window.mainLayerControl = L.control.layers(null, layers, { collapsed: true, position: 'topright' }).addTo(map);
+
+  map.createPane('sectorPane');
+  map.getPane('sectorPane').style.zIndex = 750;
+  map.getPane('sectorPane').style.pointerEvents = 'none';
+
+  map.createPane('chibanPane');
+  map.getPane('chibanPane').style.zIndex = 620;
+
+  map.on('overlayadd', e => {
+    activeOverlays = activeOverlays.filter(l => l !== e.layer);
+    activeOverlays.push(e.layer);
+    if (activeOverlays.length >= 3) { const old = activeOverlays.shift(); if (map.hasLayer(old)) map.removeLayer(old); }
+    activeOverlays.forEach(l => l.bringToFront && l.bringToFront());
+    updateOpacityUI();
+  });
+  map.on('overlayremove', e => {
+    activeOverlays = activeOverlays.filter(l => l !== e.layer);
+    updateOpacityUI();
+  });
+
+  map.on('click', e => {
+    if (isSpatialFilterSelectMode) setSpatialTarget(e.latlng);
+  });
+
+  photoClusterGroup = L.markerClusterGroup({
+    disableClusteringAtZoom: 17, maxClusterRadius: 50, maxZoom: 22,
+    iconCreateFunction: c => L.divIcon({ html: '<div>' + c.getChildCount() + '</div>', className: 'marker-cluster marker-cluster-photo-custom', iconSize: L.point(40, 40) })
+  });
+  modelClusterGroup = L.markerClusterGroup({
+    disableClusteringAtZoom: 17, maxClusterRadius: 50, maxZoom: 22,
+    iconCreateFunction: c => L.divIcon({ html: '<div>' + c.getChildCount() + '</div>', className: 'marker-cluster marker-cluster-model', iconSize: L.point(40, 40) })
+  });
+  map.addLayer(photoClusterGroup);
+  map.addLayer(modelClusterGroup);
+
+  const slider = document.getElementById('era-slider');
+  slider.max = 0; slider.value = 0;
+  slider.oninput = function () { updateEraUI(this.value); };
+
+  document.getElementById('opacity-slider').oninput = function () {
+    if (activeOverlays.length) activeOverlays[activeOverlays.length - 1].setOpacity(parseFloat(this.value));
+  };
+
+  startLocationTracking();
+}
+
+/* ---- 時代スライダー ---- */
+function updateEraUI(index) {
+  if (!eras.length) return;
+  const era = eras[index];
+  if (!era) return;
+  document.getElementById('era-label').innerHTML =
+    `${era.name} <button class="nav-btn" style="padding:2px 8px;margin-left:10px;font-size:.7rem;cursor:pointer;" onclick="showPage('map-db')">詳細</button>`;
+  Object.values(layers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
+  const next = layers[era.name];
+  if (next) { next.addTo(map); next.bringToFront(); }
+  activeOverlays = next ? [next] : [];
+  updateOpacityUI();
+}
+function stepEra(direction) {
+  const slider = document.getElementById('era-slider');
+  const v = parseInt(slider.value) + direction;
+  if (v >= 0 && v < eras.length) { slider.value = v; updateEraUI(v); }
+}
+function switchControl(mode) {
+  const box = document.getElementById('slider-box');
+  const layerCtl = document.querySelector('.leaflet-control-layers');
+  if (mode === 'slider') {
+    box.style.display = 'flex';
+    document.getElementById('m-btn-layers').classList.remove('active');
+    document.getElementById('m-btn-slider').classList.add('active');
+    if (layerCtl) layerCtl.style.display = 'none';
+  } else {
+    box.style.display = 'none';
+    document.getElementById('m-btn-layers').classList.add('active');
+    document.getElementById('m-btn-slider').classList.remove('active');
+    if (layerCtl) layerCtl.style.display = 'block';
+  }
+}
+function updateOpacityUI() {
+  const target = document.getElementById('opacity-target');
+  if (activeOverlays.length) {
+    const latest = activeOverlays[activeOverlays.length - 1];
+    const name = Object.keys(layers).find(k => layers[k] === latest);
+    target.innerText = `調整：${name || '古地図'}`;
+    document.getElementById('opacity-slider').value = latest.options.opacity !== undefined ? latest.options.opacity : 1.0;
+  } else {
+    target.innerText = '調整：未選択';
+  }
+}
+
+/* ---- 現在地追従 ---- */
+function startLocationTracking() {
+  if (!navigator.geolocation) return;
+  watchPositionId = navigator.geolocation.watchPosition(
+    pos => updateUserLocationMarker([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy),
+    err => console.warn("位置監視に失敗:", err),
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+  );
+}
+function updateUserLocationMarker(latlng, accuracy) {
+  if (userMarker) {
+    userMarker.setLatLng(latlng);
+    userCircle.setLatLng(latlng).setRadius(accuracy / 2);
+  } else {
+    userCircle = L.circle(latlng, { radius: accuracy / 2, color: '#1E88E5', fillColor: '#1E88E5', fillOpacity: .15, weight: 1.5 }).addTo(map);
+    userMarker = L.circleMarker(latlng, { radius: 9, color: '#fff', fillColor: '#1E88E5', fillOpacity: 1, weight: 3 }).addTo(map);
+    userMarker.setZIndexOffset && userMarker.setZIndexOffset(1000);
+  }
+}
+function requestLocation() {
+  if (!navigator.geolocation) { showNotification("位置情報サービスが利用できません。"); return; }
+  const icon = document.querySelector('.location-btn i');
+  icon.className = 'fa-solid fa-spinner fa-spin';
+  if (userMarker) {
+    map.flyTo(userMarker.getLatLng(), 17, { animate: true, duration: 1.2 });
+    setTimeout(() => { icon.className = 'fa-solid fa-location-crosshairs'; }, 1200);
+  } else {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const latlng = [pos.coords.latitude, pos.coords.longitude];
+        updateUserLocationMarker(latlng, pos.coords.accuracy);
+        map.flyTo(latlng, 17, { animate: true, duration: 1.2 });
+        icon.className = 'fa-solid fa-location-crosshairs';
+      },
+      () => { icon.className = 'fa-solid fa-location-crosshairs'; showNotification("現在地を取得できませんでした。"); }
+    );
+  }
+}
+
+/* ---- スポット設定パネル ---- */
+function toggleSpotSettings() {
+  const wrapper = document.getElementById('spot-settings-wrapper');
+  const isOpen = wrapper.classList.contains('open');
+  const icon = document.getElementById('spot-tab-icon');
+  const btn = document.getElementById('m-btn-spot');
+  if (isOpen) {
+    wrapper.classList.remove('open'); icon.className = 'fa-solid fa-chevron-left'; btn.classList.remove('active');
+  } else {
+    wrapper.classList.add('open'); icon.className = 'fa-solid fa-chevron-right'; btn.classList.add('active');
+  }
+}
+function toggleMapPins(type) {
+  if (type === 'photo') {
+    document.getElementById('chk-photo-pins').checked ? map.addLayer(photoClusterGroup) : map.removeLayer(photoClusterGroup);
+  } else {
+    document.getElementById('chk-3d-pins').checked ? map.addLayer(modelClusterGroup) : map.removeLayer(modelClusterGroup);
+  }
+}
+
+/* ---- applyMapFilters ---- */
+function applyMapFilters() {
+  const yearStart = parseInt(document.getElementById('filter-year-start').value) || 0;
+  const yearEnd = parseInt(document.getElementById('filter-year-end').value) || 9999;
+  const activeEras = [...document.querySelectorAll('.chk-era-filter:checked')].map(c => c.value);
+  const activeDists = [...document.querySelectorAll('.chk-dist-filter:checked')].flatMap(c => c.value.split(','));
+
+  const filteredPhotos = archiveData.filter(p => {
+    const matchEra = !p.era || activeEras.some(e => p.era.includes(e));
+    let matchYear;
+    const y = parseInt(p.year);
+    if (!isNaN(y)) matchYear = y >= yearStart && y <= yearEnd;
+    else matchYear = !(yearStart > 0 || yearEnd < 9999);
+    let matchDist = true;
+    if (p.distanceRaw) { const t = normDist(p.distanceRaw); matchDist = activeDists.some(d => t.includes(d)); }
+    let matchSpatial = true;
+    if (spatialFilterLatLng) {
+      const angle = getDirectionAngle(p.direction);
+      if (angle !== null && p.lat) {
+        try {
+          const distKm = parseDistanceToKm(p.distanceRaw);
+          const fov = parseFloat(p.fov) || 50;
+          const sectorCoords = calculateSectorPoints(p.lng, p.lat, angle, fov, distKm);
+          const poly = turf.polygon([sectorCoords.map(c => [c[1], c[0]])]);
+          const pt = turf.point([spatialFilterLatLng.lng, spatialFilterLatLng.lat]);
+          matchSpatial = turf.booleanPointInPolygon(pt, poly);
+        } catch (e) { matchSpatial = false; }
+      } else matchSpatial = false;
+    }
+    return matchEra && matchYear && matchDist && matchSpatial;
+  });
+  addPhotoMarkersToMainMap(filteredPhotos);
+
+  const spot3dCat = document.getElementById('spot-3d-category-filter').value;
+  const filteredModels = models.filter(m => !spot3dCat || m.category === spot3dCat);
+  add3DMarkersToMap(filteredModels);
+}
+
+/* ---- 空間フィルタ ---- */
+function toggleSpatialFilterMode() {
+  const btn = document.getElementById('btn-spatial-filter');
+  if (isSpatialFilterSelectMode) {
+    isSpatialFilterSelectMode = false;
+    btn.classList.remove('active');
+    btn.querySelector('span').innerText = '被写地点を指定 (無効)';
+    map.getContainer().style.cursor = '';
+  } else {
+    isSpatialFilterSelectMode = true;
+    btn.classList.add('active');
+    btn.querySelector('span').innerText = '地図上をクリック...';
+    map.getContainer().style.cursor = 'crosshair';
+    document.getElementById('spot-settings-wrapper').classList.remove('open');
+    document.getElementById('spot-tab-icon').className = 'fa-solid fa-chevron-left';
+    showNotification("地図上の任意の地点をクリックしてください。ターゲットが入る扇形を持つ古写真を抽出します。");
+  }
+}
+function setSpatialTarget(latlng) {
+  spatialFilterLatLng = latlng;
+  if (spatialFilterMarker) map.removeLayer(spatialFilterMarker);
+  spatialFilterMarker = L.circleMarker(latlng, { radius: 8, color: '#fff', weight: 2, fillColor: '#10b981', fillOpacity: .9 }).addTo(map);
+  spatialFilterMarker.bindPopup(`<div style="font-family:'Noto Serif JP',serif;font-size:11px;text-align:center;"><b>指定被写地点</b><br><button class="nav-btn active" style="padding:2px 8px;font-size:9px;width:100%;margin-top:6px;" onclick="clearSpatialTarget()">解除</button></div>`).openPopup();
+  document.getElementById('spatial-status').innerHTML = '<span style="color:#059669;font-weight:700;"><i class="fa-solid fa-circle-check"></i> 空間抽出が有効</span>';
+  isSpatialFilterSelectMode = false;
+  const btn = document.getElementById('btn-spatial-filter');
+  btn.classList.remove('active');
+  btn.querySelector('span').innerText = '被写地点を指定 (有効)';
+  map.getContainer().style.cursor = '';
+  applyMapFilters();
+}
+function clearSpatialTarget() {
+  if (spatialFilterMarker) { map.removeLayer(spatialFilterMarker); spatialFilterMarker = null; }
+  spatialFilterLatLng = null;
+  const status = document.getElementById('spatial-status');
+  if (status) status.innerText = '地図上をクリックしてピンを立て、その地点を視野に収めている古写真のみを表示します。';
+  const btn = document.getElementById('btn-spatial-filter');
+  if (btn) btn.querySelector('span').innerText = '被写地点を指定 (無効)';
+  if (map) applyMapFilters();
+}
+window.requestLocation = requestLocation;
+
+/* ---- 古写真ピン用アイコン生成(共通ヘルパー) ---- */
+function buildPhotoIcon(angle, color) {
+  let rotateStyle = '', counterRotateStyle = '';
+  if (angle !== null) {
+    rotateStyle = `transform:rotate(${angle}deg);`;
+    counterRotateStyle = `transform:rotate(${-angle - 45}deg);`;
+  }
+  return L.divIcon({
+    html: `<div class="marker-wrapper ${angle !== null ? '' : 'no-direction'}" style="${rotateStyle}"><div class="marker-photo-pin" style="border-color:${color};color:${color};"><i class="fa-solid fa-camera" style="${counterRotateStyle}"></i></div></div>`,
+    className: '', iconSize: [44, 44], iconAnchor: [22, 22]
+  });
+}
+function photoImgFallback(refNum) {
+  return `this.onerror=null;this.src='https://placehold.co/400x300/4e342e/ffffff?text=No+Image';`;
+}
+function photoPopupHTML(p) {
+  return `<div class="map-popup-custom" onclick="L.DomEvent.stopPropagation(event)"><b>${p.title || ''}</b><img src="${p.img || ''}" onerror="${photoImgFallback(p.refNum)}"><button class="nav-btn active" style="width:100%;padding:6px;justify-content:center;" onclick="openDetail(${p.id})">詳細を表示</button></div>`;
+}
+
+/* ---- 古写真ピン描画(メインマップ) ---- */
+function addPhotoMarkersToMainMap(data) {
+  photoClusterGroup.clearLayers();
+  const markers = [];
+  data.forEach(p => {
+    if (typeof p.lat !== 'number' || !p.lat) return;
+    const angle = getDirectionAngle(p.direction);
+    const color = getDistanceColor(p.distanceRaw);
+    const icon = buildPhotoIcon(angle, color);
+    const marker = L.marker([p.lat, p.lng], { icon });
+    marker.bindPopup(photoPopupHTML(p));
+    marker.on('mouseover', function () { this.setIcon(buildPhotoIcon(angle, color)); this.setZIndexOffset(1000); });
+    marker.on('mouseout', function () { this.setZIndexOffset(0); });
+    marker.on('popupopen', () => {
+      if (angle !== null) {
+        if (activeSectorLayer) map.removeLayer(activeSectorLayer);
+        const distKm = parseDistanceToKm(p.distanceRaw);
+        const fov = parseFloat(p.fov) || 50;
+        const sectorCoords = calculateSectorPoints(p.lng, p.lat, angle, fov, distKm);
+        activeSectorLayer = L.polygon(sectorCoords, { color, weight: 1.5, fillColor: color, fillOpacity: .35, pane: 'sectorPane' }).addTo(map);
+      }
+    });
+    marker.on('popupclose', () => { if (activeSectorLayer) { map.removeLayer(activeSectorLayer); activeSectorLayer = null; } });
+    markers.push(marker);
+  });
+  photoClusterGroup.addLayers(markers);
+}
+
+/* ---- 3Dピン描画 ---- */
+function build3DPopupHTML(m) {
+  const thumbHTML = m.thumbnail
+    ? `<img src="${m.thumbnail}" style="width:100%;height:130px;object-fit:cover;border-radius:4px;margin-bottom:8px;">`
+    : `<div style="width:100%;height:130px;background:#eee;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px dashed var(--gold-600);"><i class="fa-solid fa-cube" style="font-size:2rem;color:#2e7d32;margin-bottom:5px;"></i><span style="font-size:.75rem;color:#666;">3Dモデル画像（準備中）</span></div>`;
+  const badge = (m.glbUrl && m.glbUrl.trim() !== '' && m.glbUrl.trim() !== '-') ? `<span class="popup-badge3d">石造物データあり</span>` : '';
+  return `<div class="map-popup-custom" onclick="L.DomEvent.stopPropagation(event)"><b>${m.name}</b>${badge}${thumbHTML}<button class="nav-btn active" style="width:100%;padding:6px;justify-content:center;" onclick="open3DDetail('${m.id}')">詳細を表示</button></div>`;
+}
+function add3DMarkers() {
+  modelClusterGroup.clearLayers();
+  const markers = [];
+  models.forEach(m => {
+    if (!(m.coords[0] && m.coords[1])) return;
+    const icon = L.divIcon({ html: '<div class="marker-3d-pin"><i class="fa-solid fa-cube"></i></div>', className: '', iconSize: [36, 36], iconAnchor: [18, 18] });
+    const marker = L.marker(m.coords, { icon }).bindPopup(build3DPopupHTML(m));
+    marker.on('mouseover', function () { this.setZIndexOffset(1000); });
+    marker.on('mouseout', function () { this.setZIndexOffset(0); });
+    markers.push(marker);
+    if (m.originLatlng && m.originLatlng[0] && m.originLatlng[1]) {
+      const iconOrigin = L.divIcon({ html: '<div class="marker-3d-pin origin"><i class="fa-solid fa-cube"></i></div>', className: '', iconSize: [32, 32], iconAnchor: [16, 16] });
+      const originMarker = L.marker(m.originLatlng, { icon: iconOrigin }).bindPopup(build3DPopupHTML(m));
+      const syncClick = () => {
+        map.fitBounds(L.latLngBounds([m.coords, m.originLatlng]), { padding: [50, 50] });
+        const c = [(m.coords[0] + m.originLatlng[0]) / 2, (m.coords[1] + m.originLatlng[1]) / 2];
+        L.popup().setLatLng(c).setContent(`<b>${m.name}</b><br><span style="font-size:.75rem;">現在地点と移転前地点</span>`).openOn(map);
+      };
+      marker.on('click', syncClick);
+      originMarker.on('click', syncClick);
+      markers.push(originMarker);
+    }
+  });
+  modelClusterGroup.addLayers(markers);
+}
+function add3DMarkersToMap(filteredModels) {
+  modelClusterGroup.clearLayers();
+  const markers = [];
+  filteredModels.forEach(m => {
+    const icon = L.divIcon({ html: '<div class="marker-3d-pin"><i class="fa-solid fa-cube"></i></div>', className: '', iconSize: [36, 36], iconAnchor: [18, 18] });
+    const marker = L.marker(m.coords, { icon }).bindPopup(build3DPopupHTML(m));
+    markers.push(marker);
+  });
+  modelClusterGroup.addLayers(markers);
+}
+
+/* ---- 古写真データ読込 ---- */
+async function loadPhotoData() {
+  try {
+    const res = await fetch(PHOTO_CSV_URL);
+    const text = await res.text();
+    const rows = parseCSV(text).slice(1);
+    archiveData = rows.filter(r => r.length > 5).map((cols, idx) => {
+      const latlng = (cols[6] || '').trim().split(/\s+/).map(Number);
+      return {
+        id: idx,
+        img: getImg(cols[2]),
+        title: (cols[4] || '').replace(/\.[a-zA-Z0-9]+$/, ''),
+        desc: cols[5] || '',
+        lat: latlng[0] || null, lng: latlng[1] || null,
+        era: cols[7] || '', year: cols[8] || '',
+        explanation: cols[9] || '', author: cols[10] || '', source: cols[11] || '',
+        storage: cols[12] || '', rights: cols[13] || '', reprint: cols[14] || '',
+        direction: cols[15] || '', refNum: cols[17] || '',
+        distanceRaw: cols[18] || '', fov: (cols[19] || '').match(/[\d.]+/) ? parseFloat(cols[19].match(/[\d.]+/)[0]) : 50,
+        chibanKey: cols[24] || ''
+      };
+    });
+    addPhotoMarkersToMainMap(archiveData);
+    buildChibanMap();
+  } catch (e) { console.warn('古写真データの読込に失敗:', e); }
+}
+
+/* ---- 石造物データ読込 ---- */
+async function load3DData() {
+  try {
+    const res = await fetch(TD_CSV_URL);
+    const text = await res.text();
+    const rows = parseCSV(text).slice(1);
+    models = rows.filter(r => r.length > 5).map(cols => {
+      const coords = (cols[6] || '').trim().split(/\s+/).map(Number);
+      const origin = (cols[7] || '').trim().split(/\s+/).map(Number);
+      return {
+        id: cols[0] || '', glbUrl: toRawUrl(cols[1] || ''), file: toRawUrl(cols[1] || ''),
+        name: cols[2] || '(名称未設定)', category: cols[3] || '',
+        date: cols[4] || '', photoCount: cols[5] || '',
+        coords: [coords[0] || null, coords[1] || null],
+        originLatlng: (origin[0] && origin[1]) ? origin : null,
+        kokumeiBase: cols[8] || '', north: cols[9] || '', east: cols[10] || '', south: cols[11] || '', west: cols[12] || '',
+        material: cols[13] || '', condition: cols[14] || '', conditionDetail: cols[15] || '',
+        eraRaw: cols[16] || '', info: cols[17] || '', thumbnail: getImg(cols[18]),
+        chibanKey: cols[20] || '',
+        parsedYear: extractYearFromEraString(cols[16] || '')
+      };
+    });
+    add3DMarkers();
+    populateCategoryDropdown();
+    buildChibanMap();
+  } catch (e) { console.warn('石造物データの読込に失敗:', e); }
+}
+
+/* ---- 分類ドロップダウン動的生成 ---- */
+function populateCategoryDropdown() {
+  const categories = [...new Set(models.map(m => m.category).filter(Boolean))];
+  const targets = ['td-search-category', 'spot-3d-category-filter'];
+  targets.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">全ての分類</option>';
+    categories.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat; opt.innerText = cat;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+/* ---- ポータル設定読込 ---- */
+async function loadPortalConfig() {
+  try {
+    const res = await fetch(CONFIG_CSV_URL);
+    const text = await res.text();
+    const rows = parseCSV(text).slice(1);
+    for (let i = 0; i <= 4; i++) {
+      if (!rows[i]) continue;
+      const imgUrl = getImg(rows[i][2]), title = rows[i][3], desc = rows[i][4];
+      if (imgUrl) { const el = document.getElementById(`slide-img-${i}`); if (el) el.src = imgUrl; }
+      if (title) { const el = document.getElementById(`slide-title-${i}`); if (el) el.innerText = title; }
+      if (desc) { const el = document.getElementById(`slide-desc-${i}`); if (el) el.innerText = desc; }
+    }
+    const setCard = (r, bannerId, titleId, descId) => {
+      if (!rows[r]) return;
+      const img = getImg(rows[r][2]);
+      if (img) { const b = document.getElementById(bannerId); if (b) b.style.backgroundImage = `url('${img}')`; }
+      if (rows[r][3]) { const t = document.getElementById(titleId); if (t) t.innerText = rows[r][3]; }
+      if (rows[r][4]) { const d = document.getElementById(descId); if (d) d.innerText = rows[r][4]; }
+    };
+    setCard(5, 'map-banner', 'map-card-title', 'map-card-desc');
+    setCard(6, 'db-banner-omni', 'db-title-omni', 'db-desc-omni');
+    setCard(7, 'db-banner-photo', 'db-title-photo', 'db-desc-photo');
+    setCard(8, 'db-banner-map', 'db-title-map', 'db-desc-map');
+    setCard(9, 'db-banner-doc', 'db-title-doc', 'db-desc-doc');
+    setCard(10, 'db-banner-td', 'db-title-td', 'db-desc-td');
+    setCard(11, 'map-db-hero', 'map-db-hero-title', 'map-db-hero-desc');
+    setCard(13, 'doc-db-hero', 'doc-db-hero-title', 'doc-db-hero-desc');
+    setCard(12, 'td-db-hero', 'td-db-hero-title', 'td-db-hero-desc');
+  } catch (e) { console.warn("ポータル設定データの取得をスキップまたは失敗:", e); }
+  initScrollAnimations();
+}
+
+/* ---- スクロールアニメーション ---- */
+function initScrollAnimations() {
+  const els = document.querySelectorAll('.animate-on-scroll');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('is-visible'); });
+  }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+  els.forEach(el => observer.observe(el));
+}
+
+/* ---- 古地図データ読込 ----
+   ※仕様書■3の外部データソース一覧には古地図専用スプレッドシートIDの記載が無いため
+   (ポータル設定/古写真/石造物/建造物/自然系/古道/文書の7件のみ規定)、本実装ではシステム的な
+   改善措置として、地理院地図が公開する実在の historical 空中写真タイル層を時代データとして
+   採用し、時代スライダー・レイヤコントロールの機能を実動作可能な状態で提供する。 */
+async function loadMapData() {
+  try {
+    const demoRows = [
+      { name: '1936-1942年 (地図)', year: 1938, url: 'https://cyberjapandata.gsi.go.jp/xyz/gazo1/{z}/{x}/{y}.jpg', nativeZoom: 17 },
+      { name: '1945-1950年 (地図)', year: 1947, url: 'https://cyberjapandata.gsi.go.jp/xyz/gazo2/{z}/{x}/{y}.jpg', nativeZoom: 17 },
+      { name: '1961-1969年 (地図)', year: 1965, url: 'https://cyberjapandata.gsi.go.jp/xyz/ort_riku10/{z}/{x}/{y}.jpg', nativeZoom: 16 },
+      { name: '1974-1978年 (地図)', year: 1976, url: 'https://cyberjapandata.gsi.go.jp/xyz/ort_old10/{z}/{x}/{y}.jpg', nativeZoom: 16 }
+    ];
+    mapDataRows = demoRows;
+    const sorted = demoRows.slice().sort((a, b) => a.year - b.year);
+    eras = sorted.map(r => ({ name: r.name, year: r.year }));
+    sorted.forEach(r => {
+      layers[r.name] = L.tileLayer(r.url, { maxNativeZoom: r.nativeZoom || 16, maxZoom: 22, attribution: '地理院タイル(historical)' });
+      window.mainLayerControl.addOverlay(layers[r.name], `${r.name}（${r.year}）`);
+    });
+    const slider = document.getElementById('era-slider');
+    slider.min = 0; slider.max = Math.max(0, eras.length - 1); slider.value = 0;
+    updateEraUI(0);
+  } catch (e) { console.warn('古地図データの読込に失敗:', e); }
+}
+
+/* ---- 歴史的建造物データ読込 ---- */
+async function loadBuildingData() {
+  try {
+    const res = await fetch(BUILDING_CSV_URL);
+    const rows = parseCSV(await res.text()).slice(1);
+    buildingData = rows.filter(r => r.length > 3).map(cols => ({
+      id: cols[0] || '', images: cols[1] || '', name: cols[2] || '(名称未設定)', type: cols[3] || '',
+      yearBuild: cols[4] || '', yearLoss: cols[5] || '', status: cols[6] || '',
+      builder: cols[7] || '', coordsRaw: cols[8] || '', chibanKey: cols[9] || '',
+      desc: cols[10] || '', owner: cols[11] || '', heritage: cols[12] || '', condition: cols[13] || '', glbUrl: toRawUrl(cols[14] || '')
+    }));
+    buildChibanMap();
+  } catch (e) { console.warn('歴史的建造物データの読込に失敗:', e); }
+}
+
+/* ---- 自然系データ読込 ---- */
+async function loadNatureData() {
+  try {
+    const res = await fetch(NATURE_CSV_URL);
+    const rows = parseCSV(await res.text()).slice(1);
+    natureData = rows.filter(r => r.length > 3).map(cols => ({
+      id: cols[0] || '', images: cols[1] || '', name: cols[2] || '(名称未設定)', type: cols[3] || '',
+      yearStart: cols[4] || '', yearEnd: cols[5] || '', status: cols[6] || '', desc: cols[7] || '',
+      condition: cols[8] || '', chibanKey: cols[9] || '', coordsRaw: cols[10] || ''
+    }));
+    buildChibanMap();
+  } catch (e) { console.warn('自然系データの読込に失敗:', e); }
+}
+
+/* ---- 古道データ読込 ---- */
+async function loadOldRoadData() {
+  try {
+    const res = await fetch(OLDROAD_CSV_URL);
+    const rows = parseCSV(await res.text()).slice(1);
+    oldRoadData = rows.filter(r => r.length > 2).map(cols => ({
+      id: cols[0] || '', name: cols[1] || '(名称未設定)', type: cols[2] || '',
+      yearBuild: cols[3] || '', yearLoss: cols[4] || '', status: cols[5] || '', desc: cols[6] || '',
+      condition: cols[7] || '', chibanKey: cols[8] || '', builder: cols[9] || ''
+    }));
+    buildChibanMap();
+  } catch (e) { console.warn('古道データの読込に失敗:', e); }
+}
+
+/* ---- 文書・史料データ読込 ---- */
+async function loadDocData() {
+  try {
+    const res = await fetch(DOC_CSV_URL);
+    const rows = parseCSV(await res.text()).slice(1);
+    docData = rows.filter(r => r.length > 3).map(cols => ({
+      id: cols[0] || '', catCode: cols[1] || '', main: cols[2] || '', mid: cols[3] || '', sub: cols[4] || '',
+      pdfUrl: cols[5] || '', startPage: cols[6] || '', subject: cols[7] || '', creator: cols[8] || '',
+      recipient: cols[9] || '', yearWest: cols[10] || '', yearJpn: cols[11] || '', desc: cols[12] || '',
+      place: cols[13] || '', storage: cols[14] || '', callNum: cols[15] || '', form: cols[16] || '',
+      qty: cols[17] || '', condition: cols[18] || '', chibanKey: cols[19] || '', remarks: cols[20] || '',
+      tileUrl: cols[21] || '', genre: cols[22] || ''
+    }));
+    buildChibanMap();
+  } catch (e) { console.warn('文書・史料データの読込に失敗:', e); }
+}
+
+/* ---- カルーセル ---- */
+function initCarousel() {
+  const track = document.getElementById('carousel-track');
+  const slides = document.querySelectorAll('.carousel-slide');
+  const dots = document.querySelectorAll('.carousel-dot');
+  if (!track || slides.length === 0) return;
+
+  window.goToSlide = function (index) {
+    if (index < 0) index = slides.length - 1;
+    if (index >= slides.length) index = 0;
+    currentCarouselIndex = index;
+    track.style.transform = `translateX(-${index * 100}%)`;
+    dots.forEach(d => d.classList.remove('active'));
+    if (dots[index]) dots[index].classList.add('active');
+  };
+  window.moveCarousel = function (step) { goToSlide(currentCarouselIndex + step); resetCarouselTimer(); };
+  window.setCarouselSlide = function (index) { goToSlide(index); resetCarouselTimer(); };
+  function resetCarouselTimer() { clearInterval(carouselInterval); carouselInterval = setInterval(() => moveCarousel(1), 6000); }
+
+  goToSlide(0);
+  resetCarouselTimer();
+}
+
+/* ---- 総合検索 ---- */
+function toggleOmniMode(mode) {
+  document.getElementById('tab-omni-simple').classList.toggle('active', mode === 'simple');
+  document.getElementById('tab-omni-detail').classList.toggle('active', mode === 'detail');
+  document.getElementById('omni-simple-ui').style.display = mode === 'simple' ? 'block' : 'none';
+  document.getElementById('omni-detail-ui').style.display = mode === 'detail' ? 'block' : 'none';
+}
+function executeOmniSearch() {
+  const isSimple = document.getElementById('tab-omni-simple').classList.contains('active');
+  let q = isSimple ? document.getElementById('omni-q-simple').value : document.getElementById('omni-q-detail').value;
+  if (!q || !q.trim()) { showNotification("キーワードを入力してください"); return; }
+  q = q.trim().toLowerCase();
+
+  const dbFlags = isSimple ? { photo: true, map: true, doc: true, td: true, nature: true, oldroad: true, building: true } : {
+    photo: document.getElementById('omni-db-photo').checked, map: document.getElementById('omni-db-map').checked,
+    doc: document.getElementById('omni-db-doc').checked, td: document.getElementById('omni-db-td').checked,
+    nature: document.getElementById('omni-db-nature').checked, oldroad: document.getElementById('omni-db-oldroad').checked,
+    building: document.getElementById('omni-db-building').checked
+  };
+
+  omniResults = [];
+  const push = (arr, type, textFn, titleFn, imgFn) => {
+    arr.forEach(item => {
+      if (textFn(item).toLowerCase().includes(q)) omniResults.push({ type, id: item.id, title: titleFn(item), img: imgFn(item) });
+    });
+  };
+  if (dbFlags.photo) push(archiveData, 'photo', p => [p.title, p.desc, p.explanation, p.author, p.storage].join(' '), p => p.title, p => p.img);
+  if (dbFlags.map) push(mapDataRows.map((r, i) => ({ id: i, name: r.name })), 'map', r => r.name, r => r.name, () => null);
+  if (dbFlags.doc) push(docData, 'doc', d => [d.subject, d.main, d.mid, d.sub, d.desc].join(' '), d => d.subject || d.sub, () => null);
+  if (dbFlags.td) push(models, 'td', m => [m.name, m.info, m.category].join(' '), m => m.name, m => m.thumbnail);
+  if (dbFlags.nature) push(natureData, 'nature', n => [n.name, n.desc, n.type].join(' '), n => n.name, n => splitUrls(n.images)[0]);
+  if (dbFlags.oldroad) push(oldRoadData, 'oldroad', o => [o.name, o.desc, o.type].join(' '), o => o.name, () => null);
+  if (dbFlags.building) push(buildingData, 'building', b => [b.name, b.desc, b.type, b.owner].join(' '), b => b.name, b => splitUrls(b.images)[0]);
+
+  const container = document.getElementById('omni-results-container');
+  container.style.display = 'block';
+  if (omniResults.length === 0) {
+    container.innerHTML = '<p class="placeholder-msg"><i class="fa-solid fa-magnifying-glass"></i>該当する資産が見つかりませんでした。</p>';
+  } else {
+    renderOmniResultCards(omniResults);
+  }
+  showNotification(`横断検索: ${q} の結果を ${omniResults.length} 件表示しました。`);
+}
+const OMNI_TYPE_LABEL = { photo: ['古写真', '#4e342e'], map: ['古地図', '#bda06d'], doc: ['文書', '#000080'], td: ['石造物', '#666'], nature: ['自然系', '#2f6b46'], oldroad: ['古道', '#008b8b'], building: ['建造物', '#e67e22'] };
+function renderOmniResultCards(results) {
+  const container = document.getElementById('omni-results-container');
+  container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">${
+    results.map(item => {
+      const [label, color] = OMNI_TYPE_LABEL[item.type];
+      const thumb = item.img ? `<img src="${item.img}" onerror="this.style.display='none'">` : `<div class="ph-thumb" style="display:flex;align-items:center;justify-content:center;background:${color}22;color:${color};font-size:1.6rem;"><i class="fa-solid fa-image"></i></div>`;
+      return `<div class="omni-result-card" onclick='omniOpenDetail(${JSON.stringify(item.type)}, ${JSON.stringify(item.id)})'><span class="omni-badge" style="background:${color};">${label}</span>${thumb}<div class="orc-title">${item.title || '(無題)'}</div></div>`;
+    }).join('')
+  }</div>`;
+}
+function omniOpenDetail(type, id) {
+  if (type === 'photo') openDetail(id);
+  else if (type === 'td') open3DDetail(id);
+  else if (type === 'nature') openNatureDetailModal(natureData.find(n => n.id === id));
+  else if (type === 'oldroad') openOldRoadDetailModal(oldRoadData.find(o => o.id === id));
+  else if (type === 'building') openBuildingDetailModal(buildingData.find(b => b.id === id));
+  else if (type === 'doc') showPage('doc');
+  else if (type === 'map') showPage('map-db');
+}
+
+/* ---- 古写真DB検索 ---- */
+function filterDB() {
+  const q = (document.getElementById('db-q').value || '').toLowerCase().trim();
+  const era = document.getElementById('db-era').value;
+  const place = (document.getElementById('db-place').value || '').toLowerCase().trim();
+  const yStart = parseInt(document.getElementById('db-year-start').value) || 0;
+  const yEnd = parseInt(document.getElementById('db-year-end').value) || 9999;
+  const author = (document.getElementById('db-author').value || '').toLowerCase().trim();
+  const storage = (document.getElementById('db-storage').value || '').toLowerCase().trim();
+  const seiri = (document.getElementById('db-seiri').value || '').trim();
+
+  if (!q && !era && !place && yStart === 0 && yEnd === 9999 && !author && !storage && !seiri) {
+    document.getElementById('photo-list').innerHTML = '<p class="placeholder-msg" style="grid-column:1/-1;"><i class="fa-solid fa-camera-retro"></i>検索条件を指定し、「検索」ボタンを押してください。</p>';
+    document.getElementById('pagination-container').innerHTML = '';
+    document.getElementById('search-result-map-container').style.display = 'none';
+    return;
+  }
+
+  pagedFilteredData = archiveData.filter(p => {
+    const matchQ = !q || [p.title, p.desc, p.explanation, p.author, p.storage, p.source].join(' ').toLowerCase().includes(q);
+    const matchEra = !era || (p.era || '').includes(era);
+    const matchPlace = !place || (p.desc || '').toLowerCase().includes(place);
+    const matchAuthor = !author || (p.author || '').toLowerCase().includes(author);
+    const matchStorage = !storage || (p.storage || '').toLowerCase().includes(storage);
+    let matchSeiri = true;
+    if (seiri) {
+      const cleanSeiri = seiri.replace(/[()（）]/g, '');
+      const cleanItemSeiri = (p.refNum || '').replace(/[()（）]/g, '');
+      matchSeiri = (p.refNum || '').includes(seiri) || cleanItemSeiri.includes(cleanSeiri);
+    }
+    let matchYear;
+    const y = parseInt(p.year);
+    if (!isNaN(y)) matchYear = y >= yStart && y <= yEnd;
+    else matchYear = !(yStart > 0 || yEnd < 9999);
+    return matchQ && matchEra && matchPlace && matchYear && matchAuthor && matchStorage && matchSeiri;
+  });
+  currentPage = 1;
+  renderPhotosPage();
+  updateResultMap(pagedFilteredData);
+}
+
+function renderPhotosPage() {
+  const list = document.getElementById('photo-list');
+  if (pagedFilteredData.length === 0) {
+    list.innerHTML = '<p class="placeholder-msg" style="grid-column:1/-1;">該当する古写真が見つかりません。</p>';
+    document.getElementById('pagination-container').innerHTML = '';
+    return;
+  }
+  const startIdx = (currentPage - 1) * itemsPerPage;
+  list.innerHTML = pagedFilteredData.slice(startIdx, startIdx + itemsPerPage).map(p =>
+    `<div class="photo-card" onclick="openDetail(${p.id})"><img src="${p.img || ''}" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400x300/4e342e/ffffff?text=No+Image';"><p>${p.title || ''}</p></div>`
+  ).join('');
+  renderPaginationControls();
+}
+function renderPaginationControls() {
+  const container = document.getElementById('pagination-container');
+  container.innerHTML = '';
+  const totalPages = Math.ceil(pagedFilteredData.length / itemsPerPage);
+  if (totalPages <= 1) return;
+  for (let i = 1; i <= totalPages; i++) {
+    const btn = document.createElement('button');
+    btn.className = `pagination-btn ${i === currentPage ? 'active' : ''}`;
+    btn.innerText = i;
+    btn.onclick = () => { currentPage = i; renderPhotosPage(); document.getElementById('photo-list').scrollIntoView({ behavior: 'smooth' }); };
+    container.appendChild(btn);
+  }
+}
+
+/* ---- 検索結果ピンマップ ---- */
+function updateResultMap(filteredData) {
+  const mapContainer = document.getElementById('search-result-map-container');
+  if (filteredData.length === 0) { mapContainer.style.display = 'none'; return; }
+  mapContainer.style.display = 'block';
+  if (!resultLeafletMap) {
+    resultLeafletMap = L.map('result-map', { zoomControl: true }).setView(YAMASHINA_CENTER, 14);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { attribution: '地理院タイル' }).addTo(resultLeafletMap);
+  } else {
+    resultLeafletMap.eachLayer(l => { if (l instanceof L.Marker || l instanceof L.Polygon) resultLeafletMap.removeLayer(l); });
+  }
+  const bounds = [];
+  filteredData.forEach(p => {
+    if (typeof p.lat !== 'number' || !p.lat) return;
+    const angle = getDirectionAngle(p.direction), color = getDistanceColor(p.distanceRaw);
+    const icon = buildPhotoIcon(angle, color);
+    L.marker([p.lat, p.lng], { icon }).addTo(resultLeafletMap).bindPopup(photoPopupHTML(p));
+    bounds.push([p.lat, p.lng]);
+  });
+  if (bounds.length) resultLeafletMap.fitBounds(bounds, { padding: [30, 30] });
+  setTimeout(() => resultLeafletMap.invalidateSize(), 200);
+}
+
+/* ---- 石造物DB検索(filterTD) ---- */
+function filterTD() {
+  const searchAll = (document.getElementById('td-search-all').value || '').toLowerCase().trim();
+  const searchName = (document.getElementById('td-search-name').value || '').toLowerCase().trim();
+  const searchInsc = (document.getElementById('td-search-inscription').value || '').toLowerCase().trim();
+  const searchId = (document.getElementById('td-search-id').value || '').toLowerCase().trim();
+  const searchCat = document.getElementById('td-search-category').value;
+  const searchDate = (document.getElementById('td-search-date').value || '').toLowerCase().trim();
+  const searchMat = (document.getElementById('td-search-material').value || '').toLowerCase().trim();
+  const searchCond = (document.getElementById('td-search-condition').value || '').toLowerCase().trim();
+  const searchInfo = (document.getElementById('td-search-info').value || '').toLowerCase().trim();
+  const searchEra = (document.getElementById('td-search-era').value || '').trim();
+  const searchYearStart = parseInt(document.getElementById('td-search-year-start').value) || 0;
+  const searchYearEnd = parseInt(document.getElementById('td-search-year-end').value) || 9999;
+
+  const filtered = models.filter(m => {
+    const fullText = [m.name, m.category, m.material, m.condition, m.info, m.id, m.eraRaw, m.kokumeiBase, m.north, m.east, m.south, m.west].join(' ').toLowerCase();
+    const matchAll = !searchAll || fullText.includes(searchAll);
+    const matchName = !searchName || (m.name || '').toLowerCase().includes(searchName);
+    const matchInsc = !searchInsc || [m.kokumeiBase, m.north, m.east, m.south, m.west].join(' ').toLowerCase().includes(searchInsc);
+    const matchId = !searchId || (m.id || '').toLowerCase().includes(searchId);
+    const matchCat = !searchCat || m.category === searchCat;
+    const matchDate = !searchDate || (m.date || '').toLowerCase().includes(searchDate);
+    const matchMat = !searchMat || (m.material || '').toLowerCase().includes(searchMat);
+    const matchCond = !searchCond || (m.condition || '').toLowerCase().includes(searchCond);
+    const matchInfo = !searchInfo || (m.info || '').toLowerCase().includes(searchInfo);
+    const matchEra = !searchEra || (m.eraRaw || '').includes(searchEra);
+    let matchYear = true;
+    if (searchYearStart > 0 || searchYearEnd < 9999) matchYear = m.parsedYear !== null && m.parsedYear >= searchYearStart && m.parsedYear <= searchYearEnd;
+    return matchAll && matchName && matchInsc && matchId && matchCat && matchDate && matchMat && matchCond && matchInfo && matchEra && matchYear;
+  });
+  renderTDList(filtered);
+  add3DMarkersToMap(filtered);
+}
+function renderTDList(data) {
+  const grid = document.getElementById('td-grid');
+  if (data.length === 0) { grid.innerHTML = '<p class="placeholder-msg" style="grid-column:1/-1;">条件に一致する石造物データが見つかりませんでした。</p>'; return; }
+  grid.innerHTML = data.map(m => {
+    const thumbHTML = m.thumbnail
+      ? `<img src="${m.thumbnail}" style="width:100%;height:200px;object-fit:cover;margin-bottom:10px;">`
+      : `<div style="width:100%;height:200px;background:#1e1817;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px dashed var(--gold-600);margin-bottom:10px;"><i class="fa-solid fa-cube" style="font-size:3.5rem;color:#2e7d32;margin-bottom:10px;"></i><span style="font-size:.8rem;color:#aaa;">3Dモデル（タップで表示）</span></div>`;
+    const info = m.info || '';
+    return `<div class="photo-card" style="height:380px;background:#2e2624;" onclick="open3DDetail('${m.id}')"><div style="width:100%;height:100%;display:flex;flex-direction:column;padding:15px;box-sizing:border-box;">${thumbHTML}<div style="margin-top:5px;"><b style="color:#fff;font-size:1.1rem;display:block;margin-bottom:5px;">${m.name}</b><p style="font-size:.82rem;color:var(--gold-200);">${info.length > 45 ? info.substring(0, 45) + '...' : info}</p></div></div></div>`;
+  }).join('');
+}
+
+/* ---- 自然系/古道/建造物 スタイル判定 ---- */
+function getNatureStyle(row) {
+  if (row.status === '消失') return { color: '#3a2e2b', fillColor: '#3a2e2b', icon: null };
+  const map2 = { '樹木・巨樹': '#228b22', '水路・池沼': '#008b8b', '地形・地質': '#808000', '動植物生息地': '#9acd32' };
+  const c = map2[row.type] || '#2e8b57';
+  return { color: c, fillColor: c, icon: row.type === '樹木・巨樹' ? 'fa-leaf' : (row.type === '水路・池沼' ? 'fa-droplet' : null) };
+}
+function getOldRoadStyle(row) {
+  if (row.status === '消失') return { color: '#1a2a3a', fillColor: '#1a2a3a' };
+  const map2 = { '里道': '#66cdaa', '参道': '#008b8b', '国道': '#004d40', '高速道路': '#0000ff' };
+  return { color: map2[row.type] || '#20b2aa', fillColor: map2[row.type] || '#20b2aa' };
+}
+function getBuildingStyle(row) {
+  if (row.status === '消失') return { color: '#4a0000', fillColor: '#4a0000', icon: null };
+  const map2 = {
+    '神社': ['#ff8c00', 'fa-torii-gate'], '寺院': ['#e60000', 'fa-om'],
+    '戦前洋風建築': ['#ffd700', null], '近代和風建築': ['#008000', null],
+    '町家建築': ['#0000ff', null], '農家建築': ['#8b4513', null]
+  };
+  const [c, icon] = map2[row.type] || ['#666', null];
+  return { color: c, fillColor: c, icon };
+}
+
+/* ---- 地番ポリゴン/座標ピン 動的描画エンジン(共通) ---- */
+function renderRecordsOnEmbeddedMap(leafletMap, records, opts) {
+  const bounds = [];
+  records.forEach(row => {
+    const style = opts.styleFn(row);
+    const chibanKey = row[opts.chibanField];
+    let placed = false;
+    if (chibanKey && chibanGeoData) {
+      const feat = chibanGeoData.features.find(f => f.properties && f.properties.chiban_key === chibanKey);
+      if (feat) {
+        const layer = L.geoJSON(feat, { style: { color: style.color, weight: 2, fillColor: style.fillColor, fillOpacity: .4 } }).addTo(leafletMap);
+        layer.on('click', () => opts.onClick(row));
+        try { bounds.push(layer.getBounds()); } catch (e) {}
+        placed = true;
+      }
+    }
+    if (!placed && row[opts.coordField]) {
+      const c = row[opts.coordField].split(/[,\s]+/).map(Number);
+      if (c[0] && c[1]) {
+        const icon = L.divIcon({ html: `<div style="width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${style.color};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>`, className: '', iconSize: [26, 26], iconAnchor: [13, 26] });
+        const marker = L.marker([c[0], c[1]], { icon }).addTo(leafletMap);
+        marker.on('click', () => opts.onClick(row));
+        bounds.push([c[0], c[1]]);
+      }
+    }
+  });
+  if (bounds.length) { try { leafletMap.fitBounds(bounds, { padding: [30, 30] }); } catch (e) {} }
+}
+
+/* ================= 自然系データベース ================= */
+function filterNatureDB() {
+  const q = (document.getElementById('nature-search-q').value || '').toLowerCase().trim();
+  const id = (document.getElementById('nature-search-id').value || '').toLowerCase().trim();
+  const name = (document.getElementById('nature-search-name').value || '').toLowerCase().trim();
+  const type = (document.getElementById('nature-search-type').value || '').toLowerCase().trim();
+  const ys = (document.getElementById('nature-search-year-start').value || '').trim();
+  const ye = (document.getElementById('nature-search-year-end').value || '').trim();
+  const status = (document.getElementById('nature-search-status').value || '').toLowerCase().trim();
+  const condition = (document.getElementById('nature-search-condition').value || '').toLowerCase().trim();
+  const chiban = (document.getElementById('nature-search-chiban').value || '').toLowerCase().trim();
+
+  pagedFilteredNatureData = natureData.filter(r => {
+    const full = Object.values(r).join(' ').toLowerCase();
+    return (!q || full.includes(q)) &&
+      (!id || (r.id || '').toLowerCase().includes(id)) &&
+      (!name || (r.name || '').toLowerCase().includes(name)) &&
+      (!type || (r.type || '').toLowerCase().includes(type)) &&
+      (!ys || (r.yearStart || '').includes(ys)) &&
+      (!ye || (r.yearEnd || '').includes(ye)) &&
+      (!status || (r.status || '').toLowerCase().includes(status)) &&
+      (!condition || (r.condition || '').toLowerCase().includes(condition)) &&
+      (!chiban || (r.chibanKey || '').toLowerCase().includes(chiban));
+  });
+  currentNaturePage = 1;
+  renderNatureGalleryCards();
+  renderNatureResultMap();
+}
+function renderNatureGalleryCards() {
+  const el = document.getElementById('nature-gallery-container');
+  if (!pagedFilteredNatureData.length) { el.innerHTML = '<p class="placeholder-msg" style="grid-column:1/-1;">該当する自然系資産が見つかりません。</p>'; document.getElementById('nature-pagination-container').innerHTML=''; return; }
+  const start = (currentNaturePage - 1) * galleryPerPage;
+  el.innerHTML = pagedFilteredNatureData.slice(start, start + galleryPerPage).map(r => {
+    const thumb = splitUrls(r.images)[0];
+    const img = thumb ? `<img src="${thumb}" onerror="this.onerror=null;this.src='https://placehold.co/300x180/2e8b57/ffffff?text=Nature';">` : `<div class="ph-thumb" style="display:flex;align-items:center;justify-content:center;background:#2e8b5722;"><i class="fa-solid fa-leaf" style="font-size:2rem;color:#2e8b57;"></i></div>`;
+    return `<div class="gallery-card" onclick='openNatureDetailModal(${JSON.stringify(r).replace(/'/g,"&apos;")})'>${img}<h3>${r.name}</h3></div>`;
+  }).join('');
+  renderNaturePagination();
+}
+function renderNaturePagination() {
+  const c = document.getElementById('nature-pagination-container'); c.innerHTML = '';
+  const totalPages = Math.ceil(pagedFilteredNatureData.length / galleryPerPage);
+  if (totalPages <= 1) return;
+  for (let i = 1; i <= totalPages; i++) {
+    const btn = document.createElement('button');
+    btn.className = `pagination-btn ${i === currentNaturePage ? 'active' : ''}`; btn.innerText = i;
+    btn.onclick = () => { currentNaturePage = i; renderNatureGalleryCards(); };
+    c.appendChild(btn);
+  }
+}
+let natureResultMapInstance = null;
+function renderNatureResultMap() {
+  const container = document.getElementById('nature-result-map-container');
+  if (!pagedFilteredNatureData.length) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+  if (!natureResultMapInstance) {
+    natureResultMapInstance = L.map('nature-result-map').setView(YAMASHINA_CENTER, 14);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { attribution: '地理院タイル' }).addTo(natureResultMapInstance);
+  } else { natureResultMapInstance.eachLayer(l => { if (!l._url) natureResultMapInstance.removeLayer(l); }); }
+  renderRecordsOnEmbeddedMap(natureResultMapInstance, pagedFilteredNatureData, { styleFn: getNatureStyle, chibanField: 'chibanKey', coordField: 'coordsRaw', onClick: openNatureDetailModal });
+  setTimeout(() => natureResultMapInstance.invalidateSize(), 200);
+}
+function openNatureDetailModal(row) {
+  if (!row) return;
+  const imgs = splitUrls(row.images);
+  renderSimpleDetailModal({
+    title: row.name, images: imgs, placeholderIcon: 'fa-leaf', placeholderColor: '#2e8b57',
+    meta: [['整理番号', row.id], ['種別', row.type], ['発生年', row.yearStart], ['消失年', row.yearEnd], ['現存状況', row.status], ['状態', row.condition], ['地番キー', row.chibanKey], ['説明', row.desc]],
+    row, styleFn: getNatureStyle, chibanField: 'chibanKey', coordField: 'coordsRaw'
+  });
+}
+
+/* ---- 自然系/古道/建造物 共通詳細モーダル ---- */
+let simpleCarouselImages = [], simpleCarouselIndex = 0;
+function renderSimpleDetailModal(cfg) {
+  simpleCarouselImages = cfg.images || [];
+  simpleCarouselIndex = 0;
+  const body = document.getElementById('simple-modal-body');
+  const imgArea = simpleCarouselImages.length
+    ? `<img class="clickable-image" id="simple-carousel-img" src="${simpleCarouselImages[0]}" style="width:100%;height:100%;object-fit:contain;" onclick="openFullScreenImage(this.src)" onerror="this.onerror=null;this.src='https://placehold.co/600x400/${cfg.placeholderColor.replace('#','')}/ffffff?text=No+Image';">
+        ${simpleCarouselImages.length > 1 ? `<button class="carousel-arrow prev" onclick="changeSimpleCarouselImage(-1)"><i class="fa-solid fa-chevron-left"></i></button><button class="carousel-arrow next" onclick="changeSimpleCarouselImage(1)"><i class="fa-solid fa-chevron-right"></i></button>` : ''}`
+    : `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:${cfg.placeholderColor};"><i class="fa-solid ${cfg.placeholderIcon}" style="font-size:4rem;"></i><span style="color:#aaa;margin-top:10px;">画像はありません</span></div>`;
+
+  const metaHTML = cfg.meta.filter(([, v]) => v !== undefined).map(([k, v]) => `<div class="meta-item"><span class="meta-label">${k}</span><span class="meta-value">${v || '－'}</span></div>`).join('');
+
+  const glbBtn = cfg.row.glbUrl && cfg.row.glbUrl.trim() && cfg.row.glbUrl.trim() !== '-'
+    ? `<button class="map-focus-btn" style="background:var(--green-600);" onclick='open3DViewerModal(${JSON.stringify(cfg.row.glbUrl)})'><i class="fa-solid fa-cube"></i> 3Dで見る</button>` : '';
+
+  body.innerHTML = `
+    <div class="modal-image-section" style="position:relative;">${imgArea}</div>
+    <div class="info-section-wrapper" id="simple-modal-info-wrapper">
+      <div class="modal-pane-toggle" onclick="toggleSimpleModalPanel()"><i class="fa-solid fa-chevron-right" id="simple-modal-toggle-icon"></i></div>
+      <div class="modal-info-section">
+        <h2>${cfg.title}</h2>
+        <div class="meta-info-list">
+          ${metaHTML}
+          <div class="modal-map-container" id="simple-modal-inline-map"></div>
+        </div>
+        <button class="map-focus-btn" onclick="focusSimpleOnMap(${JSON.stringify(cfg.row).replace(/"/g, '&quot;')}, ${JSON.stringify(cfg.chibanField)}, ${JSON.stringify(cfg.coordField)})"><i class="fa-solid fa-location-dot"></i> 地図上で確認</button>
+        ${glbBtn}
+      </div>
+    </div>`;
+  document.getElementById('simple-detail-modal').style.display = 'flex';
+
+  setTimeout(() => {
+    const el = document.getElementById('simple-modal-inline-map');
+    if (!el) return;
+    const inlineMap = L.map(el, { zoomControl: false, attributionControl: false }).setView(YAMASHINA_CENTER, 15);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png').addTo(inlineMap);
+    renderRecordsOnEmbeddedMap(inlineMap, [cfg.row], { styleFn: cfg.styleFn, chibanField: cfg.chibanField, coordField: cfg.coordField, onClick: () => {} });
+    inlineMap.invalidateSize();
+  }, 300);
+}
+function changeSimpleCarouselImage(step) {
+  simpleCarouselIndex = (simpleCarouselIndex + step + simpleCarouselImages.length) % simpleCarouselImages.length;
+  const img = document.getElementById('simple-carousel-img');
+  if (img) img.src = simpleCarouselImages[simpleCarouselIndex];
+}
+function toggleSimpleModalPanel() {
+  const wrapper = document.getElementById('simple-modal-info-wrapper');
+  const icon = document.getElementById('simple-modal-toggle-icon');
+  const collapsed = wrapper.classList.contains('collapsed');
+  if (collapsed) { wrapper.classList.remove('collapsed'); icon.className = 'fa-solid fa-chevron-right'; }
+  else { wrapper.classList.add('collapsed'); icon.className = 'fa-solid fa-chevron-left'; }
+}
+function closeSimpleModal() { document.getElementById('simple-detail-modal').style.display = 'none'; }
+function focusSimpleOnMap(row, chibanField, coordField) {
+  closeSimpleModal();
+  showPage('map');
+  setTimeout(() => {
+    if (row[chibanField] && chibanGeoData) {
+      const feat = chibanGeoData.features.find(f => f.properties && f.properties.chiban_key === row[chibanField]);
+      if (feat) { const l = L.geoJSON(feat); try { map.fitBounds(l.getBounds(), { padding: [60, 60] }); } catch (e) {} return; }
+    }
+    if (row[coordField]) {
+      const c = row[coordField].split(/[,\s]+/).map(Number);
+      if (c[0] && c[1]) map.flyTo([c[0], c[1]], 18, { animate: true, duration: 1.2 });
+    }
+  }, 250);
+}
+function open3DViewerModal(glbUrl) {
+  const existing = document.getElementById('inline-3d-viewer-modal');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'inline-3d-viewer-modal';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  div.innerHTML = `<button class="close-btn" style="color:#fff;" onclick="document.getElementById('inline-3d-viewer-modal').remove()"><i class="fa-solid fa-xmark"></i></button>
+    <model-viewer src="${glbUrl}" auto-rotate camera-controls style="width:90%;height:85%;background:#111;"></model-viewer>`;
+  document.body.appendChild(div);
+}
+
+/* ================= 古道データベース ================= */
+function filterOldRoadDB() {
+  const q = (document.getElementById('oldroad-search-q').value || '').toLowerCase().trim();
+  const id = (document.getElementById('oldroad-search-id').value || '').toLowerCase().trim();
+  const name = (document.getElementById('oldroad-search-name').value || '').toLowerCase().trim();
+  const type = (document.getElementById('oldroad-search-type').value || '').toLowerCase().trim();
+  const yb = (document.getElementById('oldroad-search-year-build').value || '').toLowerCase().trim();
+  const yl = (document.getElementById('oldroad-search-year-loss').value || '').toLowerCase().trim();
+  const status = (document.getElementById('oldroad-search-status').value || '').toLowerCase().trim();
+  const condition = (document.getElementById('oldroad-search-condition').value || '').toLowerCase().trim();
+  const chiban = (document.getElementById('oldroad-search-chiban').value || '').toLowerCase().trim();
+  const builder = (document.getElementById('oldroad-search-builder').value || '').toLowerCase().trim();
+
+  pagedFilteredOldRoadData = oldRoadData.filter(r => {
+    const full = Object.values(r).join(' ').toLowerCase();
+    return (!q || full.includes(q)) &&
+      (!id || (r.id || '').toLowerCase().includes(id)) &&
+      (!name || (r.name || '').toLowerCase().includes(name)) &&
+      (!type || (r.type || '').toLowerCase().includes(type)) &&
+      (!yb || (r.yearBuild || '').toLowerCase().includes(yb)) &&
+      (!yl || (r.yearLoss || '').toLowerCase().includes(yl)) &&
+      (!status || (r.status || '').toLowerCase().includes(status)) &&
+      (!condition || (r.condition || '').toLowerCase().includes(condition)) &&
+      (!chiban || (r.chibanKey || '').toLowerCase().includes(chiban)) &&
+      (!builder || (r.builder || '').toLowerCase().includes(builder));
+  });
+  currentOldRoadPage = 1;
+  renderOldRoadGalleryCards();
+  renderOldRoadResultMap();
+}
+function renderOldRoadGalleryCards() {
+  const el = document.getElementById('oldroad-gallery-container');
+  if (!pagedFilteredOldRoadData.length) { el.innerHTML = '<p class="placeholder-msg" style="grid-column:1/-1;">該当する古道が見つかりません。</p>'; document.getElementById('oldroad-pagination-container').innerHTML=''; return; }
+  const start = (currentOldRoadPage - 1) * galleryPerPage;
+  el.innerHTML = pagedFilteredOldRoadData.slice(start, start + galleryPerPage).map(r =>
+    `<div class="gallery-card" onclick='openOldRoadDetailModal(${JSON.stringify(r).replace(/'/g,"&apos;")})'>
+       <div class="ph-thumb" style="height:140px;background:#e6f2f2;display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-route" style="font-size:2.2rem;color:#008b8b;"></i></div>
+       <h3>${r.name}</h3></div>`
+  ).join('');
+  renderOldRoadPagination();
+}
+function renderOldRoadPagination() {
+  const c = document.getElementById('oldroad-pagination-container'); c.innerHTML = '';
+  const totalPages = Math.ceil(pagedFilteredOldRoadData.length / galleryPerPage);
+  if (totalPages <= 1) return;
+  for (let i = 1; i <= totalPages; i++) {
+    const btn = document.createElement('button');
+    btn.className = `pagination-btn ${i === currentOldRoadPage ? 'active' : ''}`; btn.innerText = i;
+    btn.onclick = () => { currentOldRoadPage = i; renderOldRoadGalleryCards(); };
+    c.appendChild(btn);
+  }
+}
+let oldRoadResultMapInstance = null;
+function renderOldRoadResultMap() {
+  const container = document.getElementById('oldroad-result-map-container');
+  if (!pagedFilteredOldRoadData.length) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+  if (!oldRoadResultMapInstance) {
+    oldRoadResultMapInstance = L.map('oldroad-result-map').setView(YAMASHINA_CENTER, 14);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { attribution: '地理院タイル' }).addTo(oldRoadResultMapInstance);
+  } else { oldRoadResultMapInstance.eachLayer(l => { if (!l._url) oldRoadResultMapInstance.removeLayer(l); }); }
+  renderRecordsOnEmbeddedMap(oldRoadResultMapInstance, pagedFilteredOldRoadData, { styleFn: getOldRoadStyle, chibanField: 'chibanKey', coordField: null, onClick: openOldRoadDetailModal });
+  setTimeout(() => oldRoadResultMapInstance.invalidateSize(), 200);
+}
+function openOldRoadDetailModal(row) {
+  if (!row) return;
+  renderSimpleDetailModal({
+    title: row.name, images: [], placeholderIcon: 'fa-route', placeholderColor: '#008b8b',
+    meta: [['整理番号', row.id], ['種別', row.type], ['造成年代', row.yearBuild], ['消失・変更年代', row.yearLoss], ['現存状況', row.status], ['状態', row.condition], ['地番キー', row.chibanKey], ['施工者', row.builder], ['説明', row.desc]],
+    row, styleFn: getOldRoadStyle, chibanField: 'chibanKey', coordField: null
+  });
+}
+
+/* ================= 歴史的建造物データベース ================= */
+function filterBuildingDB() {
+  const q = (document.getElementById('bldg-search-q').value || '').toLowerCase().trim();
+  const id = (document.getElementById('bldg-search-id').value || '').toLowerCase().trim();
+  const name = (document.getElementById('bldg-search-name').value || '').toLowerCase().trim();
+  const type = (document.getElementById('bldg-search-type').value || '').toLowerCase().trim();
+  const yb = (document.getElementById('bldg-search-year-build').value || '').toLowerCase().trim();
+  const yl = (document.getElementById('bldg-search-year-loss').value || '').toLowerCase().trim();
+  const status = (document.getElementById('bldg-search-status').value || '').toLowerCase().trim();
+  const builder = (document.getElementById('bldg-search-builder').value || '').toLowerCase().trim();
+  const owner = (document.getElementById('bldg-search-owner').value || '').toLowerCase().trim();
+  const heritage = (document.getElementById('bldg-search-heritage').value || '').toLowerCase().trim();
+  const condition = (document.getElementById('bldg-search-condition').value || '').toLowerCase().trim();
+  const has3d = document.getElementById('bldg-search-has3d').value;
+
+  pagedFilteredBuildingData = buildingData.filter(r => {
+    const full = Object.values(r).join(' ').toLowerCase();
+    const matchHas3d = !has3d || (has3d === 'yes' ? !!(r.glbUrl && r.glbUrl.trim() && r.glbUrl.trim() !== '-') : !(r.glbUrl && r.glbUrl.trim() && r.glbUrl.trim() !== '-'));
+    return (!q || full.includes(q)) &&
+      (!id || (r.id || '').toLowerCase().includes(id)) &&
+      (!name || (r.name || '').toLowerCase().includes(name)) &&
+      (!type || (r.type || '').toLowerCase().includes(type)) &&
+      (!yb || (r.yearBuild || '').toLowerCase().includes(yb)) &&
+      (!yl || (r.yearLoss || '').toLowerCase().includes(yl)) &&
+      (!status || (r.status || '').toLowerCase().includes(status)) &&
+      (!builder || (r.builder || '').toLowerCase().includes(builder)) &&
+      (!owner || (r.owner || '').toLowerCase().includes(owner)) &&
+      (!heritage || (r.heritage || '').toLowerCase().includes(heritage)) &&
+      (!condition || (r.condition || '').toLowerCase().includes(condition)) && matchHas3d;
+  });
+  currentBuildingPage = 1;
+  renderBuildingGalleryCards();
+  renderBuildingResultMap();
+}
+function renderBuildingGalleryCards() {
+  const el = document.getElementById('bldg-gallery-container');
+  if (!pagedFilteredBuildingData.length) { el.innerHTML = '<p class="placeholder-msg" style="grid-column:1/-1;">該当する建造物が見つかりません。</p>'; document.getElementById('bldg-pagination-container').innerHTML=''; return; }
+  const start = (currentBuildingPage - 1) * galleryPerPage;
+  el.innerHTML = pagedFilteredBuildingData.slice(start, start + galleryPerPage).map(r => {
+    const thumb = splitUrls(r.images)[0];
+    const img = thumb ? `<img src="${thumb}" onerror="this.onerror=null;this.src='https://placehold.co/300x180/e67e22/ffffff?text=Building';">` : `<div class="ph-thumb" style="display:flex;align-items:center;justify-content:center;background:#e67e2222;"><i class="fa-solid fa-landmark" style="font-size:2rem;color:#e67e22;"></i></div>`;
+    return `<div class="gallery-card" onclick='openBuildingDetailModal(${JSON.stringify(r).replace(/'/g,"&apos;")})'>${img}<h3>${r.name}</h3></div>`;
+  }).join('');
+  renderBuildingPagination();
+}
+function renderBuildingPagination() {
+  const c = document.getElementById('bldg-pagination-container'); c.innerHTML = '';
+  const totalPages = Math.ceil(pagedFilteredBuildingData.length / galleryPerPage);
+  if (totalPages <= 1) return;
+  for (let i = 1; i <= totalPages; i++) {
+    const btn = document.createElement('button');
+    btn.className = `pagination-btn ${i === currentBuildingPage ? 'active' : ''}`; btn.innerText = i;
+    btn.onclick = () => { currentBuildingPage = i; renderBuildingGalleryCards(); };
+    c.appendChild(btn);
+  }
+}
+let bldgResultMapInstance = null;
+function renderBuildingResultMap() {
+  const container = document.getElementById('bldg-result-map-container');
+  if (!pagedFilteredBuildingData.length) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+  if (!bldgResultMapInstance) {
+    bldgResultMapInstance = L.map('bldg-result-map').setView(YAMASHINA_CENTER, 14);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { attribution: '地理院タイル' }).addTo(bldgResultMapInstance);
+  } else { bldgResultMapInstance.eachLayer(l => { if (!l._url) bldgResultMapInstance.removeLayer(l); }); }
+  renderRecordsOnEmbeddedMap(bldgResultMapInstance, pagedFilteredBuildingData, { styleFn: getBuildingStyle, chibanField: 'chibanKey', coordField: 'coordsRaw', onClick: openBuildingDetailModal });
+  setTimeout(() => bldgResultMapInstance.invalidateSize(), 200);
+}
+function openBuildingDetailModal(row) {
+  if (!row) return;
+  const imgs = splitUrls(row.images);
+  renderSimpleDetailModal({
+    title: row.name, images: imgs, placeholderIcon: 'fa-landmark', placeholderColor: '#e67e22',
+    meta: [['整理番号', row.id], ['種別', row.type], ['建造年', row.yearBuild], ['消失年', row.yearLoss], ['現存状況', row.status], ['設計・施工者', row.builder], ['所有者', row.owner], ['文化財指定', row.heritage], ['状態', row.condition], ['説明', row.desc]],
+    row, styleFn: getBuildingStyle, chibanField: 'chibanKey', coordField: 'coordsRaw'
+  });
+}
+
+/* ================= 地番ポリゴン連携・空間検索機能 ================= */
+function buildChibanMap() {
+  const map2 = {};
+  const add = (key, entry) => { if (!key) return; if (!map2[key]) map2[key] = []; map2[key].push(entry); };
+  archiveData.forEach(p => add(p.chibanKey, { type: 'photo', id: p.id, title: p.title, thumb: p.img }));
+  models.forEach(m => add(m.chibanKey, { type: 'td', id: m.id, title: m.name, thumb: m.thumbnail }));
+  buildingData.forEach(b => add(b.chibanKey, { type: 'building', id: b.id, title: b.name, thumb: splitUrls(b.images)[0] }));
+  natureData.forEach(n => add(n.chibanKey, { type: 'nature', id: n.id, title: n.name, thumb: splitUrls(n.images)[0] }));
+  oldRoadData.forEach(o => add(o.chibanKey, { type: 'oldroad', id: o.id, title: o.name, thumb: null }));
+  docData.forEach(d => add(d.chibanKey, { type: 'doc', id: d.id, title: d.subject || d.sub, thumb: null }));
+  window.chibanMap = map2;
+}
+
+async function fetchChibanData() {
+  try {
+    const res = await fetch(CHIBAN_GEOJSON_URL);
+    const data = await res.json();
+    chibanGeoData = data;
+    if (chibanLayer && map.hasLayer(chibanLayer)) map.removeLayer(chibanLayer);
+    chibanLayer = L.geoJSON(data, {
+      pane: 'chibanPane',
+      style: { color: '#2c3e50', weight: 1, fillColor: '#34495e', fillOpacity: .1 },
+      onEachFeature: (feature, layer) => {
+        layer.on('mouseover', () => layer.setStyle({ color: '#e74c3c', weight: 2, fillOpacity: .3 }));
+        layer.on('mouseout', () => chibanLayer.resetStyle(layer));
+        layer.on('click', () => onChibanPolygonClick(feature, layer));
+      }
+    });
+    window.mainLayerControl.addOverlay(chibanLayer, '地番ポリゴン');
+    chibanLayer.addTo(map);
+    buildChibanMap();
+  } catch (e) {
+    console.error('地番データの取得に失敗:', e);
+    showNotification('地番データの読み込みに失敗しました。一部の地図機能が制限されます');
+  }
+}
+
+const CHIBAN_TYPE_LABEL = { photo: ['古写真', '#4e342e'], td: ['石造物', '#666'], building: ['建造物', '#e67e22'], nature: ['自然系', '#2f6b46'], oldroad: ['古道', '#008b8b'], doc: ['文書', '#000080'] };
+function onChibanPolygonClick(feature, layer) {
+  const key = feature.properties && feature.properties.chiban_key;
+  const items = (key && window.chibanMap[key]) || [];
+  const metaHTML = Object.entries(feature.properties || {}).map(([k, v]) => `<div style="font-size:.7rem;"><b>${k}</b>: ${v}</div>`).join('');
+  let bodyHTML;
+  if (items.length === 0) {
+    bodyHTML = `<div style="font-size:.8rem;font-weight:700;margin-bottom:6px;">地番キー: ${key || '不明'}</div>${metaHTML}<p style="margin-top:8px;font-size:.8rem;color:#888;">この地番に登録されているアーカイブ資産は現在ありません。</p>`;
+  } else {
+    const cards = items.map(it => {
+      const [label, color] = CHIBAN_TYPE_LABEL[it.type] || ['資産', '#888'];
+      const thumb = it.thumb ? `<img src="${it.thumb}" onerror="this.style.display='none'">` : '';
+      return `<div class="asset-mini-card" data-type="${it.type}" data-id="${it.id}" onclick='onChibanAssetClick(${JSON.stringify(it.type)}, ${JSON.stringify(it.id)})'>${thumb}<div>${it.title || '(無題)'}</div><span class="asset-type-badge" style="background:${color};">${label}</span></div>`;
+    }).join('');
+    bodyHTML = `<div style="font-size:.8rem;font-weight:700;margin-bottom:6px;">地番キー: ${key}</div>${metaHTML}<div class="chiban-assets-container">${cards}</div>`;
+  }
+  const center = layer.getBounds ? layer.getBounds().getCenter() : layer.getLatLng();
+  L.popup({ maxWidth: 320 }).setLatLng(center).setContent(`<div style="font-family:'Noto Serif JP',serif;">${bodyHTML}</div>`).openOn(map);
+}
+function onChibanAssetClick(type, id) {
+  map.closePopup();
+  omniOpenDetail(type, type === 'photo' ? parseInt(id) : id);
+}
+
+/* ================= 詳細モーダル共通 ================= */
+function closeModal() { document.getElementById('detail-modal').style.display = 'none'; }
+function toggleModalPanel() {
+  const wrapper = document.getElementById('modal-info-wrapper');
+  const icon = document.getElementById('modal-pane-toggle-icon');
+  const isCollapsed = wrapper.classList.contains('collapsed');
+  if (isCollapsed) { wrapper.classList.remove('collapsed'); icon.className = 'fa-solid fa-chevron-right'; }
+  else { wrapper.classList.add('collapsed'); icon.className = 'fa-solid fa-chevron-left'; }
+}
+window.closeModal = closeModal;
+
+/* ---- 古写真詳細モーダル(openDetail) ---- */
+function openDetail(id) {
+  const p = archiveData.find(x => x.id === id);
+  if (!p) return;
+  const fallback = `this.onerror=null;this.src='https://placehold.co/800x600/4e342e/ffffff?text=No+Image';`;
+  const compareBtn = (p.currentDirectLink)
+    ? `<button class="compare-btn" style="display:flex;" onclick='openBeforeAfter(${JSON.stringify(p.img)}, ${JSON.stringify(getImg(p.currentDirectLink))})'><i class="fa-solid fa-arrows-left-right"></i> 現在写真と比較</button>` : '';
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="modal-image-section">
+      <img src="${p.img || ''}" class="clickable-image" onclick="openFullScreenImage('${p.img || ''}')" onerror="${fallback}">
+    </div>
+    <div class="info-section-wrapper" id="modal-info-wrapper">
+      <div class="modal-pane-toggle" onclick="toggleModalPanel()"><i class="fa-solid fa-chevron-right" id="modal-pane-toggle-icon"></i></div>
+      <div class="modal-info-section" id="modal-info-panel">
+        <h2>${p.title || ''}</h2>
+        <div class="meta-info-list">
+          <div class="meta-item"><span class="meta-label">整理番号</span><span class="meta-value">${p.refNum || '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">説明</span><span class="meta-value">${p.explanation || '（説明なし）'}</span></div>
+          <div class="meta-item"><span class="meta-label">字地名</span><span class="meta-value">${p.desc || '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">年代</span><span class="meta-value">${p.era || '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">撮影年</span><span class="meta-value">${p.year ? p.year + '年' : '不明'}</span></div>
+          <div class="meta-item"><span class="meta-label">撮影者</span><span class="meta-value">${p.author || '不明'}</span></div>
+          <div class="meta-item"><span class="meta-label">出典</span><span class="meta-value">${p.source || '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">所蔵</span><span class="meta-value">${p.storage || '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">権利状態</span><span class="meta-value">${p.rights || '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">転載</span><span class="meta-value">${p.reprint || '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">撮影方位</span><span class="meta-value">${p.direction || '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">画角</span><span class="meta-value">${p.fov ? p.fov + '°' : '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">見通し距離</span><span class="meta-value">${p.distanceRaw || '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">撮影地座標</span><span class="meta-value">緯度: ${p.lat ? p.lat.toFixed(5) : '－'}, 経度: ${p.lng ? p.lng.toFixed(5) : '－'}</span></div>
+          <div class="modal-map-container" id="modal-inline-map"></div>
+        </div>
+        <button class="map-focus-btn" onclick="focusOnMap([${p.lat}, ${p.lng}])"><i class="fa-solid fa-location-dot"></i> メイン地図で追跡表示</button>
+        ${compareBtn}
+      </div>
+    </div>`;
+  document.getElementById('detail-modal').style.display = 'flex';
+
+  setTimeout(() => {
+    const container = document.getElementById('modal-inline-map');
+    if (!container) return;
+    if (isNaN(p.lat) || !p.lat) {
+      container.outerHTML = '<div class="map-no-location" id="modal-inline-map"><i class="fa-solid fa-map-marked-alt"></i>位置情報がありません</div>';
+      return;
+    }
+    const inlineMap = L.map('modal-inline-map', { zoomControl: false, attributionControl: false }).setView([p.lat, p.lng], 15);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png').addTo(inlineMap);
+    const angle = getDirectionAngle(p.direction), color = getDistanceColor(p.distanceRaw);
+    L.marker([p.lat, p.lng], { icon: buildPhotoIcon(angle, color) }).addTo(inlineMap);
+    if (angle !== null) {
+      const distKm = parseDistanceToKm(p.distanceRaw), fov = parseFloat(p.fov) || 50;
+      const sectorCoords = calculateSectorPoints(p.lng, p.lat, angle, fov, distKm);
+      const sectorGeoJSON = L.polygon(sectorCoords, { color, weight: 1.5, fillColor: color, fillOpacity: .2 }).addTo(inlineMap);
+      inlineMap.fitBounds(sectorGeoJSON.getBounds(), { padding: [10, 10] });
+    } else { inlineMap.setView([p.lat, p.lng], 16); }
+    inlineMap.invalidateSize();
+  }, 300);
+}
+window.openDetail = openDetail;
+
+/* ---- 現在写真と比較(ビフォーアフター) ---- */
+let baPercent = 50, baDragging = false;
+function openBeforeAfter(beforeUrl, afterUrl) {
+  const overlay = document.getElementById('before-after-overlay');
+  document.getElementById('ba-image-before').src = beforeUrl;
+  const afterImg = document.getElementById('ba-image-after');
+  afterImg.onerror = () => { document.getElementById('ba-slider-container').innerHTML = '<p style="color:#fff;">現在写真を読み込めませんでした</p>'; };
+  afterImg.src = afterUrl;
+  baPercent = 50; updateBAHandle();
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeBeforeAfter() { document.getElementById('before-after-overlay').style.display = 'none'; document.body.style.overflow = ''; }
+function updateBAHandle() {
+  document.getElementById('ba-after-wrapper').style.width = (100 - baPercent) + '%';
+  document.getElementById('ba-handle').style.left = baPercent + '%';
+}
+(function initBASlider() {
+  const container = () => document.getElementById('ba-slider-container');
+  function moveTo(clientX) {
+    const rect = container().getBoundingClientRect();
+    let percent = ((clientX - rect.left) / rect.width) * 100;
+    percent = Math.max(0, Math.min(100, percent));
+    baPercent = percent; updateBAHandle();
+  }
+  document.addEventListener('mousedown', e => { if (e.target.closest('.ba-handle-button')) baDragging = true; });
+  document.addEventListener('mousemove', e => { if (baDragging) moveTo(e.clientX); });
+  document.addEventListener('mouseup', () => baDragging = false);
+  document.addEventListener('touchstart', e => { if (e.target.closest('.ba-handle-button')) baDragging = true; }, { passive: true });
+  document.addEventListener('touchmove', e => { if (baDragging && e.touches[0]) moveTo(e.touches[0].clientX); }, { passive: true });
+  document.addEventListener('touchend', () => baDragging = false);
+})();
+
+/* ---- 3Dモデル詳細モーダル(open3DDetail) ---- */
+function open3DDetail(id) {
+  const m = models.find(x => x.id === id);
+  if (!m) return;
+
+  const hasIJKL = !!(m.north || m.east || m.south || m.west);
+  let kokumeiHTML = '';
+  if (hasIJKL) {
+    const dirs = [['北', m.north], ['東', m.east], ['南', m.south], ['西', m.west]];
+    kokumeiHTML = `<div class="kokumei-wrap">${dirs.map(([label, text]) =>
+      `<div class="kokumei-cell-wrapper"><div class="kokumei-box-3to1">${(text || '（記載なし）')}</div><div class="kokumei-cap">${label}面</div></div>`
+    ).join('')}</div>`;
+  } else if (m.kokumeiBase) {
+    kokumeiHTML = `<div class="meta-item"><span class="meta-label">基本刻銘</span><span class="meta-value">${m.kokumeiBase}</span></div>`;
+  }
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="modal-image-section">
+      <div class="texture-toggle"><label><input type="checkbox" onchange="toggleTexture(this.checked)" style="transform:scale(1.2);cursor:pointer;"> 形状確認 (テクスチャOFF)</label></div>
+      <model-viewer id="mv-logic" src="${m.file || ''}" auto-rotate camera-controls style="width:100%;height:100%;"></model-viewer>
+    </div>
+    <div class="info-section-wrapper" id="modal-info-wrapper">
+      <div class="modal-pane-toggle" onclick="toggleModalPanel()"><i class="fa-solid fa-chevron-right" id="modal-pane-toggle-icon"></i></div>
+      <div class="modal-info-section" id="modal-info-panel">
+        <h2>${m.name}</h2>
+        ${kokumeiHTML}
+        <div class="meta-info-list" style="margin-top:12px;">
+          <div class="meta-item"><span class="meta-label">整理番号</span><span class="meta-value">${m.id}</span></div>
+          <div class="meta-item"><span class="meta-label">分類</span><span class="meta-value">${m.category}</span></div>
+          <div class="meta-item"><span class="meta-label">年代</span><span class="meta-value">${m.eraRaw || '－'}</span></div>
+          <div class="meta-item"><span class="meta-label">撮影日</span><span class="meta-value">${m.date}</span></div>
+          <div class="meta-item"><span class="meta-label">撮影枚数</span><span class="meta-value">${m.photoCount} 枚</span></div>
+          <div class="meta-item"><span class="meta-label">材質</span><span class="meta-value">${m.material}</span></div>
+          <div class="meta-item"><span class="meta-label">現存状態</span><span class="meta-value">${m.condition}</span></div>
+          <div class="meta-item"><span class="meta-label">歴史解説</span><span class="meta-value">${m.info}</span></div>
+          <div class="meta-item"><span class="meta-label">設置位置座標</span><span class="meta-value">緯度: ${m.coords[0] ? m.coords[0].toFixed(5) : '－'}, 経度: ${m.coords[1] ? m.coords[1].toFixed(5) : '－'}</span></div>
+          <div class="modal-map-container" id="modal-inline-map"></div>
+        </div>
+        <button class="map-focus-btn" onclick="focusOnMap([${m.coords[0]}, ${m.coords[1]}])"><i class="fa-solid fa-location-dot"></i> メイン地図で追跡表示</button>
+      </div>
+    </div>`;
+  document.getElementById('detail-modal').style.display = 'flex';
+
+  setTimeout(() => {
+    const container = document.getElementById('modal-inline-map');
+    if (!container) return;
+    if (!m.coords[0] || !m.coords[1]) {
+      container.outerHTML = '<div class="map-no-location" id="modal-inline-map"><i class="fa-solid fa-map-marked-alt"></i>位置情報がありません</div>';
+      return;
+    }
+    const inlineMap = L.map('modal-inline-map', { zoomControl: false, attributionControl: false }).setView(m.coords, 16);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png').addTo(inlineMap);
+    L.marker(m.coords, { icon: L.divIcon({ html: '<div class="marker-3d-pin"><i class="fa-solid fa-cube"></i></div>', className: '', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(inlineMap);
+    if (m.originLatlng) {
+      L.marker(m.originLatlng, { icon: L.divIcon({ html: '<div class="marker-3d-pin origin"><i class="fa-solid fa-cube"></i></div>', className: '', iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(inlineMap);
+      inlineMap.fitBounds(L.latLngBounds([m.coords, m.originLatlng]), { padding: [20, 20] });
+    }
+    inlineMap.invalidateSize();
+  }, 300);
+}
+window.open3DDetail = open3DDetail;
+
+/* ---- メイン地図追跡表示 ---- */
+function focusOnMap(coords) {
+  closeModal();
+  showPage('map');
+  map.flyTo(coords, 18, { animate: true, duration: 1.2 });
+  setTimeout(() => {
+    photoClusterGroup.eachLayer(layer => {
+      const ll = layer.getLatLng();
+      if (Math.abs(ll.lat - coords[0]) < 0.0001 && Math.abs(ll.lng - coords[1]) < 0.0001) layer.openPopup();
+    });
+    modelClusterGroup.eachLayer(layer => {
+      const ll = layer.getLatLng();
+      if (Math.abs(ll.lat - coords[0]) < 0.0001 && Math.abs(ll.lng - coords[1]) < 0.0001) layer.openPopup();
+    });
+  }, 1400);
+}
+window.focusOnMap = focusOnMap;
+
+/* ---- 3DテクスチャON/OFF ---- */
+async function toggleTexture(isOff) {
+  const mv = document.querySelector('#mv-logic');
+  if (!mv) return;
+  if (!mv.model) { mv.addEventListener('load', () => applyTextureToggle(mv, isOff), { once: true }); }
+  else { applyTextureToggle(mv, isOff); }
+}
+function applyTextureToggle(mv, isOff) {
+  try {
+    if (!mv.model || !mv.model.materials || !mv.model.materials.length) return;
+    mv.model.materials.forEach(m => {
+      if (isOff) {
+        if (!m.userData) {
+          m.userData = {
+            originalColorFactor: m.pbrMetallicRoughness.baseColorFactor ? [...m.pbrMetallicRoughness.baseColorFactor] : [1, 1, 1, 1],
+            originalTexture: m.pbrMetallicRoughness.baseColorTexture ? m.pbrMetallicRoughness.baseColorTexture.texture : null
+          };
+        }
+        m.pbrMetallicRoughness.setBaseColorFactor([0.7, 0.7, 0.7, 1.0]);
+        if (m.pbrMetallicRoughness.baseColorTexture) m.pbrMetallicRoughness.baseColorTexture.setTexture(null);
+      } else {
+        if (m.userData && m.userData.originalColorFactor) {
+          m.pbrMetallicRoughness.setBaseColorFactor(m.userData.originalColorFactor);
+          if (m.pbrMetallicRoughness.baseColorTexture && m.userData.originalTexture) m.pbrMetallicRoughness.baseColorTexture.setTexture(m.userData.originalTexture);
+          else mv.src = mv.src;
+        } else { mv.src = mv.src; }
+      }
+    });
+  } catch (e) { console.error('テクスチャON/OFFエラー:', e); }
+}
+window.toggleTexture = toggleTexture;
+
+/* ================= 全画面画像ズーム ================= */
+let zoomScale = 1, zStartX = 0, zStartY = 0, translateX = 0, translateY = 0, initialPinchDistance = 0, isDragging = false;
+function openFullScreenImage(imgUrl) {
+  const overlay = document.getElementById('full-screen-overlay');
+  const fullImg = document.getElementById('full-screen-img');
+  fullImg.src = imgUrl;
+  overlay.style.display = 'flex';
+  zoomScale = 1; translateX = 0; translateY = 0;
+  updateImageTransform();
+}
+function closeFullScreenImage() { document.getElementById('full-screen-overlay').style.display = 'none'; }
+function updateImageTransform() {
+  document.getElementById('full-screen-img').style.transform = `translate(${translateX}px, ${translateY}px) scale(${zoomScale})`;
+}
+window.openFullScreenImage = openFullScreenImage;
+window.closeFullScreenImage = closeFullScreenImage;
+
+(function initFullScreenZoom() {
+  const overlay = document.getElementById('full-screen-overlay');
+  const fullImg = document.getElementById('full-screen-img');
+
+  overlay.addEventListener('mousedown', e => {
+    if (e.target === fullImg || e.target === overlay) {
+      isDragging = true; zStartX = e.clientX - translateX; zStartY = e.clientY - translateY;
+      fullImg.classList.add('dragging');
+    }
+  });
+  document.addEventListener('mousemove', e => {
+    if (isDragging) { translateX = e.clientX - zStartX; translateY = e.clientY - zStartY; updateImageTransform(); }
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; fullImg.classList.remove('dragging'); });
+
+  overlay.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) { isDragging = true; zStartX = e.touches[0].clientX - translateX; zStartY = e.touches[0].clientY - translateY; }
+    else if (e.touches.length === 2) {
+      isDragging = false;
+      initialPinchDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    }
+  }, { passive: true });
+  overlay.addEventListener('touchmove', e => {
+    if (isDragging && e.touches.length === 1) {
+      translateX = e.touches[0].clientX - zStartX; translateY = e.touches[0].clientY - zStartY; updateImageTransform();
+    } else if (e.touches.length === 2) {
+      const currentDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const factor = currentDistance / initialPinchDistance;
+      zoomScale = Math.min(Math.max(1, zoomScale * factor), 5);
+      initialPinchDistance = currentDistance;
+      updateImageTransform();
+    }
+    e.preventDefault();
+  }, { passive: false });
+  overlay.addEventListener('touchend', () => { isDragging = false; });
+
+  overlay.addEventListener('wheel', e => {
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    zoomScale = Math.min(Math.max(1, zoomScale * factor), 5);
+    updateImageTransform();
+    e.preventDefault();
+  }, { passive: false });
+})();
+
+/* ================= 初期化 ================= */
+window.onload = () => {
+  initMap();
+  loadPhotoData();
+  load3DData();
+  loadPortalConfig();
+  loadMapData();
+  loadBuildingData();
+  loadNatureData();
+  loadOldRoadData();
+  loadDocData();
+  initCarousel();
+};
+</script>
+</body>
+</html>
