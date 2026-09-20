@@ -19,6 +19,7 @@
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/openseadragon@5.0.1/build/openseadragon/openseadragon.min.js"></script>
 <style>
 :root {
     --primary-brown: #4e342e;
@@ -550,7 +551,7 @@ a { color: inherit; text-decoration: none; }
 }
 .doc-list-card:hover { border-color: var(--accent-gold); box-shadow: var(--shadow); }
 .doc-list-card .dlc-thumb { width: 80px; height: 100px; object-fit: cover; border-radius: 4px; background: #eee; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-.doc-list-card .dlc-thumb canvas { width: 100%; height: 100%; object-fit: cover; }
+.doc-list-card .dlc-thumb canvas, .doc-list-card .dlc-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .doc-list-card .dlc-body { flex: 1; }
 .doc-list-card .dlc-title { font-weight: 700; margin-bottom: 6px; }
 .doc-list-card .dlc-meta { font-size: 0.8rem; color: var(--text-muted); }
@@ -661,6 +662,21 @@ a { color: inherit; text-decoration: none; }
 .pdf-page-counter { color: #fff; font-size: 0.8rem; min-width: 90px; text-align: center; flex-shrink: 0; direction: ltr; }
 .pdf-fallback-link { color: var(--accent-gold); text-decoration: underline; cursor: pointer; }
 
+/* ===== IIIFビュアー（OpenSeadragon） ===== */
+.pdf-viewer-scroll.iiif-mode { overflow: hidden; scroll-snap-type: none; }
+.iiif-wrap { flex: 0 0 100%; min-width: 100%; height: 100%; position: relative; direction: ltr; background: #2a2622; }
+.iiif-osd { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+.iiif-tools { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
+.iiif-tools button {
+    width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.35);
+    background: rgba(0,0,0,0.55); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.iiif-tools button:hover { background: var(--accent-gold); }
+.iiif-status {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; align-items: center; justify-content: center;
+    gap: 8px; color: #ccc; font-size: 0.85rem; background: rgba(42,38,34,0.55); pointer-events: none;
+}
+
 .doc-info-header-fixed { padding-bottom: 10px; border-bottom: 1px solid var(--accent-light); margin-bottom: 12px; }
 .doc-info-header-fixed .doc-cat-small { font-size: 0.72rem; color: var(--text-muted); display: flex; gap: 10px; }
 .doc-info-header-fixed .doc-vol-title { font-size: 1.05rem; font-weight: 700; color: var(--primary-brown); margin-top: 4px; }
@@ -678,8 +694,8 @@ a { color: inherit; text-decoration: none; }
 .doc-subject-link-item.current { background: var(--bg-cream); border-left-color: var(--accent-gold); font-weight: 700; }
 .doc-image-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .doc-image-grid-item { cursor: pointer; text-align: center; }
-.doc-image-grid-item canvas, .doc-image-grid-item .thumb-ph { width: 100%; height: 90px; object-fit: cover; background: #eee; border: 1px solid var(--accent-light); display: flex; align-items: center; justify-content: center; color: #999; }
-.doc-image-grid-item.current canvas, .doc-image-grid-item.current .thumb-ph { border-color: var(--accent-gold); border-width: 2px; }
+.doc-image-grid-item canvas, .doc-image-grid-item img, .doc-image-grid-item .thumb-ph { width: 100%; height: 90px; object-fit: cover; background: #eee; border: 1px solid var(--accent-light); display: flex; align-items: center; justify-content: center; color: #999; }
+.doc-image-grid-item.current canvas, .doc-image-grid-item.current img, .doc-image-grid-item.current .thumb-ph { border-color: var(--accent-gold); border-width: 2px; }
 .doc-image-grid-item p { font-size: 0.68rem; margin-top: 4px; line-height: 1.3; }
 .doc-detail-tab-body h3 { font-size: 1.15rem; color: var(--primary-brown); margin-bottom: 12px; }
 
@@ -4512,6 +4528,7 @@ async function loadDocListThumbnail(row, containerId) {
         container.innerHTML = '<i class="fa-solid fa-scroll" style="font-size:1.6rem;color:#999;"></i>';
         return;
     }
+    if (isIiifUrl(pdfUrl)) { iiifFillThumb(row, containerId, pdfUrl, 'list'); return; }
     try {
         const pdfDoc = await getPdfDocCached(pdfUrl);
         if (!document.getElementById(containerId)) return; /* ページ送り等でカードが既に破棄されていれば中断 */
@@ -4535,6 +4552,7 @@ async function loadDocListThumbnail(row, containerId) {
    ===================================================================== */
 function closeModal() {
     document.getElementById('detail-modal').style.display = 'none';
+    iiifDestroyViewer();
     if (window._docViewer && window._docViewer.observer) { window._docViewer.observer.disconnect(); window._docViewer.observer = null; }
     if (window._docDetailMap) { window._docDetailMap.remove(); window._docDetailMap = null; }
 }
@@ -5290,6 +5308,300 @@ function findOwningDocItem(book, curPage) {
     return best || book[0];
 }
 
+/* ==== IIIF VIEWER BEGIN ==== */
+/* =====================================================================
+   ■72 IIIFビュアー（OpenSeadragon）— 文書・史料データベースのPDFビュアーの置き換え
+   -------------------------------------------------------------------
+   スプレッドシートの「資料URL」列（pdfUrl）が IIIF の Manifest（…/manifest.json）なら
+   OpenSeadragon で表示し、従来のPDFなら今までどおり pdf.js で表示する（段階移行）。
+   ・1コマ＝1画像（見開きも片ページも同じ扱い）。ページの縦横比に自動で合わせて全体表示。
+   ・ページ移動（矢印・スライダー・目次リンク・スワイプ・キーボード）は既存UIをそのまま利用。
+   ・右開き／左開きは Manifest の viewingDirection に従う。
+   ===================================================================== */
+window._iiifManifestCache = window._iiifManifestCache || {};
+
+/* 資料URLが IIIF Manifest かどうか */
+function isIiifUrl(url) {
+    return /\/manifest(\.json)?\/?(\?.*)?$/i.test((url || '').trim());
+}
+
+function _iiifFirst(v) { return Array.isArray(v) ? v[0] : v; }
+function _iiifId(o) {
+    o = _iiifFirst(o);
+    if (!o) return '';
+    if (typeof o === 'string') return o;
+    return o.id || o['@id'] || '';
+}
+
+/* Manifest（Presentation API 3.0 / 2.x）を、ビュアーが使う形に整える */
+function normalizeIiifManifest(m) {
+    const canvases = [];
+    if (Array.isArray(m.items)) {
+        m.items.forEach(cv => {
+            let serviceId = '';
+            try {
+                const anno = cv.items[0].items[0];
+                const body = _iiifFirst(anno.body);
+                serviceId = _iiifId(body.service || body.services);
+            } catch (e) {}
+            canvases.push({ width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail) });
+        });
+    } else if (m.sequences && m.sequences[0]) {
+        (m.sequences[0].canvases || []).forEach(cv => {
+            let serviceId = '';
+            try { serviceId = _iiifId(cv.images[0].resource.service); } catch (e) {}
+            canvases.push({ width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail) });
+        });
+    }
+    canvases.forEach(c => {
+        c.serviceId = (c.serviceId || '').replace(/\/+$/, '');
+        if (!c.thumb && c.serviceId) c.thumb = c.serviceId + '/full/!400,400/0/default.jpg';
+    });
+    return { canvases, rtl: m.viewingDirection === 'right-to-left' };
+}
+
+/* Manifestの共有キャッシュ（一覧サムネイルと詳細モーダルで共用） */
+function getIiifManifestCached(url) {
+    const cache = window._iiifManifestCache;
+    if (!cache[url]) {
+        cache[url] = fetch(url, { mode: 'cors' })
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(normalizeIiifManifest)
+            .catch(e => { delete cache[url]; throw e; });
+    }
+    return cache[url];
+}
+
+/* ---------- サムネイル（一覧・地図パネル） ---------- */
+async function iiifFillThumb(row, containerId, manifestUrl, kind) {
+    const failIcon = kind === 'panel'
+        ? '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;"><i class="fa-solid fa-triangle-exclamation" style="font-size:2rem;"></i></div>'
+        : '<i class="fa-solid fa-scroll" style="font-size:1.6rem;color:#999;"></i>';
+    try {
+        const mf = await getIiifManifestCached(manifestUrl);
+        if (!document.getElementById(containerId)) return;
+        const idx = Math.min(Math.max(parseStartPage(row.startPage), 1), mf.canvases.length) - 1;
+        const url = mf.canvases[idx] && mf.canvases[idx].thumb;
+        if (!url) throw new Error('サムネイルなし');
+        const img = new Image();
+        img.alt = '';
+        if (kind === 'panel') img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+        img.onload = () => {
+            const box = document.getElementById(containerId);
+            if (!box) return;
+            box.innerHTML = ''; box.classList.add('loaded'); box.appendChild(img);
+        };
+        img.onerror = () => { const box = document.getElementById(containerId); if (box) box.innerHTML = failIcon; };
+        img.src = url;
+    } catch (e) {
+        const box = document.getElementById(containerId);
+        if (box) box.innerHTML = failIcon;
+    }
+}
+
+/* ---------- ビュアー本体 ---------- */
+function iiifDestroyViewer() {
+    const v = window._docViewer;
+    if (v && v.iiif) {
+        try { clearTimeout(v.iiif.timer); } catch (e) {}
+        try { if (v.iiif.osd) v.iiif.osd.destroy(); } catch (e) {}
+        if (v.iiif.keyHandler) document.removeEventListener('keydown', v.iiif.keyHandler);
+        v.iiif = null;
+    }
+}
+
+async function initDocIiif(row, manifestUrl) {
+    const v = window._docViewer;
+    const scroll = document.getElementById('pdf-viewer-scroll');
+    if (!scroll) return;
+    scroll.classList.add('iiif-mode');
+    scroll.innerHTML = `
+        <div class="iiif-wrap">
+            <div class="iiif-osd" id="iiif-osd"></div>
+            <div class="iiif-tools">
+                <button type="button" title="拡大" onclick="iiifZoomBy(1.6)"><i class="fa-solid fa-plus"></i></button>
+                <button type="button" title="縮小" onclick="iiifZoomBy(1/1.6)"><i class="fa-solid fa-minus"></i></button>
+                <button type="button" title="全体を表示" onclick="iiifGoHome()"><i class="fa-solid fa-expand"></i></button>
+                <button type="button" title="全画面" onclick="iiifToggleFullscreen()"><i class="fa-solid fa-maximize"></i></button>
+            </div>
+            <div class="iiif-status" id="iiif-status"><i class="fa-solid fa-spinner fa-spin"></i> 読み込み中...</div>
+        </div>`;
+    try {
+        const mf = await getIiifManifestCached(manifestUrl);
+        /* 読込待ちの間にモーダルが閉じられた・別の史料に切り替わった場合は何もしない */
+        if (window._docViewer !== v || !document.getElementById('iiif-osd')) return;
+        if (!mf.canvases.length) throw new Error('Manifestにコマがありません');
+        if (typeof OpenSeadragon === 'undefined') throw new Error('OpenSeadragonが読み込まれていません');
+
+        v.totalPages = mf.canvases.length;
+        v.iiif = { manifestUrl, canvases: mf.canvases, rtl: mf.rtl, osd: null, timer: null, keyHandler: null };
+        const slider = document.getElementById('pdf-page-slider');
+        if (slider) slider.max = v.totalPages;
+
+        iiifApplyDirection(mf.rtl);
+        iiifCreateViewer();
+        iiifSetupInteractions();
+        const start = Math.min(Math.max(parseStartPage(row.startPage), 1), v.totalPages);
+        goToDocPage(start, false);
+    } catch (e) {
+        console.error('IIIF読込エラー:', e);
+        if (window._docViewer !== v) return;
+        scroll.innerHTML = `<div class="pdf-page-slot"><div class="pdf-page-placeholder"><i class="fa-solid fa-triangle-exclamation" style="font-size:2.5rem;"></i>史料画像の読み込みに失敗しました。<br><span class="pdf-fallback-link" onclick="window.open('${escapeJsAttr(manifestUrl)}','_blank')">Manifestを新しいタブで開く</span></div></div>`;
+        const counter = document.getElementById('pdf-page-counter');
+        if (counter) counter.innerText = '－ / －';
+    }
+}
+
+/* 既定のボタン配置は右開き用（左矢印＝次へ）。左開きの簿冊のときだけ入れ替える */
+function iiifApplyDirection(rtl) {
+    if (rtl) return;
+    const arrows = document.querySelectorAll('.pdf-viewer-controls .pdf-nav-arrow');
+    if (arrows.length === 2) {
+        arrows[0].setAttribute('onclick', 'docPageArrowPrev()');
+        arrows[0].title = '前のページへ戻る';
+        arrows[0].innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+        arrows[1].setAttribute('onclick', 'docPageArrowNext()');
+        arrows[1].title = '次のページへ進む';
+        arrows[1].innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+    }
+    const sw = document.querySelector('.pdf-slider-wrap');
+    if (sw) sw.style.transform = 'none';
+}
+
+function iiifCreateViewer() {
+    const st = window._docViewer.iiif;
+    const osd = OpenSeadragon({
+        id: 'iiif-osd',
+        prefixUrl: '',
+        showNavigationControl: false,   /* ボタンは自前（右上）を使用 */
+        showNavigator: true,            /* 拡大時の位置確認用ミニマップ */
+        navigatorPosition: 'BOTTOM_LEFT',
+        navigatorSizeRatio: 0.16,
+        navigatorAutoFade: true,
+        crossOriginPolicy: 'Anonymous',
+        ajaxWithCredentials: false,
+        keyboardNavEnabled: false,      /* 矢印キーはページ送りに使うためOSD側は無効 */
+        maxZoomPixelRatio: 2,           /* 原寸の2倍まで拡大可能 */
+        visibilityRatio: 1,
+        constrainDuringPan: true,
+        animationTime: 0.35,
+        blendTime: 0.1,
+        imageLoaderLimit: 8,
+        timeout: 30000,
+        gestureSettingsMouse: { clickToZoom: false, dblClickToZoom: true },
+        gestureSettingsTouch: { pinchToZoom: true, dblClickToZoom: true, flickEnabled: true }
+    });
+    osd.addHandler('open', () => {
+        const s = document.getElementById('iiif-status');
+        if (s) s.style.display = 'none';
+    });
+    osd.addHandler('open-failed', () => {
+        const s = document.getElementById('iiif-status');
+        if (s) { s.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> このコマの画像を読み込めませんでした。'; s.style.display = 'flex'; }
+    });
+    st.osd = osd;
+}
+
+function iiifSetupInteractions() {
+    const st = window._docViewer.iiif;
+    const wrap = document.querySelector('.iiif-wrap');
+
+    /* キーボード：←→でページ移動（開き方向に追従）、+ − 0 で拡大縮小・全体表示 */
+    st.keyHandler = (e) => {
+        if (!window._docViewer || window._docViewer.iiif !== st) return;
+        const tag = ((e.target && e.target.tagName) || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        const modal = document.getElementById('detail-modal');
+        if (!modal || modal.style.display === 'none') return;
+        if (e.key === 'ArrowLeft') { e.preventDefault(); st.rtl ? docPageArrowNext() : docPageArrowPrev(); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); st.rtl ? docPageArrowPrev() : docPageArrowNext(); }
+        else if (e.key === '+' || e.key === '=') iiifZoomBy(1.6);
+        else if (e.key === '-') iiifZoomBy(1 / 1.6);
+        else if (e.key === '0') iiifGoHome();
+    };
+    document.addEventListener('keydown', st.keyHandler);
+
+    /* スマホ：全体表示のときの左右スワイプでページ移動（右開きは右へスワイプ＝次へ） */
+    let sx = 0, sy = 0, t0 = 0, multi = false;
+    wrap.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 1) { multi = true; return; }
+        multi = false; sx = e.touches[0].clientX; sy = e.touches[0].clientY; t0 = Date.now();
+    }, { passive: true });
+    wrap.addEventListener('touchend', (e) => {
+        if (multi) { if (e.touches.length === 0) multi = false; return; }
+        const t = e.changedTouches && e.changedTouches[0];
+        if (!t || !st.osd || !st.osd.viewport) return;
+        const dx = t.clientX - sx, dy = t.clientY - sy;
+        const zoomed = st.osd.viewport.getZoom() > st.osd.viewport.getHomeZoom() * 1.15;
+        if (zoomed || Date.now() - t0 > 600) return;
+        if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2) {
+            const forward = st.rtl ? dx > 0 : dx < 0;
+            if (forward) docPageArrowNext(); else docPageArrowPrev();
+        }
+    }, { passive: true });
+}
+
+function iiifZoomBy(f) {
+    const st = window._docViewer.iiif;
+    if (!st || !st.osd) return;
+    st.osd.viewport.zoomBy(f);
+    st.osd.viewport.applyConstraints();
+}
+function iiifGoHome() {
+    const st = window._docViewer.iiif;
+    if (st && st.osd) st.osd.viewport.goHome();
+}
+function iiifToggleFullscreen() {
+    const st = window._docViewer.iiif;
+    if (st && st.osd) st.osd.setFullScreen(!st.osd.isFullScreen());
+}
+
+/* ページ移動：スライダーなど連続操作は少し待ってから開く（無駄な通信を避ける） */
+function iiifGoToPage(n, instant) {
+    const v = window._docViewer, st = v.iiif;
+    v.currentPage = n;
+    syncDocPageUI(n);
+    clearTimeout(st.timer);
+    if (instant) st.timer = setTimeout(() => iiifOpenPage(n), 120);
+    else iiifOpenPage(n);
+}
+
+function iiifOpenPage(n) {
+    const st = window._docViewer.iiif;
+    if (!st || !st.osd) return;
+    const cv = st.canvases[n - 1];
+    const status = document.getElementById('iiif-status');
+    if (!cv || !cv.serviceId) {
+        if (status) { status.textContent = 'このコマの画像情報がありません。'; status.style.display = 'flex'; }
+        return;
+    }
+    if (status) { status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 読み込み中...'; status.style.display = 'flex'; }
+    st.osd.open(cv.serviceId + '/info.json');
+    /* 前後のコマの info.json を先読みして、ページ送りを速くする */
+    [n + 1, n - 1].forEach(k => {
+        const c = st.canvases[k - 1];
+        if (c && c.serviceId) fetch(c.serviceId + '/info.json', { mode: 'cors' }).catch(() => {});
+    });
+}
+
+/* 右パネル「画像」タブのサムネイル（IIIF用） */
+function renderDocImageGridIiif(book) {
+    const st = window._docViewer.iiif;
+    if (!st) return;
+    book.forEach((it, idx) => {
+        const sp = Math.min(Math.max(parseStartPage(it.startPage), 1), st.canvases.length);
+        const url = st.canvases[sp - 1] && st.canvases[sp - 1].thumb;
+        const el = document.getElementById('doc-thumb-' + idx);
+        const ph = el ? el.querySelector('.thumb-ph') : null;
+        if (!ph || !url) return;
+        const img = new Image();
+        img.alt = '';
+        img.onload = () => { if (ph.isConnected) ph.replaceWith(img); };
+        img.src = url;
+    });
+}
+/* ==== IIIF VIEWER END ==== */
+
 /* ---------- モーダル起動 ---------- */
 /* 文書・史料のモードレスパネル：上部にPDF先頭ページ（該当開始ページ）のサムネイルを
    非同期生成し、下部に全メタデータを表示する。フルのPDFビュアーは
@@ -5336,6 +5648,7 @@ async function loadDocPanelThumbnail(row, containerId) {
         container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;"><i class="fa-solid fa-scroll" style="font-size:2.5rem;"></i></div>';
         return;
     }
+    if (isIiifUrl(pdfUrl)) { iiifFillThumb(row, containerId, pdfUrl, 'panel'); return; }
     try {
         const pdfDoc = await getPdfDocCached(pdfUrl);
         if (!document.getElementById(containerId)) return;
@@ -5368,9 +5681,10 @@ function openDocDetailModal(row) {
     const book = docData.filter(d => docBookKey(d) === bookKey)
         .sort((a, b) => parseStartPage(a.startPage) - parseStartPage(b.startPage));
 
+    iiifDestroyViewer();
     window._docViewer = {
         pdfDoc: null, currentPage: parseStartPage(row.startPage), totalPages: 0,
-        book, bookKey, mode: 'page', subMode: 'text', observer: null
+        book, bookKey, mode: 'page', subMode: 'text', observer: null, iiif: null
     };
 
     document.getElementById('modal-body').innerHTML = `
@@ -5413,10 +5727,11 @@ async function initDocPdf(row) {
     const pdfUrl = (rawUrl || '').trim();
 
     if (!pdfUrl) {
-        scroll.innerHTML = `<div class="pdf-page-slot"><div class="pdf-page-placeholder"><i class="fa-solid fa-file-circle-xmark" style="font-size:2.5rem;"></i>この史料にはPDF原本が登録されていません。</div></div>`;
+        scroll.innerHTML = `<div class="pdf-page-slot"><div class="pdf-page-placeholder"><i class="fa-solid fa-file-circle-xmark" style="font-size:2.5rem;"></i>この史料には閲覧用データ（PDFまたはIIIF）が登録されていません。</div></div>`;
         document.getElementById('pdf-page-counter').innerText = '－ / －';
         return;
     }
+    if (isIiifUrl(pdfUrl)) { initDocIiif(row, pdfUrl); return; }
     scroll.innerHTML = `<div class="pdf-page-slot"><div class="pdf-page-placeholder"><i class="fa-solid fa-spinner fa-spin" style="font-size:2rem;"></i>PDFを読み込み中...</div></div>`;
     try {
         /* 検索結果サムネイル表示時に既に開いていれば、ここではXref情報の取得のみで
@@ -5527,6 +5842,7 @@ function clearDocPageSlot(n) {
 function goToDocPage(n, instant) {
     const total = window._docViewer.totalPages || 1;
     n = Math.min(Math.max(1, n), total);
+    if (window._docViewer.iiif) { iiifGoToPage(n, instant); return; }
     resetPdfPageZoom();
     const slot = document.getElementById('pdf-slot-' + n);
     if (slot) slot.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', inline: 'start', block: 'nearest' });
@@ -5666,6 +5982,7 @@ async function renderDocImageGrid(container) {
             <p><span style="color:var(--accent-gold);font-weight:700;">${sp}</span> ${escapeHtml(it.subject)}</p>
         </div>`;
     }).join('')}</div>`;
+    if (window._docViewer.iiif) { renderDocImageGridIiif(book); return; }
     if (!window._docViewer.pdfDoc) return;
     for (let idx = 0; idx < book.length; idx++) {
         const sp = Math.min(Math.max(parseStartPage(book[idx].startPage), 1), window._docViewer.totalPages);
