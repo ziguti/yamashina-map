@@ -384,7 +384,24 @@ a { color: inherit; text-decoration: none; }
     cursor: grab; transition: transform 0.15s ease-out;
 }
 #full-screen-img:active { cursor: grabbing; }
+#fs-iiif-osd { display: none; position: absolute; inset: 0; width: 100%; height: 100%; }
+.gallery-zoom-badge {
+    position: absolute; left: 10px; bottom: 10px; z-index: 3; pointer-events: none;
+    background: rgba(0,0,0,0.55); color: #fff; font-size: 0.72rem; padding: 3px 9px; border-radius: 12px;
+}
 #full-screen-overlay .close-btn { color: #fff; }
+
+/* ===== 図書データベース：検索ヒット箇所の表示／目次の強調 ===== */
+.dlc-toc-hits { margin-top: 6px; border-top: 1px dashed var(--accent-light); padding-top: 6px; }
+.dlc-toc-hit {
+    font-size: 0.8rem; color: var(--text-muted); padding: 3px 0; cursor: pointer;
+    display: flex; align-items: baseline; gap: 5px;
+}
+.dlc-toc-hit:hover { color: var(--accent-gold); text-decoration: underline; }
+.dlc-toc-hit-page { margin-left: auto; color: var(--accent-gold); font-weight: 700; white-space: nowrap; }
+.dlc-toc-hit-more { font-size: 0.75rem; color: var(--text-muted); padding-top: 2px; }
+.doc-subject-link-item.search-hit { background: #fff3b0; border-left: 3px solid #e65100; }
+.doc-subject-link-item.search-hit.current { background: #ffe27a; }
 
 /* ===== ビフォーアフター比較 ===== */
 #before-after-overlay {
@@ -763,6 +780,7 @@ a { color: inherit; text-decoration: none; }
                     <div class="dropdown-item" onclick="showPage('db')"><i class="fa-solid fa-camera-retro"></i>古写真データベース</div>
                     <div class="dropdown-item" onclick="showPage('map-db')"><i class="fa-solid fa-map"></i>古地図データベース</div>
                     <div class="dropdown-item" onclick="showPage('doc')"><i class="fa-solid fa-scroll"></i>文書・史料データベース</div>
+                    <div class="dropdown-item" onclick="showPage('book-db')"><i class="fa-solid fa-book"></i>図書データベース</div>
                     <div class="dropdown-item" onclick="showPage('td')"><i class="fa-solid fa-cube"></i>石造物データベース</div>
                     <div class="dropdown-item" onclick="showPage('nature-db')"><i class="fa-solid fa-leaf"></i>自然系データベース</div>
                     <div class="dropdown-item" onclick="showPage('oldroad-db')"><i class="fa-solid fa-route"></i>古道データベース</div>
@@ -1104,6 +1122,37 @@ a { color: inherit; text-decoration: none; }
         </div>
     </div>
 
+    <!-- ===== 図書データベースページ ===== -->
+    <div class="page" id="page-book-db">
+        <div class="scroll-container" style="padding:0;">
+            <div class="hero-section with-bg" id="book-db-hero"><h2 id="book-db-hero-title">図書データベース</h2><p id="book-db-hero-desc">BOOKS &amp; PUBLICATIONS</p></div>
+            <div class="db-search-panel">
+                <div class="search-row">
+                    <div class="search-field search-field-wide"><label>横断キーワード</label><input id="book-search-main" placeholder="書名・目次・著者など全項目から検索"></div>
+                </div>
+                <div class="search-row">
+                    <div class="search-field"><label>整理番号</label><input id="book-search-id"></div>
+                    <div class="search-field"><label>書名</label><input id="book-search-title"></div>
+                    <div class="search-field"><label>カナ読み</label><input id="book-search-kana"></div>
+                    <div class="search-field"><label>著者・作成者</label><input id="book-search-creator"></div>
+                    <div class="search-field"><label>出版・発行</label><input id="book-search-publisher"></div>
+                    <div class="search-field"><label>出版年（西暦）</label><input id="book-search-yearwest" placeholder="例：1920"></div>
+                    <div class="search-field"><label>所蔵</label><input id="book-search-storage"></div>
+                    <div class="search-field"><label>地番キー</label><input id="book-search-chiban"></div>
+                </div>
+                <button class="search-exec-btn" onclick="filterBookDB()"><i class="fa-solid fa-filter"></i> 検索する</button>
+            </div>
+            <div id="book-list-container">
+                <div class="empty-state"><i class="fa-solid fa-book"></i>検索条件を指定してください。</div>
+            </div>
+            <div class="pagination-container" id="book-pagination-container"></div>
+            <div class="result-map-section" id="book-result-map-container" style="display:none;">
+                <h3>検索結果マップ（地番形状表示）</h3>
+                <div class="result-map-box" id="book-result-map" style="height:450px;"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== 文書・史料データベースページ ===== -->
     <div class="page" id="page-doc">
         <div class="scroll-container" style="padding:0;">
@@ -1289,6 +1338,7 @@ a { color: inherit; text-decoration: none; }
     <div class="close-btn" onclick="closeFullScreenImage()"><i class="fa-solid fa-xmark"></i></div>
     <button class="carousel-nav-btn prev" id="fs-prev-btn" style="display:none;" onclick="event.stopPropagation(); fsChangeImage(-1)"><i class="fa-solid fa-chevron-left"></i></button>
     <img id="full-screen-img" onclick="event.stopPropagation()">
+    <div id="fs-iiif-osd" onclick="event.stopPropagation()"></div>
     <button class="carousel-nav-btn next" id="fs-next-btn" style="display:none;" onclick="event.stopPropagation(); fsChangeImage(1)"><i class="fa-solid fa-chevron-right"></i></button>
 </div>
 
@@ -1319,9 +1369,10 @@ const CSV_BUILDING_URL = "https://docs.google.com/spreadsheets/d/1rot_ixK2aCtJWu
 const CSV_NATURE_URL   = "https://docs.google.com/spreadsheets/d/1bxKjeGOTkj-PcsXQQMup0ZAk20PyRGFF2GxoaahlMFE/gviz/tq?tqx=out:csv";
 const CSV_OLDROAD_URL  = "https://docs.google.com/spreadsheets/d/1eWRJR5YcwfEYb2JVNHmy6ku6Helt0-29Bxhm0IV2sy0/gviz/tq?tqx=out:csv";
 const CSV_DOC_URL      = "https://docs.google.com/spreadsheets/d/1Jqu-5IWYqmV6s1tXF9pzP2rSpSWQBchkgAjb4eVaD90/gviz/tq?tqx=out:csv";
+const CSV_BOOK_URL     = "https://docs.google.com/spreadsheets/d/17yhWrenGAJiMZSIhOpWwXsCfzEDUrBxvYZBdjdU9VGI/gviz/tq?tqx=out:csv";
 /* 古地図データスプレッドシート */
 const CSV_MAP_URL = "https://docs.google.com/spreadsheets/d/1pth9Pg-pR1Z5nJBn3-SfLYvsMJNNdwtxI2ZAzEp_J80/gviz/tq?tqx=out:csv";
-const CHIBAN_GEOJSON_URL = "https://frogsfamily.sakura.ne.jp/shin/chiban_porigon_data/yamashinaku chibandata.geojson";
+const CHIBAN_GEOJSON_URL = "https://frogsfamily.sakura.ne.jp/shin/chiban_porigon_data/ansyu_ueno_chibandata.geojson";
 
 /* 地番ポリゴンのズーム連動表示階層のしきい値
    zoom >= CHIBAN_ZOOM_BANCHI        : 番地（地番）単位のポリゴンを個別表示・選択
@@ -1343,7 +1394,7 @@ let eras = [];                   // 古地図(タイルURLあり)ソート済み
 let mapData = [];                // 古地図DB全件（メタデータのみの行含む）
 let activeOverlays = [];
 let photoClusterGroup, modelClusterGroup;
-let natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup;
+let natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup, bookLayerGroup;
 let chibanSearchLayerGroup;
 /* スポット設定の階層ツリーで「表示」を選択した際の絞り込み状態（型ごとに対象行IDのSetを保持。nullなら絞り込みなし） */
 window._spotHierarchyFilterIds = { nature: null, oldroad: null, building: null, td: null, doc: null };
@@ -1359,6 +1410,7 @@ let buildingData = [];  // 歴史的建造物
 let natureData = [];    // 自然系
 let oldRoadData = [];   // 古道
 let docData = [];       // 文書史料
+let bookData = [];      // 図書（1行=1冊。内部に大・中・小見出しの目次ツリーを保持）
 
 let userMarker = null, userCircle = null, watchPositionId = null;
 let activeSectorLayer = null;
@@ -1638,7 +1690,7 @@ function resetSpotSettingsFilters() {
     clearSpatialTarget();
     window._spotHierarchyFilterIds = { nature: null, oldroad: null, building: null, td: null, doc: null };
     if (map) {
-        [photoClusterGroup, modelClusterGroup, natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup].forEach(g => {
+        [photoClusterGroup, modelClusterGroup, natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup, bookLayerGroup].forEach(g => {
             if (g && !map.hasLayer(g)) map.addLayer(g);
         });
     }
@@ -1827,9 +1879,10 @@ function initMap() {
     oldRoadLayerGroup = L.layerGroup();
     buildingLayerGroup = L.layerGroup();
     docLayerGroup = L.layerGroup();
+    bookLayerGroup = L.layerGroup();
     chibanSearchLayerGroup = L.layerGroup();
 
-    [photoClusterGroup, modelClusterGroup, natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup, chibanSearchLayerGroup]
+    [photoClusterGroup, modelClusterGroup, natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup, bookLayerGroup, chibanSearchLayerGroup]
         .forEach(g => map.addLayer(g));
 
     const eraSlider = document.getElementById('era-slider');
@@ -2207,6 +2260,7 @@ function applyMapFilters() {
     renderOldRoadMapLayers(spotQuery);
     renderBuildingMapLayers(spotQuery);
     renderDocMapLayers(spotQuery);
+    renderBookMapLayers(spotQuery);
 }
 </script>
 <script>
@@ -2694,6 +2748,49 @@ function renderDocMapLayers(searchQuery) {
 }
 
 /* =====================================================================
+   ■29b 図書マップ表示（地番キーがあればポリゴン、無ければ座標ピン）
+   ===================================================================== */
+function renderBookMapLayers(searchQuery) {
+    if (!bookLayerGroup) return;
+    bookLayerGroup.clearLayers();
+    const q = (searchQuery || '').trim().toLowerCase();
+    bookData.forEach(b => {
+        b.rows.forEach(row => {
+            if (!row.chibanKey && !(row.coords && row.coords[0])) return;
+            if (q) {
+                const text = [b.title, b.creator, row.h1, row.h2, row.h3, row.entryLabel].join(' ').toLowerCase();
+                if (!text.includes(q)) return;
+            }
+            const mergedRow = Object.assign({}, row, { book: b });
+            let drawn = false;
+            if (row.chibanKey) {
+                const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
+                if (features.length > 0) {
+                    const layer = L.geoJSON({ type: 'FeatureCollection', features }, { style: { color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book, fillOpacity: 0.35, weight: 1.5 } });
+                    layer.on('click', () => openDataDetailPanel(mergedRow, 'book'));
+                    layer.addTo(bookLayerGroup);
+                    drawn = true;
+                }
+            }
+            if (!drawn && row.coords && row.coords[0]) {
+                const marker = L.marker(row.coords, { icon: styledDivIcon(TYPE_COLORS.book, 'book') });
+                marker.on('click', () => openDataDetailPanel(mergedRow, 'book'));
+                marker.addTo(bookLayerGroup);
+            }
+        });
+    });
+}
+
+/* 図書は「行（小見出し）」ごとにIDを持つため、地図側からの逆引きにはこのヘルパーを使う */
+function findBookRowById(id) {
+    for (const b of bookData) {
+        const row = b.rows.find(r => String(r.id) === String(id));
+        if (row) return { book: b, row };
+    }
+    return null;
+}
+
+/* =====================================================================
    ■81 地番ポリゴン連携・空間検索機能（ズーム連動階層表示）
    ===================================================================== */
 async function fetchChibanGeoJSON() {
@@ -2773,6 +2870,13 @@ function buildChibanMap() {
     register(natureData, 'nature', 'name', 'thumbnail');
     register(oldRoadData, 'oldroad', 'name', 'thumbnail');
     register(docData, 'doc', 'subject', 'thumbnail');
+    bookData.forEach(b => b.rows.forEach(row => {
+        const keys = parseChibanKeyList(row.chibanKey);
+        keys.forEach(key => {
+            if (!window.chibanMap[key]) window.chibanMap[key] = [];
+            window.chibanMap[key].push({ type: 'book', id: row.id, title: `${b.title}｜${row.entryLabel}`, thumb: '' });
+        });
+    }));
 }
 
 /* 大字／小字キーの推定：専用属性があればそれを優先し、無ければchiban_key文字列を区切り文字で分解して推定する。
@@ -3911,6 +4015,124 @@ async function loadDocData() {
 }
 
 /* =====================================================================
+   図書データ読込
+   -------------------------------------------------------------------
+   列: A整理番号 B URL C書名 D カナ読み E大見出し F中見出し G小見出し H コマ
+       I全ページ数 J著者・作成者 K出版・発行 L出版年（西暦） M出版年（和暦）
+       N説明・概要 O所蔵 P所蔵機関の整理番号 Q形態 R著作権 S公開区分 T地番キー U座標
+   1行＝1つの目次項目（章・節・項）。同じ「書名」の行をまとめて1冊とし、
+   大・中・小見出しのうち埋まっている列だけを使って入れ子の目次を自動生成する
+   （大見出し・中見出しが空欄でも、その行は小見出しだけの目次項目として機能する）。
+   URL列はIIIF ManifestでもPDFでも、そのまま資料URLとして機能する（doc DBと同じ判定を流用）。
+   ===================================================================== */
+async function loadBookData() {
+    if (!CSV_BOOK_URL) return;
+    try {
+        const res = await fetch(CSV_BOOK_URL);
+        const text = await res.text();
+        const rows = parseCSV(text).slice(1);
+        const rawItems = rows.filter(r => r.length > 2 && (r[2] || '').trim() !== '').map((cols, index) => ({
+            id: cols[0] || `T-${index}`,
+            url: (cols[1] || '').trim(),
+            title: (cols[2] || '').trim(),
+            titleKana: cols[3] || '',
+            h1: (cols[4] || '').trim(),
+            h2: (cols[5] || '').trim(),
+            h3: (cols[6] || '').trim(),
+            komaRaw: cols[7] || '',
+            totalPagesRaw: cols[8] || '',
+            creator: cols[9] || '',
+            publisher: cols[10] || '',
+            yearWest: cols[11] || '',
+            yearJpn: cols[12] || '',
+            desc: cols[13] || '',
+            storage: cols[14] || '',
+            callNum: cols[15] || '',
+            form: cols[16] || '',
+            copyright: cols[17] || '',
+            accessType: cols[18] || '',
+            chibanKey: cols[19] || '',
+            coordStr: cols[20] || ''
+        }));
+
+        const groups = new Map();
+        const order = [];
+        rawItems.forEach(item => {
+            const key = item.title;
+            if (!groups.has(key)) { groups.set(key, []); order.push(key); }
+            groups.get(key).push(item);
+        });
+
+        const firstNonEmpty = (arr, field) => { const v = arr.map(r => r[field]).find(v => v && v.trim() !== '' && v.trim() !== '-'); return v || ''; };
+
+        bookData = order.map(title => {
+            const rowsOfBook = groups.get(title);
+            const url = firstNonEmpty(rowsOfBook, 'url');
+            rowsOfBook.forEach(r => {
+                r.pdfUrl = url; /* 文書・史料と同じビュアー関数（initDocPdf等）がこの名前を参照する */
+                const range = parseKomaRange(r.komaRaw);
+                r.startPage = range[0]; r.endPage = range[1];
+                const cells = [r.h1, r.h2, r.h3];
+                const filledIdx = [0, 1, 2].filter(i => cells[i]);
+                if (filledIdx.length === 0) { r.entryLabel = title; r.chain = []; }
+                else {
+                    const li = filledIdx[filledIdx.length - 1];
+                    r.entryLabel = cells[li];
+                    r.chain = filledIdx.slice(0, -1).map(i => cells[i]);
+                }
+                /* 地番キー・座標は書籍全体ではなく、小見出し（行）ごとに異なる場所を持ちうる */
+                const cp = (r.coordStr || '').split(/[\s,]+/).map(Number);
+                r.coords = (cp[0] && cp[1]) ? [cp[0], cp[1]] : [0, 0];
+            });
+            rowsOfBook.sort((a, b) => a.startPage - b.startPage);
+            return {
+                id: title, title, url,
+                titleKana: firstNonEmpty(rowsOfBook, 'titleKana'),
+                creator: firstNonEmpty(rowsOfBook, 'creator'),
+                publisher: firstNonEmpty(rowsOfBook, 'publisher'),
+                yearWest: firstNonEmpty(rowsOfBook, 'yearWest'),
+                yearJpn: firstNonEmpty(rowsOfBook, 'yearJpn'),
+                desc: firstNonEmpty(rowsOfBook, 'desc'),
+                storage: firstNonEmpty(rowsOfBook, 'storage'),
+                callNum: firstNonEmpty(rowsOfBook, 'callNum'),
+                form: firstNonEmpty(rowsOfBook, 'form'),
+                copyright: firstNonEmpty(rowsOfBook, 'copyright'),
+                accessType: firstNonEmpty(rowsOfBook, 'accessType'),
+                totalPages: firstNonEmpty(rowsOfBook, 'totalPagesRaw'),
+                rows: rowsOfBook,
+                outline: buildBookOutline(rowsOfBook)
+            };
+        });
+        renderBookMapLayers();
+    } catch (e) { console.error("図書データの取得失敗:", e); }
+}
+
+/* "3-7" のような範囲、"5" のような単独の値のどちらも解釈する */
+function parseKomaRange(str) {
+    const m = String(str || '').match(/(\d+)\s*[-〜～]\s*(\d+)/);
+    if (m) return [parseInt(m[1]), parseInt(m[2])];
+    const n = parseStartPage(str);
+    return [n, n];
+}
+
+/* 大見出し／中見出し／小見出しのうち埋まっている列だけを使い、入れ子の目次ツリーを組み立てる。
+   （例：大のみ→フラットな項目／大・中のみ→2階層／大・中・小→3階層。空欄の階層は自動で読み飛ばす） */
+function buildBookOutline(rowsOfBook) {
+    const root = [];
+    const findOrCreateChild = (children, label) => {
+        let node = children.find(c => !c.row && c.label === label);
+        if (!node) { node = { label, children: [], row: null }; children.push(node); }
+        return node;
+    };
+    rowsOfBook.forEach(row => {
+        let children = root;
+        row.chain.forEach(label => { children = findOrCreateChild(children, label).children; });
+        children.push({ label: row.entryLabel, row, children: [] });
+    });
+    return root;
+}
+
+/* =====================================================================
    ■42 分類ドロップダウン動的生成
    ===================================================================== */
 function populateCategoryDropdown() {
@@ -3966,8 +4188,8 @@ function toggleOmniMode(mode) {
     document.getElementById('omni-detail-ui').style.display = mode === 'detail' ? 'block' : 'none';
 }
 
-const TYPE_LABELS = { photo: '古写真', map: '古地図', doc: '文書・史料', td: '石造物', nature: '自然系', oldroad: '古道', building: '歴史的建造物', chiban: '地番' };
-const TYPE_COLORS = { photo: '#4e342e', map: '#bda06d', doc: '#1a2a4a', td: '#607d8b', nature: '#2e8b57', oldroad: '#20b2aa', building: '#ff8c00', chiban: '#e91e8c' };
+const TYPE_LABELS = { photo: '古写真', map: '古地図', doc: '文書・史料', td: '石造物', nature: '自然系', oldroad: '古道', building: '歴史的建造物', book: '図書', chiban: '地番' };
+const TYPE_COLORS = { photo: '#4e342e', map: '#bda06d', doc: '#1a2a4a', td: '#607d8b', nature: '#2e8b57', oldroad: '#20b2aa', building: '#ff8c00', book: '#6a3fa0', chiban: '#e91e8c' };
 
 function executeOmniSearch() {
     const isSimple = document.getElementById('tab-omni-simple').classList.contains('active');
@@ -4151,16 +4373,31 @@ function renderMapDbGallery() {
         pager.innerHTML = ''; return;
     }
     const start = (currentMapDbPage - 1) * galleryItemsPerPage;
-    container.innerHTML = pagedFilteredMapData.slice(start, start + galleryItemsPerPage).map(m => `
+    container.innerHTML = pagedFilteredMapData.slice(start, start + galleryItemsPerPage).map((m, i) => {
+        const first = (m.fullImgs && m.fullImgs[0]) || '';
+        const thumbId = `map-thumb-${start + i}`;
+        const isIiif = isIiifUrl(first);
+        if (isIiif) setTimeout(() => iiifFillListThumb(thumbId, first), 0);
+        return `
         <div class="doc-list-card" onclick='openMapDetailModal(${JSON.stringify(m).replace(/'/g, "&#39;")})'>
-            <img class="dlc-thumb" src="${escapeHtml((m.fullImgs && m.fullImgs[0]) || 'https://placehold.co/120x150/bda06d/2c1e1a?text=Map')}" onerror="this.src='https://placehold.co/120x150/bda06d/2c1e1a?text=Map'">
+            <img class="dlc-thumb" id="${thumbId}" src="${escapeHtml(isIiif ? '' : (first || 'https://placehold.co/120x150/bda06d/2c1e1a?text=Map'))}" onerror="this.src='https://placehold.co/120x150/bda06d/2c1e1a?text=Map'">
             <div class="dlc-body">
                 <div class="dlc-title">${escapeHtml(m.name)}</div>
                 <div class="dlc-meta">${escapeHtml(m.creator)} ／ ${escapeHtml(m.publisher)}</div>
                 <span class="dlc-year">内容年代：${escapeHtml(m.yearContent) || '不明'}</span>
             </div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
     renderGenericPagination(pager, pagedFilteredMapData.length, currentMapDbPage, (i) => { currentMapDbPage = i; renderMapDbGallery(); });
+}
+/* 一覧サムネイルがIIIF Manifestの場合、1コマ目のサムネイル画像に差し替える */
+async function iiifFillListThumb(imgId, manifestUrl) {
+    try {
+        const mf = await getIiifManifestCached(manifestUrl);
+        const url = mf.canvases[0] && mf.canvases[0].thumb;
+        const el = document.getElementById(imgId);
+        if (el && url) el.src = url;
+    } catch (e) { /* 失敗時はimgのonerrorがプレースホルダを出す */ }
 }
 /* レイヤ選択一覧の「詳細」ボタンから、名称で該当する古地図データを開く */
 function openMapDetailModalByName(name) {
@@ -4446,6 +4683,230 @@ function renderDocTree() {
         html += `</div></details>`;
     });
     container.innerHTML = html || '<p style="color:#999;">データを読込中です。</p>';
+}
+
+/* =====================================================================
+   ■43b 図書データベース：一覧・検索・詳細モーダル
+   -------------------------------------------------------------------
+   検索結果カードは「1冊＝1件」（docDBが「1史料＝1件」なのとは粒度が異なる）。
+   サムネイルは文書・史料と同じ loadDocListThumbnail をそのまま流用する
+   （bookData の各要素が pdfUrl/startPage を持つように統一してあるため）。
+   ===================================================================== */
+let pagedFilteredBookData = [];
+let currentBookPage = 1;
+
+/* 全文横断／地番キーの検索語が、ある目次項目（行）自体にヒットしているかを判定する。
+   著者・出版社などの書籍共通項目は「本全体」の絞り込みには使うが、
+   個々の目次項目を光らせる基準にはしない（＝どの章がヒットしたのかが分からなくなるため）。 */
+function bookRowMatchesQuery(row, qOmni, chiban) {
+    const rowText = [row.h1, row.h2, row.h3, row.chibanKey].join(' ').toLowerCase();
+    if (qOmni && rowText.includes(qOmni)) return true;
+    if (chiban && (row.chibanKey || '').toLowerCase().includes(chiban)) return true;
+    return false;
+}
+
+function filterBookDB() {
+    const qOmni = document.getElementById('book-search-main').value.trim().toLowerCase();
+    const id = document.getElementById('book-search-id').value.trim().toLowerCase();
+    const title = document.getElementById('book-search-title').value.trim().toLowerCase();
+    const kana = document.getElementById('book-search-kana').value.trim().toLowerCase();
+    const creator = document.getElementById('book-search-creator').value.trim().toLowerCase();
+    const publisher = document.getElementById('book-search-publisher').value.trim().toLowerCase();
+    const yearWest = document.getElementById('book-search-yearwest').value.trim();
+    const storage = document.getElementById('book-search-storage').value.trim().toLowerCase();
+    const chiban = document.getElementById('book-search-chiban').value.trim().toLowerCase();
+
+    pagedFilteredBookData = bookData.filter(b => {
+        const tocText = b.rows.map(r => [r.h1, r.h2, r.h3, r.chibanKey].join(' ')).join(' ');
+        const full = [b.id, b.title, b.titleKana, b.creator, b.publisher, b.yearWest, b.yearJpn, b.desc, b.storage, b.callNum, tocText].join(' ').toLowerCase();
+        const hit = (!qOmni || full.includes(qOmni)) && (!id || String(b.id).toLowerCase().includes(id)) && (!title || (b.title || '').toLowerCase().includes(title))
+            && (!kana || (b.titleKana || '').toLowerCase().includes(kana)) && (!creator || (b.creator || '').toLowerCase().includes(creator))
+            && (!publisher || (b.publisher || '').toLowerCase().includes(publisher)) && (!yearWest || (b.yearWest || '').includes(yearWest))
+            && (!storage || (b.storage || '').toLowerCase().includes(storage))
+            && (!chiban || b.rows.some(r => (r.chibanKey || '').toLowerCase().includes(chiban)));
+        /* ヒットした目次項目（キーワード・地番キーがその行自体に一致するもの）を控えておく。
+           一覧カードでの「ヒット箇所」表示と、詳細モーダルを開いたときの目次ハイライトに使う。 */
+        b.matchedRows = (qOmni || chiban) ? b.rows.filter(r => bookRowMatchesQuery(r, qOmni, chiban)) : [];
+        return hit;
+    });
+    currentBookPage = 1;
+    renderBookList();
+    renderGenericResultMap('book-result-map', 'book-result-map-container', pagedFilteredBookData, () => ({ color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book }));
+}
+
+function renderBookList() {
+    const container = document.getElementById('book-list-container');
+    const pager = document.getElementById('book-pagination-container');
+    if (pagedFilteredBookData.length === 0) { container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-book"></i>該当する図書が見つかりませんでした。</div>'; pager.innerHTML = ''; return; }
+    const start = (currentBookPage - 1) * galleryItemsPerPage;
+    const pageItems = pagedFilteredBookData.slice(start, start + galleryItemsPerPage);
+    container.innerHTML = pageItems.map((b, idx) => {
+        const hits = b.matchedRows || [];
+        const shown = hits.slice(0, 4);
+        const hitsHtml = hits.length > 0 ? `
+            <div class="dlc-toc-hits">
+                ${shown.map(r => `<div class="dlc-toc-hit" onclick="event.stopPropagation(); openBookDetailModalAtRow(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(r.id))})">
+                    <i class="fa-solid fa-arrow-turn-down-right"></i> ${escapeHtml([...r.chain, r.entryLabel].join(' ＞ '))} <span class="dlc-toc-hit-page">p.${r.startPage}</span></div>`).join('')}
+                ${hits.length > 4 ? `<div class="dlc-toc-hit-more">ほか${hits.length - 4}件ヒット</div>` : ''}
+            </div>` : '';
+        const jumpRowId = hits[0] ? String(hits[0].id) : '';
+        return `
+        <div class="doc-list-card" onclick='openBookDetailModalAtRow(${JSON.stringify(String(b.id))}, ${JSON.stringify(jumpRowId)})'>
+            <div class="dlc-thumb media-loading-wrap" id="book-list-thumb-${idx}">
+                <div class="media-spinner" style="font-size:1.2rem;"><i class="fa-solid fa-spinner fa-spin"></i></div>
+            </div>
+            <div class="dlc-body">
+                <div class="dlc-title">${escapeHtml(b.title)}</div>
+                <div class="dlc-meta">${escapeHtml(b.creator) || '著者不明'} ／ 全${escapeHtml(b.totalPages) || '－'}ページ</div>
+                <span class="dlc-year">刊行年：${escapeHtml(b.yearWest) || escapeHtml(b.yearJpn) || '不明'}</span>
+                ${hitsHtml}
+            </div>
+        </div>`;
+    }).join('');
+    renderGenericPagination(pager, pagedFilteredBookData.length, currentBookPage, (i) => { currentBookPage = i; renderBookList(); });
+    /* 表紙（1ページ目）のサムネイルは文書・史料DBと共通のローダーを使う */
+    runWithConcurrencyLimit(pageItems.map((b, idx) => () => loadDocListThumbnail({ pdfUrl: b.url, startPage: '1' }, `book-list-thumb-${idx}`)), 3);
+}
+
+function openBookDetailModalById(id) {
+    const r = bookData.find(x => String(x.id) === String(id));
+    if (r) openBookDetailModal(r);
+}
+
+/* 検索結果のヒット箇所クリック用：指定の目次項目（行）のページを開き、
+   その本の検索ヒット項目一式を目次タブで強調表示する。 */
+function openBookDetailModalAtRow(bookId, rowId) {
+    const b = bookData.find(x => String(x.id) === String(bookId));
+    if (!b) return;
+    const targetRow = rowId ? b.rows.find(r => String(r.id) === String(rowId)) : null;
+    const hitIds = new Set((b.matchedRows || []).map(r => String(r.id)));
+    openBookDetailModal(b, targetRow, hitIds);
+}
+
+/* ---------- 詳細モーダル（文書・史料モーダルと同じDOM/ビュアー関数をそのまま共用） ---------- */
+function openBookDetailModal(bookRow, targetRow, hitIds) {
+    const rowsFlat = bookRow.rows;
+    const start = targetRow || rowsFlat[0];
+    window._docViewer = {
+        pdfDoc: null, currentPage: start ? start.startPage : 1, totalPages: 0,
+        book: rowsFlat, bookKey: bookRow.title, mode: 'page', subMode: 'text', observer: null, iiif: null,
+        source: 'book', bookMeta: bookRow, hitIds: hitIds || new Set()
+    };
+
+    document.getElementById('modal-body').innerHTML = `
+        <div class="doc-modal-layout">
+            <div class="doc-pdf-section">
+                <div class="pdf-viewer-scroll" id="pdf-viewer-scroll" dir="rtl"></div>
+                <div class="pdf-viewer-controls">
+                    <div class="pdf-nav-arrow" onclick="docPageArrowNext()" title="次のページへ進む"><i class="fa-solid fa-chevron-left"></i></div>
+                    <div class="pdf-slider-wrap"><input type="range" id="pdf-page-slider" min="1" max="1" value="1" oninput="docSliderInput(this.value)"></div>
+                    <div class="pdf-nav-arrow" onclick="docPageArrowPrev()" title="前のページへ戻る"><i class="fa-solid fa-chevron-right"></i></div>
+                    <div class="pdf-page-counter" id="pdf-page-counter">読込中 / －</div>
+                </div>
+            </div>
+            <div class="info-section-wrapper" id="modal-info-wrapper">
+                <div class="modal-pane-toggle" onclick="toggleModalPanel()"><i class="fa-solid fa-chevron-right" id="modal-pane-toggle-icon"></i></div>
+                <div class="modal-info-section" id="modal-info-panel">
+                    <div class="doc-info-header-fixed">
+                        <div class="doc-cat-small"><span>${escapeHtml(bookRow.titleKana) || '－'}</span></div>
+                        <div class="doc-vol-title">${escapeHtml(bookRow.title) || '－'}</div>
+                    </div>
+                    <div class="doc-modal-tabs">
+                        <div class="doc-modal-tab active" id="book-modal-tab-toc" onclick="switchBookModalTab('toc')">目次</div>
+                        <div class="doc-modal-tab" id="book-modal-tab-detail" onclick="switchBookModalTab('detail')">詳細</div>
+                    </div>
+                    <div id="doc-modal-tab-body"></div>
+                </div>
+            </div>
+        </div>`;
+    document.getElementById('detail-modal').style.display = 'flex';
+    switchBookModalTab('toc');
+    initDocPdf({ pdfUrl: bookRow.url, startPage: String(window._docViewer.currentPage) });
+}
+
+function switchBookModalTab(mode) {
+    window._docViewer.mode = mode;
+    document.getElementById('book-modal-tab-toc').classList.toggle('active', mode === 'toc');
+    document.getElementById('book-modal-tab-detail').classList.toggle('active', mode === 'detail');
+    const body = document.getElementById('doc-modal-tab-body');
+    if (mode === 'toc') {
+        body.innerHTML = `<div class="doc-subject-link-list" id="book-outline-body"></div>`;
+        renderBookOutlineTree();
+    } else {
+        body.innerHTML = `<div class="doc-detail-tab-body" id="book-detail-tab-body"></div>`;
+        updateBookDetailTabContent();
+    }
+}
+
+/* 現在表示中のページを含む目次項目（行）を返す（目次タブのハイライト・詳細タブの現在地表示の両方で使う） */
+function findCurrentBookRow() {
+    const cur = window._docViewer.currentPage;
+    const rows = window._docViewer.book;
+    let best = null;
+    rows.forEach(r => { if (r.startPage <= cur && (!best || r.startPage > best.startPage)) best = r; });
+    return best || rows[0];
+}
+
+/* 目次タブ：大・中・小見出しのうち埋まっている階層だけを字下げして表示する。
+   現在表示中のページを含む項目には強調表示を、検索でヒットした項目には別の色を付ける。 */
+function renderBookOutlineTree() {
+    const container = document.getElementById('book-outline-body');
+    if (!container) return;
+    const currentRow = findCurrentBookRow();
+    const hitIds = window._docViewer.hitIds || new Set();
+    const renderNodes = (nodes, depth) => nodes.map(n => {
+        const indent = 8 + depth * 18;
+        if (n.row) {
+            const active = n.row === currentRow;
+            const hit = hitIds.has(String(n.row.id));
+            return `<div class="doc-subject-link-item ${active ? 'current' : ''} ${hit ? 'search-hit' : ''}" style="padding-left:${indent}px;" onclick="goToDocPage(${n.row.startPage}, true)">
+                <span style="color:var(--accent-gold);font-weight:700;margin-right:8px;">${n.row.startPage}</span>${escapeHtml(n.label)}${hit ? ' <i class="fa-solid fa-magnifying-glass" style="font-size:0.75em;color:#e65100;"></i>' : ''}</div>`;
+        }
+        return `<div class="doc-subject-link-item" style="padding-left:${indent}px;font-weight:700;color:#666;cursor:default;">${escapeHtml(n.label)}</div>`
+            + renderNodes(n.children, depth + 1).join('');
+    });
+    container.innerHTML = renderNodes(window._docViewer.bookMeta.outline, 0).join('') || '<p style="padding:10px;color:#888;">目次項目がありません。</p>';
+}
+
+function highlightCurrentBookOutline() { renderBookOutlineTree(); }
+
+/* 詳細タブ：書誌メタデータ（本全体で共有）＋ 現在表示中の項目の固有情報（大中小見出し・コマ・地番キー）
+   ＋「地図上で表示」ボタン（現在表示中の項目に位置情報がある場合のみ） */
+function updateBookDetailTabContent() {
+    const body = document.getElementById('book-detail-tab-body');
+    if (!body) return;
+    const b = window._docViewer.bookMeta;
+    const cur = findCurrentBookRow();
+    const chainText = cur ? [...cur.chain, cur.entryLabel].join(' ＞ ') : '－';
+    const komaText = cur ? (cur.startPage === cur.endPage ? String(cur.startPage) : `${cur.startPage}－${cur.endPage}`) : '－';
+    const hasLoc = cur && (cur.chibanKey || (cur.coords && cur.coords[0]));
+    body.innerHTML = `
+        <h3>${escapeHtml(b.title)}</h3>
+        <dl class="meta-info-list">
+            <dt>整理番号</dt><dd>${escapeHtml(b.id)}</dd>
+            <dt>カナ読み</dt><dd>${escapeHtml(b.titleKana) || '－'}</dd>
+            <dt>著者・作成者</dt><dd>${escapeHtml(b.creator) || '－'}</dd>
+            <dt>出版・発行</dt><dd>${escapeHtml(b.publisher) || '－'}</dd>
+            <dt>出版年（西暦）</dt><dd>${escapeHtml(b.yearWest) || '不明'}</dd>
+            <dt>出版年（和暦）</dt><dd>${escapeHtml(b.yearJpn) || '－'}</dd>
+            <dt>全ページ数</dt><dd>${escapeHtml(b.totalPages) || '－'}</dd>
+            <dt>説明・概要</dt><dd>${escapeHtml(b.desc) || '（説明なし）'}</dd>
+            <dt>所蔵</dt><dd>${escapeHtml(b.storage) || '－'}</dd>
+            <dt>所蔵機関の整理番号</dt><dd>${escapeHtml(b.callNum) || '－'}</dd>
+            <dt>形態</dt><dd>${escapeHtml(b.form) || '－'}</dd>
+            <dt>著作権</dt><dd>${escapeHtml(b.copyright) || '－'}</dd>
+            <dt>公開区分</dt><dd>${escapeHtml(b.accessType) || '－'}</dd>
+        </dl>
+        <h4 style="margin:16px 0 6px;">表示中の項目</h4>
+        <dl class="meta-info-list">
+            <dt>目次</dt><dd>${escapeHtml(chainText)}</dd>
+            <dt>コマ</dt><dd>${komaText}</dd>
+            <dt>地番キー</dt><dd>${escapeHtml(cur && cur.chibanKey) || '－'}</dd>
+        </dl>
+        ${hasLoc
+            ? `<button class="map-focus-btn" onclick="focusDataOnMapWithPanel('book', ${JSON.stringify(String(cur.id))})"><i class="fa-solid fa-location-dot"></i> 地図上で表示</button>`
+            : `<p style="color:#888;font-size:0.85rem;">表示中の項目には位置情報が登録されていません。</p>`}
+    `;
 }
 
 function filterDocDB() {
@@ -4923,6 +5384,11 @@ function buildImageGalleryHTML(images, altName) {
         return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#888;"><i class="fa-solid fa-image" style="font-size:3rem;"></i></div>`;
     }
     const uid = 'gal-' + Math.random().toString(36).slice(2, 8);
+    /* fullImgs等にIIIF Manifest（.../manifest.json）が混ざっていたら、拡大時に深いズームができるIIIF版で描画する */
+    if (images.some(isIiifUrl)) {
+        iiifPrepareGallery(uid, images, altName);
+        return `<div id="${uid}" class="media-loading-wrap"><div class="media-spinner"><i class="fa-solid fa-spinner fa-spin"></i></div></div>`;
+    }
     const imagesJson = JSON.stringify(images).replace(/'/g, "&#39;");
     let html = `<div id="${uid}" class="media-loading-wrap">
         <div class="media-spinner"><i class="fa-solid fa-spinner fa-spin"></i></div>
@@ -5127,6 +5593,12 @@ function openDataDetailPanel(row, type, isOrigin) {
         }
         const directionEntries = [['北', row.north], ['東', row.east], ['南', row.south], ['西', row.west]];
         kokumeiHtml = `<div class="kokumei-table" style="height:180px;">${directionEntries.map(([label, text]) => `<div class="kokumei-cell-wrapper"><div class="kokumei-label">${label}</div><div class="kokumei-box-3to1">${escapeHtml(text) || ''}</div></div>`).join('')}</div>`;
+    } else if (type === 'book') {
+        const bookUrl = (row.book && row.book.url) || '';
+        const images = isIiifUrl(bookUrl) ? [bookUrl] : [];
+        mediaHtml = images.length > 0
+            ? `<div class="mdp-media">${buildImageGalleryHTML(images, row.book ? row.book.title : row.title)}</div>`
+            : `<div class="mdp-media" style="display:flex;align-items:center;justify-content:center;color:#888;"><i class="fa-solid fa-book" style="font-size:2.5rem;"></i></div>`;
     } else {
         const images = (row.images && row.images.length) ? row.images : (row.thumbnail ? [row.thumbnail] : []);
         mediaHtml = images.length > 0
@@ -5153,6 +5625,14 @@ function openDataDetailPanel(row, type, isOrigin) {
             <dt>所有者</dt><dd>${escapeHtml(row.owner) || '－'}</dd><dt>文化財指定</dt><dd>${escapeHtml(row.heritage) || '－'}</dd>
             <dt>状態</dt><dd>${escapeHtml(row.condition) || '－'}</dd><dt>解説</dt><dd>${escapeHtml(row.info) || '（説明なし）'}</dd>
             <dt>地番キー</dt><dd>${escapeHtml(row.chibanKey) || '－'}</dd>`;
+    } else if (type === 'book') {
+        const bk = row.book || {};
+        const komaText = row.startPage === row.endPage ? String(row.startPage) : `${row.startPage}－${row.endPage}`;
+        metaRows = `<dt>書名</dt><dd>${escapeHtml(bk.title) || '－'}</dd><dt>目次項目</dt><dd>${escapeHtml(row.entryLabel) || '－'}</dd>
+            <dt>コマ</dt><dd>${komaText}</dd><dt>著者・作成者</dt><dd>${escapeHtml(bk.creator) || '－'}</dd>
+            <dt>出版・発行</dt><dd>${escapeHtml(bk.publisher) || '－'}</dd><dt>出版年（西暦）</dt><dd>${escapeHtml(bk.yearWest) || '不明'}</dd>
+            <dt>所蔵</dt><dd>${escapeHtml(bk.storage) || '－'}</dd><dt>説明・概要</dt><dd>${escapeHtml(bk.desc) || '（説明なし）'}</dd>
+            <dt>地番キー</dt><dd>${escapeHtml(row.chibanKey) || '－'}</dd>`;
     } else if (type === 'td') {
         metaRows = `<dt>整理番号</dt><dd>${escapeHtml(row.id)}</dd><dt>分類</dt><dd>${escapeHtml(row.category)}</dd>
             <dt>撮影日</dt><dd>${escapeHtml(row.date)}</dd><dt>撮影枚数</dt><dd>${escapeHtml(row.photoCount)}</dd>
@@ -5176,7 +5656,7 @@ function openDataDetailPanel(row, type, isOrigin) {
         </div>`;
     }
 
-    const displayName = isOrigin ? `${escapeHtml(row.name)}（移転前）` : escapeHtml(row.name);
+    const displayName = isOrigin ? `${escapeHtml(row.name)}（移転前）` : escapeHtml(row.name || row.entryLabel || row.title);
     const panelHtml = `
         ${mediaHtml}
         ${thumbGalleryHtml}
@@ -5184,7 +5664,7 @@ function openDataDetailPanel(row, type, isOrigin) {
         <span class="info-badge" style="background:${badgeColor};">${escapeHtml(badgeLabel)}</span>
         <h2>${displayName}</h2>
         <dl class="meta-info-list">${metaRows}</dl>
-        <button class="mdp-db-btn" onclick="openDataDetailModalFromPanel('${type}', '${escapeJsAttr(row.id)}')"><i class="fa-solid fa-database"></i> データベースで確認</button>
+        <button class="mdp-db-btn" onclick="openDataDetailModalFromPanel(${JSON.stringify(type)}, ${JSON.stringify(String(row.id))})"><i class="fa-solid fa-database"></i> データベースで確認</button>
         ${familyHtml}
     `;
     openMapDetailPanel(panelHtml);
@@ -5195,6 +5675,7 @@ function openDataDetailModalFromPanel(type, id) {
     else if (type === 'oldroad') { showPage('oldroad-db'); const r = oldRoadData.find(x => String(x.id) === String(id)); if (r) openOldRoadDetailModal(r); }
     else if (type === 'building') { showPage('building-db'); const r = buildingData.find(x => String(x.id) === String(id)); if (r) openBuildingDetailModal(r); }
     else if (type === 'td') { showPage('td'); const r = models.find(x => String(x.id) === String(id)); if (r) open3DDetail(r.id); }
+    else if (type === 'book') { showPage('book-db'); const hit = findBookRowById(id); if (hit) openBookDetailModal(hit.book, hit.row); }
 }
 
 /* DB側「地図上で確認」から：地番ポリゴンのハイライトと、データ詳細パネルの両方を表示する */
@@ -5205,6 +5686,7 @@ function focusDataOnMapWithPanel(type, id) {
     if (type === 'nature') { row = natureData.find(x => String(x.id) === String(id)); color = TYPE_COLORS.nature; }
     else if (type === 'oldroad') { row = oldRoadData.find(x => String(x.id) === String(id)); color = TYPE_COLORS.oldroad; }
     else if (type === 'building') { row = buildingData.find(x => String(x.id) === String(id)); color = TYPE_COLORS.building; }
+    else if (type === 'book') { const hit = findBookRowById(id); row = hit ? Object.assign({}, hit.row, { book: hit.book }) : null; color = TYPE_COLORS.book; }
     if (!row) return;
     setTimeout(() => {
         const features = findChibanFeatures(row.chibanKey);
@@ -5600,6 +6082,112 @@ function renderDocImageGridIiif(book) {
         img.src = url;
     });
 }
+
+
+/* =====================================================================
+   ■73 IIIF静止画ギャラリー（古地図・自然系・建造物など buildImageGalleryHTML 共通）
+   -------------------------------------------------------------------
+   fullImgs 等の画像欄に、通常の画像URLに混ぜてIIIF Manifest（…/manifest.json）を
+   書けるようにする。一覧サムネイルはManifestの1コマ目のサムネイルを使い、
+   クリック時の拡大表示はOpenSeadragonの深いズームで開く（巨大な地図でも軽い）。
+   通常の画像URLだけの場合は、今までどおりのCSSズーム表示のまま変わらない。
+   ===================================================================== */
+function iiifResolveGalleryItem(url) {
+    return getIiifManifestCached(url).then(mf => {
+        const c = mf.canvases[0];
+        if (!c || !c.serviceId) throw new Error('コマがありません');
+        return { type: 'iiif', url, serviceId: c.serviceId, thumb: c.thumb || (c.serviceId + '/full/!400,400/0/default.jpg') };
+    });
+}
+
+function galleryThumb(item) { return item.type === 'iiif' ? item.thumb : item.url; }
+
+async function iiifPrepareGallery(uid, images, altName) {
+    const items = (await Promise.all(images.map(async (u) => {
+        if (isIiifUrl(u)) {
+            try { return await iiifResolveGalleryItem(u); }
+            catch (e) { console.error('IIIF画像の読込に失敗:', u, e); return null; }
+        }
+        return { type: 'image', url: u };
+    }))).filter(Boolean);
+    const box = document.getElementById(uid);
+    if (!box) return; /* 展開待ちの間にモーダルが閉じられていれば何もしない */
+    box.outerHTML = renderGalleryHTML(uid, items, altName);
+}
+
+function renderGalleryHTML(uid, items, altName) {
+    if (!items.length) {
+        return `<div id="${uid}" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#888;"><i class="fa-solid fa-image" style="font-size:3rem;"></i></div>`;
+    }
+    const itemsJson = JSON.stringify(items).replace(/'/g, "&#39;");
+    let html = `<div id="${uid}" class="media-loading-wrap">
+        <div class="media-spinner"><i class="fa-solid fa-spinner fa-spin"></i></div>
+        <img src="${escapeHtml(galleryThumb(items[0]))}" alt="${escapeHtml(altName || '')}" class="clickable-image" id="${uid}-img"
+             onclick='openFullScreenGallery(${itemsJson}, 0)' style="width:100%;height:100%;object-fit:contain;"
+             onload="this.closest('.media-loading-wrap').classList.add('loaded')"
+             onerror="this.closest('.media-loading-wrap').classList.add('loaded');this.src='https://placehold.co/800x600/999/fff?text=No+Image'">`;
+    if (items[0].type === 'iiif') html += `<div class="gallery-zoom-badge"><i class="fa-solid fa-magnifying-glass-plus"></i> 拡大表示</div>`;
+    if (items.length > 1) {
+        html += `<button class="carousel-nav-btn prev" style="width:40px;height:40px;" onclick='changeGalleryImage2("${uid}", -1, ${itemsJson})'><i class="fa-solid fa-chevron-left"></i></button>
+        <button class="carousel-nav-btn next" style="width:40px;height:40px;" onclick='changeGalleryImage2("${uid}", 1, ${itemsJson})'><i class="fa-solid fa-chevron-right"></i></button>
+        <div class="carousel-dots" style="bottom:14px;">${items.map((_, i) => `<div class="carousel-dot ${i === 0 ? 'active' : ''}" data-idx="${i}"></div>`).join('')}</div>`;
+    }
+    html += `</div>`;
+    return html;
+}
+
+function changeGalleryImage2(uid, step, items) {
+    window._galleryIndex[uid] = ((window._galleryIndex[uid] || 0) + step + items.length) % items.length;
+    const idx = window._galleryIndex[uid];
+    const wrap = document.getElementById(uid);
+    if (wrap) wrap.classList.remove('loaded');
+    const img = document.getElementById(uid + '-img');
+    if (img) {
+        img.src = galleryThumb(items[idx]);
+        img.setAttribute('onclick', `openFullScreenGallery(${JSON.stringify(items).replace(/'/g, "&#39;")}, ${idx})`);
+    }
+    document.querySelectorAll(`#${uid} .carousel-dot`).forEach((d, i) => d.classList.toggle('active', i === idx));
+    const badge = document.querySelector(`#${uid} .gallery-zoom-badge`);
+    if (badge) badge.remove();
+    if (items[idx].type === 'iiif' && wrap) wrap.insertAdjacentHTML('beforeend', '<div class="gallery-zoom-badge"><i class="fa-solid fa-magnifying-glass-plus"></i> 拡大表示</div>');
+}
+
+/* ---------- フルスクリーン表示（IIIFなら深いズーム、通常画像なら従来どおりCSSズーム） ---------- */
+let fsItems = null, fsItemIndex = 0, fsOsd = null;
+
+function openFullScreenGallery(items, startIndex) {
+    fsGalleryImages = null; /* 従来モードは使わない */
+    fsItems = items; fsItemIndex = startIndex || 0;
+    document.getElementById('full-screen-overlay').style.display = 'flex';
+    const show = items.length > 1;
+    document.getElementById('fs-prev-btn').style.display = show ? 'flex' : 'none';
+    document.getElementById('fs-next-btn').style.display = show ? 'flex' : 'none';
+    fsShowItem(fsItemIndex);
+}
+
+function fsShowItem(idx) {
+    const item = fsItems[idx];
+    const img = document.getElementById('full-screen-img');
+    const osdBox = document.getElementById('fs-iiif-osd');
+    if (fsOsd) { try { fsOsd.destroy(); } catch (e) {} fsOsd = null; }
+    if (item.type === 'iiif') {
+        img.style.display = 'none';
+        osdBox.style.display = 'block';
+        fsOsd = OpenSeadragon({
+            id: 'fs-iiif-osd', prefixUrl: '', showNavigationControl: false, crossOriginPolicy: 'Anonymous',
+            maxZoomPixelRatio: 2, visibilityRatio: 1, animationTime: 0.3,
+            gestureSettingsMouse: { clickToZoom: false, dblClickToZoom: true },
+            gestureSettingsTouch: { pinchToZoom: true, dblClickToZoom: true, flickEnabled: true }
+        });
+        fsOsd.open(item.serviceId + '/info.json');
+    } else {
+        osdBox.style.display = 'none';
+        img.style.display = '';
+        img.src = item.url;
+        zoomScale = 1; translateX = 0; translateY = 0;
+        updateImageTransform();
+    }
+}
 /* ==== IIIF VIEWER END ==== */
 
 /* ---------- モーダル起動 ---------- */
@@ -5727,7 +6315,7 @@ async function initDocPdf(row) {
     const pdfUrl = (rawUrl || '').trim();
 
     if (!pdfUrl) {
-        scroll.innerHTML = `<div class="pdf-page-slot"><div class="pdf-page-placeholder"><i class="fa-solid fa-file-circle-xmark" style="font-size:2.5rem;"></i>この史料には閲覧用データ（PDFまたはIIIF）が登録されていません。</div></div>`;
+        scroll.innerHTML = `<div class="pdf-page-slot"><div class="pdf-page-placeholder"><i class="fa-solid fa-file-circle-xmark" style="font-size:2.5rem;"></i>この資料には閲覧用データ（PDFまたはIIIF）が登録されていません。</div></div>`;
         document.getElementById('pdf-page-counter').innerText = '－ / －';
         return;
     }
@@ -5794,6 +6382,11 @@ function syncDocPageUI(n) {
         const p = parseInt(cv.closest('.pdf-page-slot').dataset.page);
         if (Math.abs(p - n) > 1) clearDocPageSlot(p);
     });
+    if (window._docViewer.source === 'book') {
+        if (window._docViewer.mode === 'toc') highlightCurrentBookOutline();
+        else if (window._docViewer.mode === 'detail') updateBookDetailTabContent();
+        return;
+    }
     if (window._docViewer.mode === 'page') highlightCurrentSubjectLink();
     else if (window._docViewer.mode === 'detail') updateDocDetailTabContent();
 }
@@ -6072,8 +6665,12 @@ function updateDocDetailTabContent() {
 let zoomScale = 1, startX = 0, startY = 0, translateX = 0, translateY = 0, initialPinchDistance = 0, isDragging = false;
 
 function openFullScreenImage(imgUrl, imagesArray, startIndex) {
+    fsItems = null;
+    if (fsOsd) { try { fsOsd.destroy(); } catch (e) {} fsOsd = null; }
+    document.getElementById('fs-iiif-osd').style.display = 'none';
     const overlay = document.getElementById('full-screen-overlay');
     const fullImg = document.getElementById('full-screen-img');
+    fullImg.style.display = '';
     fsGalleryImages = (imagesArray && imagesArray.length > 1) ? imagesArray : null;
     fsGalleryIndex = startIndex || 0;
     fullImg.src = imgUrl;
@@ -6087,13 +6684,20 @@ function openFullScreenImage(imgUrl, imagesArray, startIndex) {
     if (nextBtn) nextBtn.style.display = show ? 'flex' : 'none';
 }
 function fsChangeImage(step) {
+    if (fsItems) { fsItemIndex = (fsItemIndex + step + fsItems.length) % fsItems.length; fsShowItem(fsItemIndex); return; }
     if (!fsGalleryImages) return;
     fsGalleryIndex = (fsGalleryIndex + step + fsGalleryImages.length) % fsGalleryImages.length;
     document.getElementById('full-screen-img').src = fsGalleryImages[fsGalleryIndex];
     zoomScale = 1; translateX = 0; translateY = 0;
     updateImageTransform();
 }
-function closeFullScreenImage() { document.getElementById('full-screen-overlay').style.display = 'none'; }
+function closeFullScreenImage() {
+    document.getElementById('full-screen-overlay').style.display = 'none';
+    if (fsOsd) { try { fsOsd.destroy(); } catch (e) {} fsOsd = null; }
+    fsItems = null;
+    document.getElementById('full-screen-img').style.display = '';
+    document.getElementById('fs-iiif-osd').style.display = 'none';
+}
 function updateImageTransform() {
     document.getElementById('full-screen-img').style.transform = `translate(${translateX}px, ${translateY}px) scale(${zoomScale})`;
 }
@@ -6214,6 +6818,7 @@ window.onload = () => {
     loadNatureData();
     loadOldRoadData();
     loadDocData();
+    loadBookData();
     initCarousel();
 };
 </script>
