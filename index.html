@@ -16,6 +16,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js"></script>
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -400,8 +401,26 @@ a { color: inherit; text-decoration: none; }
 .dlc-toc-hit:hover { color: var(--accent-gold); text-decoration: underline; }
 .dlc-toc-hit-page { margin-left: auto; color: var(--accent-gold); font-weight: 700; white-space: nowrap; }
 .dlc-toc-hit-more { font-size: 0.75rem; color: var(--text-muted); padding-top: 2px; }
+.dlc-hit-group-label { font-size: 0.72rem; color: var(--accent-gold); font-weight: 700; margin-bottom: 2px; }
+.dlc-text-hits { margin-top: 8px; }
+.dlc-text-hit-snippet { line-height: 1.4; }
 .doc-subject-link-item.search-hit { background: #fff3b0; border-left: 3px solid #e65100; }
 .doc-subject-link-item.search-hit.current { background: #ffe27a; }
+
+/* ===== OCRテキストレイヤー（通常OCR＝選択可能／古典籍OCR＝翻刻ラベル） ===== */
+.iiif-text-line {
+    color: transparent; -webkit-text-fill-color: transparent;
+    -webkit-user-select: text; user-select: text; cursor: text;
+    white-space: nowrap; line-height: 1; overflow: hidden;
+}
+.iiif-text-line.vertical { writing-mode: vertical-rl; }
+.iiif-text-line::selection, .iiif-text-line::-moz-selection { background: rgba(70,130,255,0.35); }
+.iiif-translit-label {
+    font-size: 12px; line-height: 1.3; background: rgba(255,252,240,0.92); color: #2a2622;
+    padding: 1px 5px; border-radius: 3px; white-space: nowrap; pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.1);
+    max-width: 160px; overflow: hidden; text-overflow: ellipsis; margin-left: 4px;
+}
 
 /* ===== ビフォーアフター比較 ===== */
 #before-after-overlay {
@@ -1141,6 +1160,7 @@ a { color: inherit; text-decoration: none; }
                     <div class="search-field"><label>地番キー</label><input id="book-search-chiban"></div>
                 </div>
                 <button class="search-exec-btn" onclick="filterBookDB()"><i class="fa-solid fa-filter"></i> 検索する</button>
+                <span id="book-search-status" style="margin-left:10px;color:var(--text-muted);font-size:0.85rem;"></span>
             </div>
             <div id="book-list-container">
                 <div class="empty-state"><i class="fa-solid fa-book"></i>検索条件を指定してください。</div>
@@ -1764,10 +1784,20 @@ function closeChibanPanel() {
    （＝「未確認の一段深いズーム」でない限り無視される）、補正後は
    完全にLeaflet標準の仕組みに委ねられる。
    ===================================================================== */
-function createHistoricalTileLayer(url, options) {
-    const opts = Object.assign({ keepBuffer: 4 }, options);
-    const tl = L.tileLayer(url, opts);
+/* スプレッドシートの「地図タイルURL」列が .pmtiles で終わる（またはpmtiles://で始まる）
+   単一ファイルURLの場合は、通常のXYZタイルURL（{z}/{x}/{y}形式）ではなく
+   pmtilesアーカイブなので、L.tileLayerではなくpmtilesライブラリの
+   leafletRasterLayerで読み込む必要がある。 */
+function isPmtilesUrl(url) {
+    if (!url) return false;
+    const u = String(url).trim();
+    return /\.pmtiles(\?[^?]*)?$/i.test(u) || /^pmtiles:\/\//i.test(u);
+}
 
+/* 通常のXYZタイル・pmtilesラスタタイルの両方に共通の自動補正
+   （■12b参照：実際に確認できた最大ズームの1段階先で初めて失敗したら、
+   そこがそのレイヤの実際の最大ネイティブズームだったと判断する） */
+function applyAutoMaxNativeZoomCorrection(tl) {
     let maxSuccessZ = -1;
     let corrected = false;
 
@@ -1777,15 +1807,34 @@ function createHistoricalTileLayer(url, options) {
     });
     tl.on('tileerror', (e) => {
         if (corrected) return;
-        /* 「これまで確認できた最大の実在ズームのすぐ1段階先」で
-           初めて失敗した場合のみ、そこが実際の限界だったと判断する */
         if (maxSuccessZ >= 0 && e.coords.z === maxSuccessZ + 1) {
             corrected = true;
             tl.options.maxNativeZoom = maxSuccessZ;
             tl.redraw();
         }
     });
+}
 
+function createHistoricalTileLayer(url, options) {
+    const opts = Object.assign({ keepBuffer: 4 }, options);
+    const trimmedUrl = (url || '').trim();
+
+    let tl;
+    if (isPmtilesUrl(trimmedUrl)) {
+        try {
+            const cleanUrl = trimmedUrl.replace(/^pmtiles:\/\//i, '');
+            const archive = new pmtiles.PMTiles(cleanUrl);
+            tl = pmtiles.leafletRasterLayer(archive, opts);
+        } catch (e) {
+            console.error('pmtilesアーカイブの読み込みに失敗しました:', trimmedUrl, e);
+            /* 失敗時も画面がエラーで止まらないよう、空のタイルレイヤにフォールバックする */
+            tl = L.tileLayer('', opts);
+        }
+    } else {
+        tl = L.tileLayer(trimmedUrl, opts);
+    }
+
+    applyAutoMaxNativeZoomCorrection(tl);
     return tl;
 }
 
@@ -4705,6 +4754,8 @@ function bookRowMatchesQuery(row, qOmni, chiban) {
     return false;
 }
 
+window._bookSearchGen = window._bookSearchGen || 0;
+
 function filterBookDB() {
     const qOmni = document.getElementById('book-search-main').value.trim().toLowerCase();
     const id = document.getElementById('book-search-id').value.trim().toLowerCase();
@@ -4715,7 +4766,9 @@ function filterBookDB() {
     const yearWest = document.getElementById('book-search-yearwest').value.trim();
     const storage = document.getElementById('book-search-storage').value.trim().toLowerCase();
     const chiban = document.getElementById('book-search-chiban').value.trim().toLowerCase();
+    const myGen = ++window._bookSearchGen;
 
+    bookData.forEach(b => { b.matchedTextHits = null; });
     pagedFilteredBookData = bookData.filter(b => {
         const tocText = b.rows.map(r => [r.h1, r.h2, r.h3, r.chibanKey].join(' ')).join(' ');
         const full = [b.id, b.title, b.titleKana, b.creator, b.publisher, b.yearWest, b.yearJpn, b.desc, b.storage, b.callNum, tocText].join(' ').toLowerCase();
@@ -4732,6 +4785,57 @@ function filterBookDB() {
     currentBookPage = 1;
     renderBookList();
     renderGenericResultMap('book-result-map', 'book-result-map-container', pagedFilteredBookData, () => ({ color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book }));
+
+    /* OCRの本文（search-index.json）を対象にした全文検索は、各冊ぶんの取得が必要なため非同期で行い、
+       見つかりしだい一覧に追加していく（キーワード検索のときだけ・本の背表紙検索や地番検索では行わない） */
+    const statusEl = document.getElementById('book-search-status');
+    if (!qOmni) { if (statusEl) statusEl.textContent = ''; return; }
+    if (statusEl) statusEl.textContent = '本文を検索中…';
+    bookFullTextSearch(qOmni, myGen).then(hitsByBook => {
+        if (myGen !== window._bookSearchGen) return; /* 新しい検索が始まっていれば古い結果は捨てる */
+        if (statusEl) statusEl.textContent = '';
+        if (hitsByBook.size === 0) return;
+        let added = false;
+        hitsByBook.forEach((hits, bookId) => {
+            const b = bookData.find(x => String(x.id) === String(bookId));
+            if (!b) return;
+            b.matchedTextHits = hits;
+            if (!pagedFilteredBookData.includes(b)) { pagedFilteredBookData.push(b); added = true; }
+        });
+        renderBookList();
+        if (added) renderGenericResultMap('book-result-map', 'book-result-map-container', pagedFilteredBookData, () => ({ color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book }));
+    });
+}
+
+/* 本のOCR本文（search-index.json）をキーワードで検索する。OCR未実施の本（ファイルが無い本）は静かに無視する。 */
+async function bookFullTextSearch(q, myGen) {
+    const results = new Map();
+    const tasks = bookData.filter(b => b.url).map(b => async () => {
+        if (myGen !== window._bookSearchGen) return;
+        try {
+            const idx = await getBookSearchIndex(b);
+            const hits = [];
+            Object.keys(idx).forEach(page => {
+                const text = idx[page] || '';
+                const low = text.toLowerCase();
+                const i = low.indexOf(q);
+                if (i !== -1) {
+                    const s = Math.max(0, i - 12), e = Math.min(text.length, i + q.length + 18);
+                    hits.push({ page, snippet: (s > 0 ? '…' : '') + text.slice(s, e) + (e < text.length ? '…' : '') });
+                }
+            });
+            if (hits.length) results.set(b.id, hits);
+        } catch (e) { /* OCR未実施（search-index.jsonなし）は無視 */ }
+    });
+    await runWithConcurrencyLimit(tasks, 4);
+    return results;
+}
+function getBookSearchIndex(b) {
+    if (!b._searchIndexPromise) {
+        const url = b.url.replace(/manifest\.json$/, 'search-index.json');
+        b._searchIndexPromise = fetch(url, { mode: 'cors' }).then(r => { if (!r.ok) throw new Error('no index'); return r.json(); });
+    }
+    return b._searchIndexPromise;
 }
 
 function renderBookList() {
@@ -4749,6 +4853,14 @@ function renderBookList() {
                     <i class="fa-solid fa-arrow-turn-down-right"></i> ${escapeHtml([...r.chain, r.entryLabel].join(' ＞ '))} <span class="dlc-toc-hit-page">p.${r.startPage}</span></div>`).join('')}
                 ${hits.length > 4 ? `<div class="dlc-toc-hit-more">ほか${hits.length - 4}件ヒット</div>` : ''}
             </div>` : '';
+        const textHits = b.matchedTextHits || [];
+        const textHitsHtml = textHits.length > 0 ? `
+            <div class="dlc-toc-hits dlc-text-hits">
+                <div class="dlc-hit-group-label"><i class="fa-solid fa-file-lines"></i> 本文でヒット</div>
+                ${textHits.slice(0, 3).map(h => `<div class="dlc-toc-hit" onclick="event.stopPropagation(); openBookDetailModalAtPage(${JSON.stringify(String(b.id))}, ${JSON.stringify(h.page)})">
+                    <span class="dlc-text-hit-snippet">${escapeHtml(h.snippet)}</span></div>`).join('')}
+                ${textHits.length > 3 ? `<div class="dlc-toc-hit-more">ほか${textHits.length - 3}件ヒット</div>` : ''}
+            </div>` : '';
         const jumpRowId = hits[0] ? String(hits[0].id) : '';
         return `
         <div class="doc-list-card" onclick='openBookDetailModalAtRow(${JSON.stringify(String(b.id))}, ${JSON.stringify(jumpRowId)})'>
@@ -4760,6 +4872,7 @@ function renderBookList() {
                 <div class="dlc-meta">${escapeHtml(b.creator) || '著者不明'} ／ 全${escapeHtml(b.totalPages) || '－'}ページ</div>
                 <span class="dlc-year">刊行年：${escapeHtml(b.yearWest) || escapeHtml(b.yearJpn) || '不明'}</span>
                 ${hitsHtml}
+                ${textHitsHtml}
             </div>
         </div>`;
     }).join('');
@@ -4771,6 +4884,18 @@ function renderBookList() {
 function openBookDetailModalById(id) {
     const r = bookData.find(x => String(x.id) === String(id));
     if (r) openBookDetailModal(r);
+}
+
+/* 本文検索のヒット箇所クリック用：該当ページを直接開く。古典籍OCRの本なら翻刻も自動で表示する。 */
+function openBookDetailModalAtPage(bookId, pageName) {
+    const b = bookData.find(x => String(x.id) === String(bookId));
+    if (!b) return;
+    const pageNum = parseInt(String(pageName).replace(/\D/g, ''), 10) || 1;
+    const owning = b.rows.slice().reverse().find(r => r.startPage <= pageNum) || b.rows[0];
+    const targetRow = Object.assign({}, owning, { startPage: pageNum });
+    const hitIds = new Set((b.matchedRows || []).map(r => String(r.id)));
+    window._pendingAutoTranslit = true;
+    openBookDetailModal(b, targetRow, hitIds);
 }
 
 /* 検索結果のヒット箇所クリック用：指定の目次項目（行）のページを開き、
@@ -4880,6 +5005,11 @@ function updateBookDetailTabContent() {
     const chainText = cur ? [...cur.chain, cur.entryLabel].join(' ＞ ') : '－';
     const komaText = cur ? (cur.startPage === cur.endPage ? String(cur.startPage) : `${cur.startPage}－${cur.endPage}`) : '－';
     const hasLoc = cur && (cur.chibanKey || (cur.coords && cur.coords[0]));
+    const iiifSt = window._docViewer.iiif;
+    const pageText = iiifSt && iiifSt.pageText;
+    const translitBtnHtml = (pageText && pageText.engine === 'ndlkotenocr' && pageText.lines && pageText.lines.length)
+        ? `<button class="map-focus-btn" style="margin-top:8px;" onclick="iiifToggleTranslit()"><i class="fa-solid fa-language"></i> ${iiifSt.translitVisible ? '翻刻を隠す' : '翻刻を表示'}</button>`
+        : '';
     body.innerHTML = `
         <h3>${escapeHtml(b.title)}</h3>
         <dl class="meta-info-list">
@@ -4906,6 +5036,7 @@ function updateBookDetailTabContent() {
         ${hasLoc
             ? `<button class="map-focus-btn" onclick="focusDataOnMapWithPanel('book', ${JSON.stringify(String(cur.id))})"><i class="fa-solid fa-location-dot"></i> 地図上で表示</button>`
             : `<p style="color:#888;font-size:0.85rem;">表示中の項目には位置情報が登録されていません。</p>`}
+        ${translitBtnHtml}
     `;
 }
 
@@ -5916,7 +6047,8 @@ async function initDocIiif(row, manifestUrl) {
         if (typeof OpenSeadragon === 'undefined') throw new Error('OpenSeadragonが読み込まれていません');
 
         v.totalPages = mf.canvases.length;
-        v.iiif = { manifestUrl, canvases: mf.canvases, rtl: mf.rtl, osd: null, timer: null, keyHandler: null };
+        v.iiif = { manifestUrl, canvases: mf.canvases, rtl: mf.rtl, osd: null, timer: null, keyHandler: null,
+            pageGen: 0, pageText: null, textOverlayEls: [], translitOverlayEls: [], pendingTranslitLines: null, translitVisible: false };
         const slider = document.getElementById('pdf-page-slider');
         if (slider) slider.max = v.totalPages;
 
@@ -6058,12 +6190,122 @@ function iiifOpenPage(n) {
         return;
     }
     if (status) { status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 読み込み中...'; status.style.display = 'flex'; }
+    iiifClearTextOverlays();
+    st.pageText = null; st.pendingTranslitLines = null; st.translitVisible = false;
+    const myGen = ++st.pageGen;
     st.osd.open(cv.serviceId + '/info.json');
+    /* OCR結果（text.json）は、画像が開き終わってから読み込む（addOverlayに正しい座標系が必要なため） */
+    st.osd.addOnceHandler('open', () => {
+        if (st.pageGen !== myGen) return; /* その間に別のページへ切り替わっていたら何もしない */
+        getPageTextCached(cv.serviceId).then(data => {
+            if (st.pageGen !== myGen || !data) return;
+            st.pageText = data;
+            if (data.engine === 'ndlocr') {
+                /* 明治〜昭和期の活字（通常OCR）：翻刻文は表示せず、画像の上に透明な選択可能テキストを重ねる */
+                iiifRenderSelectableTextLayer(data.lines, cv);
+            } else if (data.engine === 'ndlkotenocr') {
+                /* 古典籍OCR：既定では表示せず、「翻刻を表示」ボタンで切り替える */
+                st.pendingTranslitLines = data.lines;
+                if (window._pendingAutoTranslit) {
+                    window._pendingAutoTranslit = false;
+                    st.translitVisible = true;
+                    iiifRenderTranslitOverlay(data.lines, cv);
+                }
+            }
+            if (window._docViewer.mode === 'detail') {
+                if (window._docViewer.source === 'book' && typeof updateBookDetailTabContent === 'function') updateBookDetailTabContent();
+                else if (typeof updateDocDetailTabContent === 'function') updateDocDetailTabContent();
+            }
+        });
+    });
     /* 前後のコマの info.json を先読みして、ページ送りを速くする */
     [n + 1, n - 1].forEach(k => {
         const c = st.canvases[k - 1];
         if (c && c.serviceId) fetch(c.serviceId + '/info.json', { mode: 'cors' }).catch(() => {});
     });
+}
+
+/* ==== OCRテキスト（text.json）の表示：選択可能レイヤー／翻刻トグル ==== */
+window._pageTextCache = window._pageTextCache || {};
+function getPageTextCached(serviceId) {
+    const url = serviceId + '/text.json';
+    if (!window._pageTextCache[url]) {
+        window._pageTextCache[url] = fetch(url, { mode: 'cors' })
+            .then(r => { if (!r.ok) throw new Error('no text.json'); return r.json(); })
+            .catch(() => null);
+    }
+    return window._pageTextCache[url];
+}
+
+function iiifClearTextOverlays() {
+    const st = window._docViewer && window._docViewer.iiif;
+    if (!st || !st.osd) return;
+    (st.textOverlayEls || []).forEach(el => { try { st.osd.removeOverlay(el); } catch (e) {} });
+    (st.translitOverlayEls || []).forEach(el => { try { st.osd.removeOverlay(el); } catch (e) {} });
+    st.textOverlayEls = []; st.translitOverlayEls = [];
+}
+
+/* 通常OCR（ndlocr）：文字ごとの位置に、色を持たない選択可能なテキストを重ねる（PDFのテキスト層と同じ考え方） */
+function iiifRenderSelectableTextLayer(lines, cv) {
+    const st = window._docViewer.iiif;
+    if (!st || !st.osd || !lines) return;
+    lines.forEach(line => {
+        if (!line.text || !line.box) return;
+        const el = document.createElement('div');
+        el.className = 'iiif-text-line' + (line.vertical ? ' vertical' : '');
+        el.textContent = line.text;
+        const x = line.box[0] * cv.width, y = line.box[1] * cv.height;
+        const w = (line.box[2] - line.box[0]) * cv.width, h = (line.box[3] - line.box[1]) * cv.height;
+        const rect = st.osd.viewport.imageToViewportRectangle(new OpenSeadragon.Rect(x, y, w, h));
+        st.osd.addOverlay({ element: el, location: rect });
+        st.textOverlayEls.push(el);
+    });
+    iiifFitTextLayerFonts();
+    if (!st.textLayerHandlerBound) {
+        st.osd.addHandler('update-viewport', iiifFitTextLayerFonts);
+        st.textLayerHandlerBound = true;
+    }
+}
+function iiifFitTextLayerFonts() {
+    const st = window._docViewer && window._docViewer.iiif;
+    if (!st) return;
+    (st.textOverlayEls || []).forEach(el => {
+        const r = el.getBoundingClientRect();
+        const size = el.classList.contains('vertical') ? r.width : r.height;
+        if (size > 0) el.style.fontSize = Math.max(size * 0.85, 3) + 'px';
+    });
+}
+
+/* 古典籍OCR（ndlkotenocr）：行の右横に、翻刻文を小さな注釈として添える（既定は非表示） */
+function iiifRenderTranslitOverlay(lines, cv) {
+    const st = window._docViewer.iiif;
+    if (!st || !st.osd || !lines) return;
+    lines.forEach(line => {
+        if (!line.text || !line.box) return;
+        const el = document.createElement('div');
+        el.className = 'iiif-translit-label';
+        el.textContent = line.text;
+        const px = line.box[2] * cv.width;
+        const py = (line.box[1] + line.box[3]) / 2 * cv.height;
+        const pt = st.osd.viewport.imageToViewportCoordinates(px, py);
+        st.osd.addOverlay({ element: el, location: pt, placement: OpenSeadragon.Placement.RIGHT });
+        st.translitOverlayEls.push(el);
+    });
+}
+
+/* 詳細タブの「翻刻を表示／隠す」ボタンから呼ばれる */
+function iiifToggleTranslit() {
+    const st = window._docViewer && window._docViewer.iiif;
+    if (!st) return;
+    st.translitVisible = !st.translitVisible;
+    if (st.translitVisible && st.pendingTranslitLines) {
+        iiifRenderTranslitOverlay(st.pendingTranslitLines, st.canvases[window._docViewer.currentPage - 1]);
+    } else {
+        (st.translitOverlayEls || []).forEach(el => { try { st.osd.removeOverlay(el); } catch (e) {} });
+        st.translitOverlayEls = [];
+    }
+    if (window._docViewer.source === 'book') updateBookDetailTabContent();
+    else updateDocDetailTabContent();
 }
 
 /* 右パネル「画像」タブのサムネイル（IIIF用） */
@@ -6607,6 +6849,12 @@ function updateDocDetailTabContent() {
     const owning = findOwningDocItem(book, window._docViewer.currentPage);
     if (!owning) { body.innerHTML = '<p>データがありません。</p>'; return; }
 
+    const iiifSt = window._docViewer.iiif;
+    const pageText = iiifSt && iiifSt.pageText;
+    const translitBtnHtml = (pageText && pageText.engine === 'ndlkotenocr' && pageText.lines && pageText.lines.length)
+        ? `<button class="map-focus-btn" style="margin-top:8px;" onclick="iiifToggleTranslit()"><i class="fa-solid fa-language"></i> ${iiifSt.translitVisible ? '翻刻を隠す' : '翻刻を表示'}</button>`
+        : '';
+
     body.innerHTML = `
         <h3>${escapeHtml(owning.subject)}</h3>
         <dl class="meta-info-list">
@@ -6633,6 +6881,7 @@ function updateDocDetailTabContent() {
         </dl>
         <div class="modal-map-container" id="doc-detail-inline-map"></div>
         <button class="map-focus-btn" onclick="focusOnDocMap('${escapeJsAttr(owning.chibanKey)}', '${escapeJsAttr(owning.drawingTileUrl)}', '${escapeJsAttr(owning.id)}')"><i class="fa-solid fa-location-dot"></i> 地図上で確認</button>
+        ${translitBtnHtml}
         ${relatedAssetsBlockHTML()}
     `;
 
