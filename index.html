@@ -942,6 +942,11 @@ a { color: inherit; text-decoration: none; }
         <div id="chiban-panel-box-content">
             <div class="spot-settings-close-btn" onclick="closeChibanPanel()" title="閉じる"><i class="fa-solid fa-xmark"></i></div>
             <h3><i class="fa-solid fa-map-location"></i> 地番ポリゴン検索</h3>
+            <div class="spot-section" style="margin-bottom:12px;">
+                <h4><i class="fa-solid fa-layer-group"></i> 地番データの種類</h4>
+                <label><input type="radio" name="chiban-dataset" value="yamashina" checked onchange="switchChibanDataset(this.value)"> 従来の地番ポリゴン</label>
+                <label><input type="radio" name="chiban-dataset" value="kyoto" onchange="switchChibanDataset(this.value)"> 京都市地番図（高精度）</label>
+            </div>
             <div class="spot-section" style="margin-bottom:14px;">
                 <label><input type="checkbox" id="chk-chiban-layer-visible" checked onchange="toggleChibanLayerVisibility()"> 地番ポリゴン全体をメインマップに表示（ズームに応じて大字/小字/地番が自動切替）</label>
             </div>
@@ -1392,7 +1397,98 @@ const CSV_DOC_URL      = "https://docs.google.com/spreadsheets/d/1Jqu-5IWYqmV6s1
 const CSV_BOOK_URL     = "https://docs.google.com/spreadsheets/d/17yhWrenGAJiMZSIhOpWwXsCfzEDUrBxvYZBdjdU9VGI/gviz/tq?tqx=out:csv";
 /* 古地図データスプレッドシート */
 const CSV_MAP_URL = "https://docs.google.com/spreadsheets/d/1pth9Pg-pR1Z5nJBn3-SfLYvsMJNNdwtxI2ZAzEp_J80/gviz/tq?tqx=out:csv";
-const CHIBAN_GEOJSON_URL = "https://frogsfamily.sakura.ne.jp/shin/chiban_porigon_data/ansyu_ueno_chibandata.geojson";
+/* 地番ポリゴンのデータセット（「地番ポリゴン検索」パネルのトグルで切り替える）
+   ・どちらも配信前にWGS84（緯度経度）へ変換済みのGeoJSONを置く（読み込み時の座標変換は行わない）
+   ・url は、GeoJSONをアップロードした実際の場所に合わせて書き換えてください */
+const CHIBAN_DATA_BASE = "https://frogsfamily.sakura.ne.jp/shin/chiban_porigon_data/";
+const CHIBAN_DATASETS = {
+    yamashina: { label: '従来の地番ポリゴン',       url: CHIBAN_DATA_BASE + "yamashinaku_chibandata_optimized.geojson" },
+    kyoto:     { label: '京都市地番図（高精度）',   url: CHIBAN_DATA_BASE + "kyoto_chibanzu_optimized.geojson", azaNames: null /* 下のKYOTO_AZACD_NAMESを起動時に設定 */ }
+};
+let currentChibanDatasetId = 'yamashina';
+const chibanDatasetCache = {};   /* データセットID → { geojson, hierarchy, keyIndex, treeData, groupsBuilt, oazaGroups, koazaGroups } */
+
+/* 京都市地番図のGeoJSONには大字名・小字名がなく、大字小字コード（AZACD）と地番（TIBAN）だけが入っている。
+   そのため、従来の地番ポリゴンとの空間的な重なりから推定した「コード→[大字名, 小字名]」の対応表をここに持つ。
+   ※ 名称が誤っている・空白のコードは、ここを書き換えるだけで直せる（GeoJSONの再変換は不要）。
+   ※ 推定に自信が低いコード：221117(安朱東谷) / 221354(小山長尾) / 221373(音羽南谷)。221356は未対応（該当は1筆のみ） */
+const KYOTO_AZACD_NAMES = {
+    221101:["安朱","中溝町"],221102:["安朱","北屋敷町"],221103:["安朱","東海道町"],221104:["安朱","馬場ノ西町"],
+    221105:["安朱","馬場ノ東町"],221106:["安朱","南屋敷町"],221107:["安朱","棧敷町"],221108:["安朱","中小路町"],
+    221109:["安朱","山川町"],221112:["安朱","奥ノ田"],221114:["安朱","堂ノ後町"],221115:["安朱","稲荷山町"],
+    221116:["安朱","屋敷町"],221117:["安朱","東谷"],221118:["御陵","大津畑町"],221119:["御陵","四丁野町"],
+    221120:["御陵","安祥寺町"],221121:["御陵","田山町"],221123:["御陵","平林町"],221124:["御陵","沢ノ川町"],
+    221125:["御陵","鳥ノ向町"],221126:["上野","山田"],221127:["上野","寺井町"],221128:["上野","御所ノ内町"],
+    221129:["上野","池ノ下"],221130:["竹鼻","外田町"],221131:["竹鼻","西ノ口町"],221132:["竹鼻","四丁野町"],
+    221133:["竹鼻","地蔵寺南町"],221134:["竹鼻","サイカシ町"],221135:["竹鼻","竹ノ街道町"],221136:["竹鼻","堂ノ前町"],
+    221137:["西野","小柳町"],221138:["西野","山階町"],221139:["西野","大手先町"],221140:["西野","様子見町"],
+    221141:["西野","大鳥井町"],221142:["西野","左義長町"],221143:["西野","阿芸沢町"],221144:["西野","離宮町"],
+    221145:["西野","広見町"],221149:["東野","八反畑町"],221150:["東野","舞台町"],221151:["東野","門口町"],
+    221153:["東野","片下リ町"],221154:["東野","狐藪町"],221155:["東野","百拍子町"],221156:["東野","森野町"],
+    221157:["東野","八代"],221158:["東野","竹田"],221159:["音羽","野田町"],221172:["東野","井ノ上町"],
+    221173:["東野","北井ノ上町"],221174:["東野","中井ノ上町"],221175:["東野","南井ノ上町"],221201:["日ノ岡","一切経谷町"],
+    221202:["日ノ岡","夷谷町"],221203:["日ノ岡","鴨土町"],221204:["日ノ岡","朝田町"],221205:["日ノ岡","坂脇町"],
+    221206:["日ノ岡","ホッパラ町"],221207:["日ノ岡","石塚町"],221208:["日ノ岡","堤谷町"],221209:["御陵","進藤町"],
+    221210:["御陵","中筋町"],221211:["御陵","鴨戸町"],221212:["御陵","山ノ谷"],221213:["御陵","檀ノ後"],
+    221214:["御陵","岡ノ西町"],221215:["御陵","池堤町"],221216:["御陵","黒岩"],221217:["御陵","原西町"],
+    221218:["御陵","封ジ山町"],221219:["御陵","大岩"],221220:["御陵","下御廟野町"],221221:["御陵","上御廟野町"],
+    221222:["御陵","久保町"],221223:["御陵","岡町"],221224:["御陵","荒巻町"],221225:["御陵","血洗町"],
+    221226:["御陵","別所町"],221227:["御陵","牛尾町"],221228:["御陵","大谷町"],221229:["御陵","中内町"],
+    221230:["御陵","三蔵町"],221231:["御陵","天徳町"],221233:["厨子奥","若林町"],221234:["厨子奥","尾上町"],
+    221235:["厨子奥","矢倉町"],221236:["厨子奥","苗代元町"],221237:["厨子奥","花鳥町"],221238:["厨子奥","長通"],
+    221239:["西野","楳本町"],221240:["西野","櫃川町"],221241:["西野","八幡田町"],221242:["西野","今屋敷町"],
+    221243:["西野","岸ノ下町"],221244:["西野","野色町"],221245:["北花山","河原町"],221246:["北花山","六反田町"],
+    221247:["北花山","寺内町"],221248:["北花山","市田町"],221249:["北花山","西ノ野町"],221250:["北花山","山田町"],
+    221251:["北花山","大峰町"],221252:["北花山","横田町"],221253:["北花山","大林町"],221254:["北花山","中道町"],
+    221255:["北花山","大峰町"],221256:["北花山","上稚児ケ池"],221301:["四ノ宮","泉水町"],221302:["四ノ宮","南河原町"],
+    221303:["四ノ宮","中在寺町"],221304:["四ノ宮","堂ノ後町"],221305:["四ノ宮","柳山町"],221306:["四ノ宮","垣ノ内町"],
+    221307:["四ノ宮","行者谷"],221308:["四ノ宮","熊ケ谷"],221309:["四ノ宮","山田町"],221310:["四ノ宮","川原町"],
+    221311:["四ノ宮","岩久保町"],221312:["四ノ宮","大将軍町"],221313:["四ノ宮","神田町"],221314:["四ノ宮","泓"],
+    221315:["四ノ宮","鎌手町"],221316:["四ノ宮","奈良野町"],221317:["四ノ宮","新開畑"],221318:["四ノ宮","小金塚"],
+    221319:["四ノ宮","芝畑町"],221320:["竹鼻","扇町"],221321:["竹鼻","木ノ本町"],221322:["竹鼻","立原町"],
+    221323:["竹鼻","火打谷"],221326:["大塚","北溝町"],221327:["大塚","向畑町"],221328:["大塚","野溝町"],
+    221329:["大塚","森町"],221330:["大塚","南溝町"],221331:["大塚","高岩"],221332:["大塚","丹田"],
+    221333:["大塚","中溝"],221334:["大塚","西浦町"],221335:["大塚","大岩"],221336:["大塚","葭ケ谷"],
+    221337:["大塚","元屋敷町"],221338:["大塚","檀ノ浦"],221339:["小山","御坊ノ内町"],221340:["小山","中島町"],
+    221341:["小山","小川町"],221342:["小山","北溝町"],221343:["小山","姫子町"],221344:["小山","西御所町"],
+    221345:["小山","谷田町"],221346:["小山","松原畑町"],221347:["小山","一石畑"],221348:["小山","北林町"],
+    221349:["小山","鎮守町"],221350:["小山","神無森町"],221351:["小山","中ノ川町"],221352:["小山","南溝町"],
+    221354:["小山","長尾"],221355:["小山","下ノ池"],221357:["小山","大石山"],221360:["八軒","屋敷町"],
+    221361:["髭茶屋","屋敷町"],221363:["髭茶屋","桃燈町"],221364:["音羽","乙出町"],221365:["音羽","役出町"],
+    221366:["音羽","初田町"],221367:["音羽","伊勢宿町"],221368:["音羽","千本町"],221369:["音羽","中芝町"],
+    221370:["音羽","森廻リ町"],221371:["音羽","前田町"],221372:["音羽","稲芝"],221373:["音羽","南谷"],
+    221374:["音羽","前出町"],221375:["音羽","草田町"],221376:["音羽","沢町"],221377:["音羽","珍事町"],
+    221378:["音羽","平林町"],221379:["音羽","西林"],221380:["音羽","山等地"],221381:["音羽","八ノ坪"],
+    221401:["大宅","御所田町"],221402:["大宅","古海道町"],221403:["大宅","中小路町"],221404:["大宅","五反畑町"],
+    221405:["大宅","鳥井脇町"],221406:["大宅","辻脇町"],221407:["大宅","御供田町"],221408:["大宅","坂ノ辻町"],
+    221409:["大宅","打明町"],221410:["大宅","烏田町"],221411:["大宅","甲ノ辻町"],221412:["大宅","山田"],
+    221413:["大宅","奥山田"],221414:["大宅","向山"],221417:["大宅","棧敷"],221422:["大宅","御所山"],
+    221424:["大宅","岩屋殿"],221425:["大宅","堂ノ山"],221426:["椥辻","番所ケ口町"],221427:["椥辻","平田町"],
+    221428:["椥辻","封シ川町"],221429:["椥辻","東浦町"],221430:["椥辻","西浦町"],221431:["椥辻","中在家町"],
+    221432:["椥辻","草海道町"],221433:["椥辻","池尻町"],221434:["椥辻","東潰"],221435:["椥辻","西潰"],
+    221436:["小野","弓田町"],221437:["小野","葛籠尻町"],221438:["小野","高芝町"],221439:["小野","鐘付田町"],
+    221440:["小野","河原町"],221441:["小野","御霊町"],221442:["小野","荘司町"],221443:["小野","御所ノ内町"],
+    221445:["小野","西浦"],221446:["大宅","神納町"],221447:["大宅","沢町"],221448:["大宅","石郡町"],
+    221449:["大宅","細田町"],221450:["大宅","関生町"],221451:["大宅","早稲ノ内町"],221452:["小野","蚊ケ瀬町"],
+    221501:["上花山","講田町"],221502:["上花山","花ノ岡町"],221503:["上花山","久保町"],221504:["上花山","旭山町"],
+    221505:["上花山","桜谷"],221506:["上花山","坂尻"],221507:["川田","前畑町"],221508:["川田","南畑町"],
+    221509:["川田","西浦町"],221510:["川田","御輿塚町"],221511:["川田","梅ケ谷町"],221512:["川田","御出町"],
+    221513:["川田","中畑町"],221514:["川田","菱尾田"],221515:["川田","土仏"],221516:["川田","岡ノ西"],
+    221517:["川田","南山"],221518:["川田","欠ノ上"],221519:["川田","百々"],221520:["川田","山田"],
+    221521:["川田","岩ケ谷"],221522:["勧修寺","東栗栖野町"],221523:["勧修寺","西栗栖野町"],221524:["勧修寺","縄手町"],
+    221525:["勧修寺","御所内町"],221526:["勧修寺","東出町"],221527:["勧修寺","風呂尻町"],221528:["勧修寺","東北出町"],
+    221529:["勧修寺","西北出町"],221530:["勧修寺","仁王堂町"],221531:["勧修寺","下ノ茶屋町"],221532:["勧修寺","本堂山町"],
+    221533:["勧修寺","丸山町"],221534:["勧修寺","福岡町"],221535:["勧修寺","小松原町"],221536:["勧修寺","南大日町"],
+    221537:["勧修寺","北大日町"],221538:["勧修寺","南谷町"],221540:["勧修寺","西金ケ崎"],221542:["勧修寺","閑林寺"],
+    221544:["勧修寺","堂田"],221546:["勧修寺","冷尻"],221547:["勧修寺","柴山"],221548:["西野山","桜ノ馬場町"],
+    221549:["西野山","中鳥井町"],221550:["西野山","中臣町"],221551:["西野山","射庭ノ上町"],221552:["西野山","百々町"],
+    221553:["西野山","欠ノ上町"],221554:["西野山","南畑町"],221555:["西野山","中畑町"],221556:["西野山","岩ケ谷町"],
+    221557:["西野山","山田"],221558:["栗栖野","打越町"],221559:["栗栖野","華ノ木町"],221560:["栗栖野","打越町"],
+    221561:["栗栖野","狐塚"],221564:["西野","後藤"],221565:["川田","清水焼団地町"],221566:["勧修寺","南大日"],
+    221567:["勧修寺","北大日"],221568:["勧修寺","東金ケ崎町"],221569:["勧修寺","平田町"],221570:["勧修寺","瀬戸河原町"],
+    221571:["勧修寺","東堂田町"],221572:["勧修寺","泉玉町"]
+};
+CHIBAN_DATASETS.kyoto.azaNames = KYOTO_AZACD_NAMES;
 
 /* 地番ポリゴンのズーム連動表示階層のしきい値
    zoom >= CHIBAN_ZOOM_BANCHI        : 番地（地番）単位のポリゴンを個別表示・選択
@@ -1815,25 +1911,62 @@ function applyAutoMaxNativeZoomCorrection(tl) {
     });
 }
 
+/* pmtilesアーカイブからLeaflet用ラスタレイヤを作る。
+   ・アーカイブのヘッダー（実在する最小/最大ズーム・範囲）を非同期で読み取り、
+     実在する最大ズームを超えて拡大した場合は、最大ズームのタイルを引き伸ばして表示する（XYZタイルと同じ挙動）。
+     Leafletのmaxネイティブズーム（maxNativeZoom）は、ヘッダー読み取り後に設定して再描画する。
+   ・ヘッダーの範囲は tl._pmtilesBounds に保持し、「地図上で確認」でのジャンプ先に使う。
+   ・tl._pmtilesReady は、ヘッダー読み取り完了を待つためのPromise（失敗時はnullで解決） */
+function createPmtilesRasterLayer(url, opts) {
+    const cleanUrl = String(url).trim().replace(/^pmtiles:\/\//i, '');
+    const archive = new pmtiles.PMTiles(cleanUrl);
+    const tl = pmtiles.leafletRasterLayer(archive, opts);
+    tl._isPmtiles = true;
+    tl._pmtilesReady = archive.getHeader().then(h => {
+        tl._pmtilesHeader = h;
+        if (h.minLon < h.maxLon && h.minLat < h.maxLat) {
+            tl._pmtilesBounds = L.latLngBounds([h.minLat, h.minLon], [h.maxLat, h.maxLon]);
+        }
+        tl.options.maxNativeZoom = h.maxZoom;
+        if (tl._map) tl.redraw();
+        return h;
+    }, err => {
+        console.error('pmtilesアーカイブのヘッダー読み取りに失敗しました（URL・CORS・Rangeリクエスト対応をご確認ください）:', cleanUrl, err);
+        return null;
+    });
+    return tl;
+}
+
+/* 地図上でタイルレイヤの範囲へ移動する（範囲が分かるpmtilesのみ。XYZタイルは範囲情報がないため何もしない） */
+function jumpToTileLayerBounds(tl) {
+    if (!tl || !tl._pmtilesReady || !map) return;
+    tl._pmtilesReady.then(h => {
+        if (!h || !tl._pmtilesBounds) return;
+        map.invalidateSize();
+        map.fitBounds(tl._pmtilesBounds, { padding: [20, 20], maxZoom: Math.min(22, h.maxZoom + 2) });
+    });
+}
+
 function createHistoricalTileLayer(url, options) {
     const opts = Object.assign({ keepBuffer: 4 }, options);
     const trimmedUrl = (url || '').trim();
 
-    let tl;
     if (isPmtilesUrl(trimmedUrl)) {
         try {
-            const cleanUrl = trimmedUrl.replace(/^pmtiles:\/\//i, '');
-            const archive = new pmtiles.PMTiles(cleanUrl);
-            tl = pmtiles.leafletRasterLayer(archive, opts);
+            /* pmtilesは実在ズームをヘッダーから正確に取得できるため、
+               XYZタイル用の自動補正（tileload/tileerrorによる推定）は使わない
+               （タイルが存在しない場合もpmtiles側ではエラーにならず、推定を誤らせるため） */
+            return createPmtilesRasterLayer(trimmedUrl, opts);
         } catch (e) {
             console.error('pmtilesアーカイブの読み込みに失敗しました:', trimmedUrl, e);
             /* 失敗時も画面がエラーで止まらないよう、空のタイルレイヤにフォールバックする */
-            tl = L.tileLayer('', opts);
+            const fallback = L.tileLayer('', opts);
+            applyAutoMaxNativeZoomCorrection(fallback);
+            return fallback;
         }
-    } else {
-        tl = L.tileLayer(trimmedUrl, opts);
     }
 
+    const tl = L.tileLayer(trimmedUrl, opts);
     applyAutoMaxNativeZoomCorrection(tl);
     return tl;
 }
@@ -1965,13 +2098,20 @@ function buildEraLayers() {
     layers = {};
     const layerControl = L.control.layers(null, {}, { collapsed: true, position: 'topright' }).addTo(map);
     eras.forEach(era => {
-        const tl = createHistoricalTileLayer(era.url, { maxZoom: 22 });
+        let tl;
+        try {
+            tl = createHistoricalTileLayer(era.url, { maxZoom: 22 });
+        } catch (e) {
+            console.error('古地図タイルレイヤの作成に失敗しました:', era.name, e);
+            return;
+        }
         layers[era.name] = tl;
         const safeName = escapeJsAttr(era.name);
         const labelHtml = `<span>${escapeHtml(era.name)}（${escapeHtml(era.year) || '年代不明'}）</span><button class="layer-detail-btn" onclick="event.preventDefault();event.stopPropagation();openMapDetailModalByName('${safeName}')" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>`;
         layerControl.addOverlay(tl, labelHtml);
     });
     window._eraLayerControl = layerControl;
+    registerAllPendingDocDrawingLayers();
 
     const eraSlider = document.getElementById('era-slider');
     eraSlider.max = Math.max(eras.length - 1, 0);
@@ -2842,65 +2982,159 @@ function findBookRowById(id) {
 /* =====================================================================
    ■81 地番ポリゴン連携・空間検索機能（ズーム連動階層表示）
    ===================================================================== */
-async function fetchChibanGeoJSON() {
+/* 座標が緯度経度（WGS84）の範囲に収まっているかの簡易チェック。
+   座標系の変換は行わない方針のため、投影座標のままのファイルが置かれた場合は警告して読み込みを止める。 */
+function chibanLooksLikeLonLat(features) {
+    for (let i = 0; i < features.length && i < 50; i++) {
+        let g = features[i] && features[i].geometry;
+        if (!g) continue;
+        let c = g.coordinates;
+        while (Array.isArray(c) && Array.isArray(c[0])) c = c[0];
+        if (Array.isArray(c) && typeof c[0] === 'number') return Math.abs(c[0]) <= 180 && Math.abs(c[1]) <= 90;
+    }
+    return true;
+}
+
+/* 指定データセットのGeoJSONを取得して、状態を初期化する。成功でtrue、失敗でfalseを返す。 */
+async function fetchChibanGeoJSON(datasetId) {
+    const id = datasetId || currentChibanDatasetId;
+    const ds = CHIBAN_DATASETS[id];
+    if (!ds) return false;
     try {
-        const res = await fetch(CHIBAN_GEOJSON_URL);
+        const res = await fetch(ds.url);
         if (!res.ok) {
-            console.error(`地番ポリゴンGeoJSONの取得に失敗: HTTPステータス ${res.status} ${res.statusText}（URL: ${CHIBAN_GEOJSON_URL}）`);
-            showNotification(`地番データの読み込みに失敗しました（HTTP ${res.status}）。ファイルパスをご確認ください。`);
-            return;
+            console.error(`地番ポリゴンGeoJSONの取得に失敗: HTTPステータス ${res.status} ${res.statusText}（URL: ${ds.url}）`);
+            showNotification(`地番データ（${ds.label}）の読み込みに失敗しました（HTTP ${res.status}）。ファイルパスをご確認ください。`);
+            return false;
         }
-        const rawText = await res.text();
+        let data;
         try {
-            chibanGeoJSON = JSON.parse(rawText);
+            data = await res.json();
         } catch (parseErr) {
-            console.error("地番ポリゴンGeoJSONのJSON解析に失敗しました。サーバーがJSON以外（404ページやHTMLなど）を返している可能性があります。応答の先頭200文字:", rawText.slice(0, 200));
+            console.error("地番ポリゴンGeoJSONのJSON解析に失敗しました。サーバーがJSON以外（404ページやHTMLなど）を返している可能性があります:", ds.url, parseErr);
             showNotification("地番データの形式が不正です。ファイルパス・拡張子をご確認ください。");
-            return;
+            return false;
         }
-        if (!chibanGeoJSON || !Array.isArray(chibanGeoJSON.features)) {
-            console.error("地番ポリゴンGeoJSONは取得できましたが、featuresを含む有効なGeoJSON FeatureCollectionではありません:", chibanGeoJSON);
+        if (!data || !Array.isArray(data.features)) {
+            console.error("地番ポリゴンGeoJSONは取得できましたが、featuresを含む有効なGeoJSON FeatureCollectionではありません:", data);
             showNotification("地番データの構造が想定と異なります。GeoJSONの内容をご確認ください。");
-            return;
+            return false;
+        }
+        /* 座標系変換は廃止：配信用GeoJSONは事前にWGS84へ変換済みであることを前提とする */
+        if (!chibanLooksLikeLonLat(data.features)) {
+            console.error("地番ポリゴンの座標が緯度経度の範囲を超えています（投影座標のままの可能性）:", ds.url);
+            showNotification("地番データの座標が緯度経度（WGS84）ではありません。変換済みのGeoJSONをご使用ください。");
+            return false;
         }
 
-        /* 実データの座標系はEPSG:3857（Webメルカトル、単位はメートル）であり、
-           Leaflet/turfが前提とするWGS84（緯度経度）ではない。
-           そのままでは位置がまったく合わないため、読込直後に一括で座標変換する。 */
-        try {
-            const crsName = chibanGeoJSON.crs && chibanGeoJSON.crs.properties && chibanGeoJSON.crs.properties.name;
-            if (!crsName || /3857|900913|pseudo-mercator/i.test(crsName)) {
-                chibanGeoJSON = turf.toWgs84(chibanGeoJSON);
+        /* 属性の正規化
+           ・京都市地番図：AZACD（大字小字コード）→大字名・小字名、TIBAN→地番 に変換して従来と同じ属性名にそろえる
+           ・_uid：フィーチャ固有の連番（筆IDは重複があるため、ツリーからの選択にはこちらを使う）
+           ・_dk ：「大字名＋小字名＋地番」表記の地番キー（他シートの地番キー列と共通の表記）
+           ・chiban_key：従来どおり筆ID優先。筆IDが無いデータは _dk を使う */
+        const nameTable = ds.azaNames || null;
+        data.features.forEach((f, i) => {
+            const p = f.properties || (f.properties = {});
+            if (nameTable) {
+                const nm = nameTable[p.AZACD];
+                p['大字名'] = nm ? nm[0] : null;
+                p['小字名'] = nm ? nm[1] : null;
+                p['地番'] = (p.TIBAN !== null && p.TIBAN !== undefined) ? String(p.TIBAN) : null;
             }
-        } catch (projErr) {
-            console.error("地番ポリゴンの座標系変換に失敗しました:", projErr);
-            showNotification("地番データの座標変換に失敗しました。座標系をご確認ください。");
-            return;
-        }
-
-        /* 実データの属性名は chiban_key ではなく 筆ID／大字名／小字名／地番 であることが判明したため、
-           既存コード（findChibanFeature等）が参照する chiban_key に、筆IDを正規化してセットする。
-           あわせて、他シートの「地番キー」列がどの表記で書かれていても拾えるよう、
-           複数パターンの検索キーをまとめて索引化する。 */
-        chibanGeoJSON.features.forEach(f => {
-            const p = f.properties || {};
-            p.chiban_key = p['筆ID'] || null;
+            p._uid = i;
+            p._dk = p['大字名'] ? buildChibanDisplayKey(p) : '';
+            p.chiban_key = p['筆ID'] || p._dk || null;
         });
 
-        console.info(`地番ポリゴン読込完了: ${chibanGeoJSON.features.length}件。属性サンプル:`, chibanGeoJSON.features[0] && chibanGeoJSON.features[0].properties);
-        buildChibanMap();
-        buildChibanKeyIndex();
-        buildChibanTreeData();
-        window._lastChibanLevel = currentChibanLevel();
-        renderChibanLayer();
-        renderNatureMapLayers(); renderOldRoadMapLayers(); renderBuildingMapLayers(); renderDocMapLayers();
+        chibanDatasetCache[id] = {
+            geojson: data,
+            hierarchy: { oaza: [], koaza: [], banchi: [] },
+            keyIndex: null, treeData: null,
+            groupsBuilt: false, oazaGroups: null, koazaGroups: null
+        };
+        console.info(`地番ポリゴン読込完了（${ds.label}）: ${data.features.length}件`);
+        if (id === currentChibanDatasetId) activateChibanDataset(id);
+        return true;
     } catch (e) {
         /* fetch自体が例外を投げるのは主に「ネットワークに到達できない」「CORSでブロックされた」
            「SSL証明書エラー」のいずれか。詳細な原因は開発者ツールのコンソール／ネットワークタブの
            表示（例: "blocked by CORS policy" / "ERR_SSL..." / "Failed to fetch"）で判別できる。 */
         console.error("地番ポリゴンGeoJSONの取得に失敗（ネットワーク到達不可・CORSブロック・SSLエラーのいずれかが濃厚）:", e);
         showNotification("地番データの読み込みに失敗しました（CORS設定またはサーバー接続の問題の可能性）");
+        return false;
     }
+}
+
+/* 現在のデータセットに紐づく派生状態（検索索引・ツリー・大字小字グループ）をキャッシュへ退避する */
+function saveActiveChibanState() {
+    const st = chibanDatasetCache[currentChibanDatasetId];
+    if (!st) return;
+    st.keyIndex = window._chibanKeyIndex || null;
+    st.treeData = window._chibanTreeData || null;
+    st.groupsBuilt = !!window._chibanGroupsBuilt;
+    st.oazaGroups = window._chibanOazaGroups || null;
+    st.koazaGroups = window._chibanKoazaGroups || null;
+}
+
+/* キャッシュ済みのデータセットを「現在の地番ポリゴン」として有効化し、地図・検索ツリー・各データの紐づけを再構築する */
+function activateChibanDataset(id) {
+    const st = chibanDatasetCache[id];
+    if (!st) return;
+    chibanGeoJSON = st.geojson;
+    chibanHierarchy = st.hierarchy;
+    window._chibanKeyIndex = st.keyIndex;
+    window._chibanTreeData = st.treeData;
+    window._chibanGroupsBuilt = st.groupsBuilt;
+    window._chibanOazaGroups = st.oazaGroups;
+    window._chibanKoazaGroups = st.koazaGroups;
+
+    if (!window._chibanKeyIndex) buildChibanKeyIndex();
+    buildChibanMap();
+    buildChibanTreeData();
+    window._lastChibanLevel = currentChibanLevel();
+    if (typeof clearChibanSearchResults === 'function') clearChibanSearchResults();
+    const statusEl = document.getElementById('chiban-panel-status');
+    if (statusEl) statusEl.textContent = `${CHIBAN_DATASETS[id].label}を使用中です。大字・小字・地番をたどって選択するか、キーワードで検索すると、該当する地番ポリゴンがメインマップ上に表示されます。`;
+    const qEl = document.getElementById('chiban-search-input');
+    renderChibanTree(qEl ? qEl.value.trim() : '');
+    renderChibanLayer();
+    /* 各データ（自然系・古道・建造物・文書史料・図書・石造物）のポリゴン表示は、地番キー→ポリゴンの解決を新データで行い直す。
+       該当する筆が存在しない地番キーは、従来どおり無視される。 */
+    try { applyMapFilters(); }
+    catch (e) { renderNatureMapLayers(); renderOldRoadMapLayers(); renderBuildingMapLayers(); renderDocMapLayers(); }
+}
+
+function syncChibanDatasetRadios() {
+    document.querySelectorAll('input[name="chiban-dataset"]').forEach(r => { r.checked = (r.value === currentChibanDatasetId); r.disabled = false; });
+}
+
+/* パネルのトグルから呼ばれる：従来の地番ポリゴン ⇔ 京都市地番図 の切り替え */
+async function switchChibanDataset(id) {
+    if (!CHIBAN_DATASETS[id] || id === currentChibanDatasetId) return;
+    const prevId = currentChibanDatasetId;
+    saveActiveChibanState();
+    if (typeof closeMapDetailPanel === 'function') { try { closeMapDetailPanel(); } catch (e) {} }
+
+    if (chibanDatasetCache[id]) {
+        currentChibanDatasetId = id;
+        activateChibanDataset(id);
+        return;
+    }
+    /* 初回のみ取得する（一度読み込んだデータセットは、切り替えのたびに再取得しない） */
+    document.querySelectorAll('input[name="chiban-dataset"]').forEach(r => { r.disabled = true; });
+    const container = document.getElementById('chiban-tree-container');
+    if (container) container.innerHTML = `<p style="color:#999;font-size:0.85rem;">${escapeHtml(CHIBAN_DATASETS[id].label)}を読み込み中です...</p>`;
+    showNotification(`${CHIBAN_DATASETS[id].label}を読み込んでいます...`);
+    currentChibanDatasetId = id;
+    const ok = await fetchChibanGeoJSON(id);
+    if (!ok) {
+        /* 失敗したら元のデータセットに戻す */
+        currentChibanDatasetId = prevId;
+        syncChibanDatasetRadios();
+        activateChibanDataset(prevId);
+        return;
+    }
+    syncChibanDatasetRadios();
 }
 
 function buildChibanMap() {
@@ -3017,7 +3251,7 @@ self.onmessage = function(e) {
                    （大字名・小字名・地番を連結せず、レベルごとに単独の項目名だけを表示するため） */
                 oazaName: sampleProps['大字名'] || '',
                 koazaName: level === 'koaza' ? (sampleProps['小字名'] || '') : '',
-                memberChibanKeys: feats.map(function (f) { return (f.properties || {}).chiban_key; }).filter(Boolean),
+                memberChibanKeys: (function () { var ks = []; feats.forEach(function (f) { var pp = f.properties || {}; if (pp.chiban_key) ks.push(pp.chiban_key); if (pp._dk && pp._dk !== pp.chiban_key) ks.push(pp._dk); }); return ks; })(),
                 count: feats.length
             };
             result.push(merged);
@@ -3080,14 +3314,16 @@ async function ensureChibanLevelComputed(level) {
     if (chibanHierarchy[level] && chibanHierarchy[level].length > 0) return; /* 計算済みならスキップ */
     buildChibanGroupKeysOnce();
     const groups = level === 'oaza' ? window._chibanOazaGroups : window._chibanKoazaGroups;
+    /* 集計中にデータセットが切り替えられても、結果を元のデータセット側に書き込めるよう参照を保持しておく */
+    const targetHierarchy = chibanHierarchy;
     showNotification('地番ポリゴンを集計しています（初回のみ）...');
     try {
         const features = await dissolveInWorker(level, groups);
-        chibanHierarchy[level] = features;
+        targetHierarchy[level] = features;
     } catch (err) {
         console.error('地番ポリゴンの統合処理に失敗:', err);
         showNotification('地番ポリゴンの統合処理に失敗しました。個々の地番表示のみ利用可能です。');
-        chibanHierarchy[level] = [];
+        targetHierarchy[level] = [];
     }
 }
 
@@ -3321,8 +3557,8 @@ function buildChibanDisplayKey(props) {
 function gatherChibanLinkedItems(feature, level) {
     let keysToMatch = [];
     if (level === 'banchi') {
-        const key = feature.properties.chiban_key;
-        if (key) keysToMatch = [key];
+        const fp = feature.properties || {};
+        keysToMatch = [fp.chiban_key, fp._dk].filter(Boolean);
     } else {
         keysToMatch = feature.properties.memberChibanKeys || [];
     }
@@ -3489,7 +3725,8 @@ function openChibanDetailModal(feature, level) {
             ['市区町村名', '市区町村名'], ['大字名', '大字名'], ['丁目名', '丁目名'], ['小字名', '小字名'], ['予備名', '予備名'],
             ['地番', '地番'], ['精度区分', '精度区分'], ['座標値種別', '座標値種別'], ['version', 'データバージョン']
         ];
-        metaHtml = `<dl class="meta-info-list">${labelMap.map(([key, label]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(pr[key]) || '－'}</dd>`).join('')}</dl>`;
+        const shownRows = (currentChibanDatasetId === 'kyoto') ? labelMap.filter(([key]) => pr[key] !== null && pr[key] !== undefined && pr[key] !== '') : labelMap;
+        metaHtml = `<dl class="meta-info-list"><dt>データ</dt><dd>${escapeHtml(CHIBAN_DATASETS[currentChibanDatasetId].label)}</dd>${shownRows.map(([key, label]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(pr[key]) || '－'}</dd>`).join('')}</dl>`;
     } else {
         const levelLabel = lvl === 'oaza' ? '大字' : '小字';
         headerHtml = `<h2>${escapeHtml(pr.groupKey)}</h2><span class="info-badge">${levelLabel}（${pr.count}筆を集約）</span>`;
@@ -3669,7 +3906,7 @@ function renderChibanTree(query) {
             oazaMatchCount += matchedFeats.length;
             const leaves = matchedFeats.map(f => {
                 const p = f.properties || {};
-                return `<span class="chiban-tree-leaf" onclick='selectChibanLeaf(${JSON.stringify(p['筆ID'])})'>${escapeHtml(p['地番'] || '?')}</span>`;
+                return `<span class="chiban-tree-leaf" onclick='selectChibanLeaf(${JSON.stringify(p._uid)})'>${escapeHtml(p['地番'] || '?')}</span>`;
             }).join('');
             oazaHtml += `
                 <details class="chiban-tree-koaza">
@@ -3691,8 +3928,8 @@ function renderChibanTree(query) {
     container.innerHTML = html || '<p style="color:#999;font-size:0.85rem;">該当する地番が見つかりませんでした。</p>';
 }
 
-function selectChibanLeaf(hitsudeId) {
-    const feature = window._chibanKeyIndex ? window._chibanKeyIndex[hitsudeId] : null;
+function selectChibanLeaf(uid) {
+    const feature = (chibanGeoJSON && chibanGeoJSON.features) ? chibanGeoJSON.features[uid] : null;
     if (!feature) { showNotification('該当する地番ポリゴンが見つかりませんでした。'); return; }
     renderChibanSearchResultsOnMap([feature]);
     const p = feature.properties || {};
@@ -4477,6 +4714,7 @@ function openMapDetailModal(m) {
                     <dt>権利状態</dt><dd>${escapeHtml(m.rights)}</dd>
                     <dt>形態</dt><dd>${escapeHtml(m.form)}</dd>
                 </dl>
+                ${eras.some(e => String(e.id) === String(m.id)) ? `<button class="map-focus-btn" onclick="focusOnEraMap('${escapeJsAttr(m.id)}')"><i class="fa-solid fa-location-dot"></i> 地図上で確認</button>` : ''}
             </div>
         </div>`;
     document.getElementById('detail-modal').style.display = 'flex';
@@ -5826,27 +6064,75 @@ function focusDataOnMapWithPanel(type, id) {
     }, 300);
 }
 
+/* 史料の図面タイルレイヤを、メインマップのレイヤ選択コントロールに登録する（未登録の場合のみ、1回だけ）。
+   「地図上で確認」を押した時点でまだ古地図データ（window._eraLayerControl）の読込が終わっていなくても、
+   buildEraLayers完了後にregisterAllPendingDocDrawingLayers()から改めて呼ばれるため、取りこぼさない。 */
+function registerDocDrawingLayerControl(tl, docId) {
+    if (!tl || tl._addedToLayerControl || !window._eraLayerControl) return;
+    const safeId = escapeJsAttr(docId);
+    const labelHtml = `<span>図面（史料）</span><button class="layer-detail-btn" onclick="event.preventDefault();event.stopPropagation();openDocDetailModalById('${safeId}')" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>`;
+    window._eraLayerControl.addOverlay(tl, labelHtml);
+    tl._addedToLayerControl = true;
+}
+
+/* window._eraLayerControl（古地図データ読込後に生成）ができた時点で、
+   それより先に「地図上で確認」が押されて作成済みだった図面タイルレイヤを、まとめて登録する */
+function registerAllPendingDocDrawingLayers() {
+    if (!window._docDrawingLayers) return;
+    Object.keys(window._docDrawingLayers).forEach(docId => {
+        registerDocDrawingLayerControl(window._docDrawingLayers[docId], docId);
+    });
+}
+
 function focusOnDocMap(chibanKey, drawingTileUrl, docId) {
     closeModal();
     showPage('map');
     setTimeout(() => {
+        let jumped = false;
         if (chibanKey) {
             const features = findChibanFeatures(chibanKey);
-            if (features.length > 0) renderChibanSearchResultsOnMap(features, TYPE_COLORS.doc);
+            if (features.length > 0) { renderChibanSearchResultsOnMap(features, TYPE_COLORS.doc); jumped = true; }
         }
         const r = docData.find(x => String(x.id) === String(docId));
         if (r) openDocDetailPanel(r);
         if (drawingTileUrl && drawingTileUrl.trim() !== '' && drawingTileUrl.trim() !== '-') {
-            /* 史料図面タイルも古地図タイルと同様、実際の最大ズームが史料ごとに未検証なため、
-               createHistoricalTileLayerがmaxNativeZoomを一度だけ自動補正する。 */
-            const tl = createHistoricalTileLayer(drawingTileUrl, { maxZoom: 22 }).addTo(map);
-            activeOverlays.push(tl);
-            if (window._eraLayerControl) {
-                const safeId = escapeJsAttr(docId);
-                const labelHtml = `<span>図面（史料）</span><button class="layer-detail-btn" onclick="event.preventDefault();event.stopPropagation();openDocDetailModalById('${safeId}')" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>`;
-                window._eraLayerControl.addOverlay(tl, labelHtml);
+            /* 同じ史料で何度押しても、レイヤとレイヤ選択ボタンが重複しないよう、史料ごとにレイヤを使い回す。
+               XYZタイルはcreateHistoricalTileLayerがmaxNativeZoomを自動補正、pmtilesはヘッダーから設定される。 */
+            window._docDrawingLayers = window._docDrawingLayers || {};
+            let tl = window._docDrawingLayers[docId];
+            if (!tl) {
+                try {
+                    tl = createHistoricalTileLayer(drawingTileUrl, { maxZoom: 22 });
+                    window._docDrawingLayers[docId] = tl;
+                } catch (e) {
+                    console.error('史料の図面タイルレイヤの作成に失敗しました:', docId, drawingTileUrl, e);
+                    showNotification('図面タイルの読み込みに失敗しました。URLをご確認ください。');
+                }
+            }
+            if (tl) {
+                if (!map.hasLayer(tl)) tl.addTo(map);
+                if (tl.bringToFront) tl.bringToFront();
+                if (!activeOverlays.includes(tl)) activeOverlays.push(tl);
+                registerDocDrawingLayerControl(tl, docId);
+                /* 地番ポリゴンが無い（または見つからない）史料は、pmtilesの範囲へ移動する */
+                if (!jumped) jumpToTileLayerBounds(tl);
             }
         }
+    }, 300);
+}
+
+/* 古地図詳細モーダルの「地図上で確認」：該当する古地図のタイルレイヤを表示し、（範囲が分かれば）その位置へ移動する */
+function focusOnEraMap(mapId) {
+    const idx = eras.findIndex(e => String(e.id) === String(mapId));
+    if (idx < 0) { showNotification('この古地図には地図タイルが登録されていません。'); return; }
+    closeModal();
+    showPage('map');
+    setTimeout(() => {
+        const slider = document.getElementById('era-slider');
+        if (slider) slider.value = idx;
+        updateEraUI(idx);
+        if (map) map.invalidateSize();
+        jumpToTileLayerBounds(layers[eras[idx].name]);
     }, 300);
 }
 
