@@ -642,6 +642,12 @@ a { color: inherit; text-decoration: none; }
     border: none; background: transparent; color: var(--accent-gold); cursor: pointer; font-size: 0.9rem; padding: 2px 4px; flex-shrink: 0;
 }
 .layer-detail-btn:hover { color: var(--primary-brown); }
+.doc-tile-panel { max-height: 260px; overflow-y: auto; }
+.doc-tile-panel-title { font-size: 0.78rem; color: #666; margin: 2px 0 4px; font-weight: bold; }
+details.doc-tile-group { margin-bottom: 2px; }
+details.doc-tile-group summary { cursor: pointer; font-size: 0.85rem; padding: 2px 0; list-style: revert; }
+label.doc-tile-leaf { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; padding: 2px 0 2px 16px; cursor: pointer; }
+label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ===== 詳細モーダル内 画像/3Dローディングスピナー（共通） ===== */
 .media-loading-wrap { position: relative; width: 100%; height: 100%; }
@@ -1990,6 +1996,12 @@ function initMap() {
 
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
+    /* 図面タイル（古地図・史料）のレイヤ選択コントロールは、古地図データの読み込み完了(buildEraLayers)を待たず、
+       ここで先に作っておく。こうしておくことで、文書・史料の「地図上で確認」ボタンから
+       図面タイルレイヤを表示した際、古地図データの読み込みが遅い/まだでも、
+       レイヤ選択ボタンをすぐ登録できる（buildEraLayers側は、この既存のコントロールに古地図レイヤを追加するだけになる）。 */
+    window._eraLayerControl = L.control.layers(null, {}, { collapsed: true, position: 'topright' }).addTo(map);
+
     /* 以前、HiDPI環境向けにzoomOffset/tileSizeを使った疑似高解像度化を試みたが、
        最大ズーム付近でタイルが表示されなくなる不具合が発生したため撤回。
        Leafletの標準的な「maxNativeZoomを超えたら直前のタイルを引き伸ばす」挙動に
@@ -2096,7 +2108,7 @@ function buildEraLayers() {
     }));
 
     layers = {};
-    const layerControl = L.control.layers(null, {}, { collapsed: true, position: 'topright' }).addTo(map);
+    const layerControl = window._eraLayerControl;
     eras.forEach(era => {
         let tl;
         try {
@@ -2110,7 +2122,6 @@ function buildEraLayers() {
         const labelHtml = `<span>${escapeHtml(era.name)}（${escapeHtml(era.year) || '年代不明'}）</span><button class="layer-detail-btn" onclick="event.preventDefault();event.stopPropagation();openMapDetailModalByName('${safeName}')" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>`;
         layerControl.addOverlay(tl, labelHtml);
     });
-    window._eraLayerControl = layerControl;
     registerAllPendingDocDrawingLayers();
 
     const eraSlider = document.getElementById('era-slider');
@@ -4297,6 +4308,7 @@ async function loadDocData() {
             genre: cols[22] || ''
         }));
         renderDocMapLayers();
+        buildDocDrawingTree();
     } catch (e) { console.error("文書・史料データの取得失敗:", e); }
 }
 
@@ -6064,24 +6076,95 @@ function focusDataOnMapWithPanel(type, id) {
     }, 300);
 }
 
-/* 史料の図面タイルレイヤを、メインマップのレイヤ選択コントロールに登録する（未登録の場合のみ、1回だけ）。
-   「地図上で確認」を押した時点でまだ古地図データ（window._eraLayerControl）の読込が終わっていなくても、
-   buildEraLayers完了後にregisterAllPendingDocDrawingLayers()から改めて呼ばれるため、取りこぼさない。 */
-function registerDocDrawingLayerControl(tl, docId) {
-    if (!tl || tl._addedToLayerControl || !window._eraLayerControl) return;
-    const safeId = escapeJsAttr(docId);
-    const labelHtml = `<span>図面（史料）</span><button class="layer-detail-btn" onclick="event.preventDefault();event.stopPropagation();openDocDetailModalById('${safeId}')" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>`;
-    window._eraLayerControl.addOverlay(tl, labelHtml);
-    tl._addedToLayerControl = true;
+/* 文書・史料の図面タイル一覧を、メインマップのレイヤ選択コントロール内に
+   「史料の図面タイル」という1エントリとしてまとめて登録する。
+   ・和暦（yearJpn）ごとに<details>で折りたためるグループを作り、その中に史料ごとのチェックボックスを並べる
+   ・チェックボックスはLeaflet自体のレイヤ管理を使わず、toggleDocDrawingLayer()で自前にレイヤの表示/非表示を行う
+     （Leafletのレイヤ選択は1行=1レイヤ=1チェックボックスの構造で、階層化・折りたたみができないため）
+   ・実際のタイルレイヤ（PMTiles/XYZ）は、チェックを入れた史料だけ、その時点で初めて作成する（遅延生成）。
+     図面タイルを持つ史料が大量にあっても、ページを開いた時点で全件のタイルにアクセスしにいくことはない */
+function buildDocDrawingTree() {
+    if (!window._eraLayerControl) return;
+    const items = docData.filter(d => d.drawingTileUrl && d.drawingTileUrl.trim() !== '' && d.drawingTileUrl.trim() !== '-');
+    window._docDrawingUrlById = {};
+    items.forEach(d => { window._docDrawingUrlById[d.id] = d.drawingTileUrl; });
+
+    /* 既存のグループ登録があれば一旦外す（loadDocDataが再実行された場合の重複防止） */
+    if (window._docDrawingTreeOverlay) {
+        try { window._eraLayerControl.removeLayer(window._docDrawingTreeOverlay); } catch (e) {}
+    }
+    if (items.length === 0) { window._docDrawingTreeOverlay = null; return; }
+
+    /* 和暦ごとにグループ化。グループの並び順はスプレッドシート上の登場順をそのまま使う（年代の自動判定はしない） */
+    const groups = []; const groupIndex = {};
+    items.forEach(d => {
+        const label = (d.yearJpn && d.yearJpn.trim() !== '') ? d.yearJpn.trim() : '年代不明';
+        if (!(label in groupIndex)) { groupIndex[label] = groups.length; groups.push({ label, docs: [] }); }
+        groups[groupIndex[label]].docs.push(d);
+    });
+
+    const treeHtml = `<div class="doc-tile-panel">
+        <div class="doc-tile-panel-title">史料の図面タイル（${items.length}件）</div>
+        ${groups.map(g => `
+        <details class="doc-tile-group">
+            <summary>${escapeHtml(g.label)}（${g.docs.length}）</summary>
+            ${g.docs.map(d => `
+            <label class="doc-tile-leaf" data-doc-id="${escapeHtml(String(d.id))}">
+                <input type="checkbox" onchange="toggleDocDrawingLayer('${escapeJsAttr(d.id)}', this.checked)">
+                <span>${escapeHtml(d.subject)}</span>
+                <button type="button" class="layer-detail-btn" onclick="event.preventDefault();event.stopPropagation();openDocDetailModalById('${escapeJsAttr(d.id)}')" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>
+            </label>`).join('')}
+        </details>`).join('')}
+    </div>`;
+
+    const dummy = L.layerGroup();
+    window._docDrawingTreeOverlay = dummy;
+    window._eraLayerControl.addOverlay(dummy, treeHtml);
+    /* このエントリ自体の先頭チェックボックスは使わない（個々の史料は中のチェックボックスで操作するため）ので隠す */
+    const list = window._eraLayerControl._container && window._eraLayerControl._container.querySelector('.leaflet-control-layers-overlays');
+    if (list && list.lastElementChild) {
+        const cb = list.lastElementChild.querySelector('input.leaflet-control-layers-selector');
+        if (cb && cb.parentElement) cb.parentElement.style.display = 'none';
+    }
 }
 
-/* window._eraLayerControl（古地図データ読込後に生成）ができた時点で、
-   それより先に「地図上で確認」が押されて作成済みだった図面タイルレイヤを、まとめて登録する */
-function registerAllPendingDocDrawingLayers() {
-    if (!window._docDrawingLayers) return;
-    Object.keys(window._docDrawingLayers).forEach(docId => {
-        registerDocDrawingLayerControl(window._docDrawingLayers[docId], docId);
-    });
+/* 図面タイル一覧のチェックボックス（またはfocusOnDocMap）から呼ばれ、指定史料のタイルレイヤの表示/非表示を切り替える */
+function toggleDocDrawingLayer(docId, show) {
+    window._docDrawingLayers = window._docDrawingLayers || {};
+    let tl = window._docDrawingLayers[docId];
+    if (show) {
+        if (!tl) {
+            const url = window._docDrawingUrlById ? window._docDrawingUrlById[docId] : null;
+            if (!url) return null;
+            try {
+                tl = createHistoricalTileLayer(url, { maxZoom: 22 });
+                window._docDrawingLayers[docId] = tl;
+            } catch (e) {
+                console.error('史料の図面タイルレイヤの作成に失敗しました:', docId, url, e);
+                showNotification('図面タイルの読み込みに失敗しました。URLをご確認ください。');
+                return null;
+            }
+        }
+        if (!map.hasLayer(tl)) tl.addTo(map);
+        if (tl.bringToFront) tl.bringToFront();
+        if (!activeOverlays.includes(tl)) activeOverlays.push(tl);
+    } else if (tl) {
+        if (map.hasLayer(tl)) map.removeLayer(tl);
+        const idx = activeOverlays.indexOf(tl);
+        if (idx >= 0) activeOverlays.splice(idx, 1);
+    }
+    setDocDrawingCheckbox(docId, !!show);
+    return tl;
+}
+
+/* 一覧内の該当チェックボックスの見た目を、実際の表示状態に合わせる（「地図上で確認」から呼ばれた場合など） */
+function setDocDrawingCheckbox(docId, checked) {
+    if (!window._eraLayerControl || !window._eraLayerControl._container) return;
+    const leaf = window._eraLayerControl._container.querySelector(`.doc-tile-leaf[data-doc-id="${CSS.escape(String(docId))}"]`);
+    if (!leaf) return;
+    const cb = leaf.querySelector('input[type="checkbox"]');
+    if (cb) cb.checked = checked;
+    if (checked) { const details = leaf.closest('details'); if (details) details.open = true; }
 }
 
 function focusOnDocMap(chibanKey, drawingTileUrl, docId) {
@@ -6096,32 +6179,13 @@ function focusOnDocMap(chibanKey, drawingTileUrl, docId) {
         const r = docData.find(x => String(x.id) === String(docId));
         if (r) openDocDetailPanel(r);
         if (drawingTileUrl && drawingTileUrl.trim() !== '' && drawingTileUrl.trim() !== '-') {
-            /* 同じ史料で何度押しても、レイヤとレイヤ選択ボタンが重複しないよう、史料ごとにレイヤを使い回す。
-               XYZタイルはcreateHistoricalTileLayerがmaxNativeZoomを自動補正、pmtilesはヘッダーから設定される。 */
-            window._docDrawingLayers = window._docDrawingLayers || {};
-            let tl = window._docDrawingLayers[docId];
-            if (!tl) {
-                try {
-                    tl = createHistoricalTileLayer(drawingTileUrl, { maxZoom: 22 });
-                    window._docDrawingLayers[docId] = tl;
-                } catch (e) {
-                    console.error('史料の図面タイルレイヤの作成に失敗しました:', docId, drawingTileUrl, e);
-                    showNotification('図面タイルの読み込みに失敗しました。URLをご確認ください。');
-                }
-            }
-            if (tl) {
-                if (!map.hasLayer(tl)) tl.addTo(map);
-                if (tl.bringToFront) tl.bringToFront();
-                if (!activeOverlays.includes(tl)) activeOverlays.push(tl);
-                registerDocDrawingLayerControl(tl, docId);
-                /* 地番ポリゴンが無い（または見つからない）史料は、pmtilesの範囲へ移動する */
-                if (!jumped) jumpToTileLayerBounds(tl);
-            }
+            const tl = toggleDocDrawingLayer(docId, true);
+            /* 地番ポリゴンが無い（または見つからない）史料は、pmtilesの範囲へ移動する */
+            if (tl && !jumped) jumpToTileLayerBounds(tl);
         }
     }, 300);
 }
 
-/* 古地図詳細モーダルの「地図上で確認」：該当する古地図のタイルレイヤを表示し、（範囲が分かれば）その位置へ移動する */
 function focusOnEraMap(mapId) {
     const idx = eras.findIndex(e => String(e.id) === String(mapId));
     if (idx < 0) { showNotification('この古地図には地図タイルが登録されていません。'); return; }
