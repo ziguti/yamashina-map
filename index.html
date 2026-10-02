@@ -7,7 +7,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Noto+Sans+JP:wght@500;700&family=Sawarabi+Mincho&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=Noto+Serif+JP:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Sawarabi+Mincho&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
@@ -21,763 +21,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/openseadragon@5.0.1/build/openseadragon/openseadragon.min.js"></script>
-<style>
-:root {
-    --primary-brown: #4e342e;
-    --primary-light: #7b5e57;
-    --accent-gold: #bda06d;
-    --accent-light: #e0d1b3;
-    --bg-cream: #fdfaf2;
-    --text-dark: #2c1e1a;
-    --text-muted: #6d4c41;
-    --white: #ffffff;
-    --shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-    --header-height: 70px;
-    --sub-header-height: 60px;
-    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 106%; height: 100%; overflow: hidden; overflow-x: hidden; }
-body {
-    font-family: 'Noto Serif JP', 'Sawarabi Mincho', serif;
-    background: var(--bg-cream);
-    color: var(--text-dark);
-    height: 100%;
-    overflow: hidden;
-    overflow-x: hidden;
-}
-img { max-width: 100%; }
-button, input, select { font-family: inherit; }
-a { color: inherit; text-decoration: none; }
-
-/* ===== ヘッダー ===== */
-#main-header {
-    position: fixed; top: 0; left: 0; right: 0; height: var(--header-height);
-    background: var(--white); border-bottom: 3px solid var(--accent-gold);
-    box-shadow: var(--shadow); z-index: 3000;
-    display: flex; align-items: center;
-}
-.header-container {
-    max-width: 1400px; width: 100%; margin: 0 auto; padding: 0 24px;
-    display: flex; align-items: center; justify-content: space-between;
-}
-.brand-area { display: flex; flex-direction: column; cursor: pointer; overflow: hidden; }
-.archive-title {
-    font-size: 1.4rem; font-weight: 700; color: var(--primary-brown);
-    letter-spacing: 1.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px;
-}
-.archive-subtitle {
-    font-size: 0.7rem; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 2px;
-}
-.nav-group { display: flex; align-items: center; gap: 12px; }
-.nav-btn {
-    background: transparent; border: 1px solid var(--accent-light); border-radius: 6px;
-    padding: 8px 18px; display: flex; align-items: center; gap: 8px; cursor: pointer;
-    color: var(--text-dark); font-size: 0.95rem; transition: var(--transition); position: relative;
-}
-.nav-btn i { font-size: 1.1rem; }
-.nav-btn:hover { background: var(--bg-cream); border-color: var(--accent-gold); }
-.nav-btn.active { background: var(--primary-brown); color: var(--white); border-color: var(--primary-brown); box-shadow: 0 4px 10px rgba(78,52,46,0.35); }
-
-.nav-dropdown { position: relative; }
-.dropdown-menu {
-    position: absolute; right: 0; top: calc(100% + 5px); min-width: 240px; background: var(--white);
-    border: 1px solid var(--accent-gold); border-radius: 8px; box-shadow: var(--shadow);
-    opacity: 0; visibility: hidden; transform: translateY(-6px); transition: var(--transition);
-    z-index: 3100; overflow: hidden;
-}
-.nav-dropdown:hover .dropdown-menu { opacity: 1; visibility: visible; transform: translateY(0); }
-.dropdown-item {
-    display: flex; align-items: center; gap: 10px; padding: 12px 20px; font-size: 0.9rem; font-weight: 700;
-    border-bottom: 1px solid var(--accent-light); color: var(--text-dark); cursor: pointer;
-}
-.dropdown-item:last-child { border-bottom: none; }
-.dropdown-item:hover { background: var(--bg-cream); }
-
-/* ===== サブヘッダー(マップ用) ===== */
-#map-ui {
-    position: fixed; top: var(--header-height); left: 0; right: 0; height: var(--sub-header-height);
-    background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border-bottom: 1px solid #ddd;
-    z-index: 2500; display: none; align-items: center; gap: 15px; padding: 0 20px;
-}
-.control-group { display: flex; gap: 10px; }
-.sub-nav-btn {
-    background: var(--white); border: 1px solid #ddd; color: var(--text-muted);
-    border-radius: 20px; padding: 6px 14px; font-size: 0.95rem; cursor: pointer;
-    display: flex; align-items: center; gap: 6px; transition: var(--transition);
-}
-.sub-nav-btn.active { background: var(--accent-gold); color: var(--white); border-color: var(--accent-gold); }
-#slider-box {
-    display: flex; flex-grow: 1; max-width: 760px; gap: 10px; align-items: center;
-}
-.slider-arrow-btn {
-    width: 34px; height: 34px; border-radius: 50%; background: var(--white);
-    border: 1px solid var(--accent-gold); color: var(--primary-brown); cursor: pointer;
-    display: flex; align-items: center; justify-content: center; transition: var(--transition); flex-shrink: 0;
-}
-.slider-arrow-btn:hover { background: var(--primary-brown); color: var(--white); }
-#era-slider {
-    flex: 1 1 auto; min-width: 0; height: 6px; background: #e0e0e0; border-radius: 3px; appearance: none; outline: none; cursor: pointer;
-}
-#era-slider::-webkit-slider-thumb {
-    appearance: none; width: 22px; height: 22px; background: var(--accent-gold);
-    border: 3px solid #fff; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.2); cursor: pointer;
-}
-#era-slider::-moz-range-thumb {
-    width: 22px; height: 22px; background: var(--accent-gold);
-    border: 3px solid #fff; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.2); cursor: pointer;
-}
-/* 地図名・年の表示は不透明度調整パネル側（#opacity-era-label）に移動したため、
-   このスライダーは他の要素と幅を取り合うことがなく、常に安定した長さで表示される。 */
-
-/* ===== コンテンツラッパー & ページ ===== */
-#content-wrapper { position: absolute; top: var(--header-height); left: 0; right: 0; bottom: 0; overflow: hidden; }
-#content-wrapper.map-active { top: calc(var(--header-height) + var(--sub-header-height)); }
-.page {
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    visibility: hidden; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
-    overflow-y: auto; background: var(--bg-cream);
-}
-.page.active { visibility: visible; opacity: 1; pointer-events: auto; }
-#page-map { overflow: hidden; background: #f0f0f0; }
-.scroll-container { padding: 40px 24px 80px; max-width: 1400px; margin: 0 auto; }
-
-/* ===== マップページ ===== */
-#map { width: 100%; height: 100%; background: #f0f0f0; }
-.map-overlay-panel {
-    position: absolute; z-index: 1000; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px);
-    border: 1px solid var(--accent-light); border-radius: 15px; box-shadow: var(--shadow); padding: 18px;
-}
-#map-overlay-controls { bottom: 30px; right: 20px; width: 240px; }
-#opacity-era-info {
-    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--accent-light);
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-}
-#opacity-era-label { font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; }
-.control-label { font-size: 0.85rem; font-weight: 700; color: var(--primary-brown); margin-bottom: 12px; }
-#opacity-slider { width: 100%; accent-color: var(--accent-gold); }
-#location-btn {
-    position: absolute; bottom: 90px; left: 15px; z-index: 1000; width: 44px; height: 44px; border-radius: 50%;
-    background: var(--white); border: 2px solid rgba(0,0,0,0.2); box-shadow: var(--shadow); cursor: pointer;
-    display: flex; align-items: center; justify-content: center; color: var(--primary-brown); font-size: 1.2rem;
-    transition: var(--transition);
-}
-#location-btn:hover { background: #f4f4f4; color: var(--accent-gold); }
-
-/* ===== スポット設定パネル ===== */
-#spot-settings-wrapper {
-    position: fixed; top: calc(var(--header-height) + var(--sub-header-height)); right: 0; bottom: 0;
-    width: 420px; max-width: 90%; z-index: 4000; transform: translateX(100%);
-    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1); pointer-events: none;
-}
-#spot-settings-wrapper.open { transform: translateX(0); pointer-events: auto; }
-/* タブは「スポット設定」ナビボタンが有効化されている間（mode-active）のみ表示・操作可能 */
-.spot-settings-tab { display: none; }
-#spot-settings-wrapper.mode-active .spot-settings-tab {
-    display: flex; position: absolute; left: -42px; top: 50%; transform: translateY(-50%); width: 42px; height: 75px;
-    background: var(--white); border: 2px solid var(--accent-gold); border-right: none;
-    border-radius: 8px 0 0 8px; align-items: center; justify-content: center; cursor: pointer;
-    pointer-events: auto; transition: var(--transition);
-}
-.spot-settings-tab:hover { background: var(--bg-cream); }
-.spot-settings-tab i { font-size: 1.3rem; color: var(--primary-brown); }
-#spot-settings-box-content {
-    width: 100%; height: 100%; background: rgba(255,255,255,0.98); border-left: 3px solid var(--accent-gold);
-    box-shadow: -10px 0 35px rgba(0,0,0,0.2); padding: 30px 25px; overflow-y: auto; position: relative;
-}
-#spot-settings-box-content h3 { color: var(--primary-brown); border-bottom: 2px solid var(--accent-gold); padding-bottom: 8px; margin-bottom: 20px; padding-right: 30px; }
-.spot-settings-close-btn {
-    position: absolute; top: 22px; right: 20px; width: 30px; height: 30px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted);
-    font-size: 1.1rem; transition: var(--transition);
-}
-.spot-settings-close-btn:hover { background: var(--bg-cream); color: var(--primary-brown); }
-#spot-search-input {
-    width: 100%; padding: 10px 14px; border: 2px solid var(--accent-gold); border-radius: 20px; font-size: 0.9rem;
-    margin-bottom: 20px;
-}
-
-/* ===== 地番ポリゴン検索パネル（スポット設定パネルと同じ視覚言語を再利用） ===== */
-#chiban-panel-wrapper {
-    position: fixed; top: calc(var(--header-height) + var(--sub-header-height)); right: 0; bottom: 0;
-    width: 420px; max-width: 90%; z-index: 4000; transform: translateX(100%);
-    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1); pointer-events: none;
-}
-#chiban-panel-wrapper.open { transform: translateX(0); pointer-events: auto; }
-.chiban-panel-tab { display: none; }
-#chiban-panel-wrapper.mode-active .chiban-panel-tab {
-    display: flex; position: absolute; left: -42px; top: 50%; transform: translateY(-50%); width: 42px; height: 75px;
-    background: var(--white); border: 2px solid var(--accent-gold); border-right: none;
-    border-radius: 8px 0 0 8px; align-items: center; justify-content: center; cursor: pointer;
-    pointer-events: auto; transition: var(--transition);
-}
-.chiban-panel-tab:hover { background: var(--bg-cream); }
-.chiban-panel-tab i { font-size: 1.3rem; color: var(--primary-brown); }
-#chiban-panel-box-content {
-    width: 100%; height: 100%; background: rgba(255,255,255,0.98); border-left: 3px solid var(--accent-gold);
-    box-shadow: -10px 0 35px rgba(0,0,0,0.2); padding: 30px 25px; overflow-y: auto; position: relative;
-}
-#chiban-panel-box-content h3 { color: var(--primary-brown); border-bottom: 2px solid var(--accent-gold); padding-bottom: 8px; margin-bottom: 16px; padding-right: 30px; }
-#chiban-search-input {
-    width: 100%; padding: 10px 14px; border: 2px solid var(--accent-gold); border-radius: 20px; font-size: 0.9rem; margin-bottom: 12px;
-}
-#chiban-tree-container { margin-top: 14px; }
-/* 地番ポリゴン内テキストラベル（大字名／小字名／地番）。
-   下のポリゴンのクリック選択を妨げないよう、常にpointer-eventsを無効化する。 */
-.chiban-label {
-    pointer-events: none;
-    white-space: nowrap;
-    transform: translate(-50%, -50%);
-}
-.chiban-label span {
-    display: inline-block;
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
-    font-weight: 400;
-    color: #fff;
-    line-height: 1;
-    -webkit-text-stroke: 0.6px #000;
-    paint-order: stroke fill;
-    text-shadow: -0.6px -0.6px 0 #000, 0.6px -0.6px 0 #000, -0.6px 0.6px 0 #000, 0.6px 0.6px 0 #000;
-}
-.chiban-tree-oaza > summary { font-weight: 700; color: var(--primary-brown); cursor: pointer; padding: 8px 6px; border-bottom: 1px solid var(--accent-light); }
-.chiban-tree-koaza > summary { font-weight: 700; color: var(--text-dark); cursor: pointer; padding: 6px 6px 6px 16px; font-size: 0.9rem; }
-.chiban-tree-oaza, .chiban-tree-koaza { margin-bottom: 2px; }
-.chiban-tree-leaf-list { padding-left: 30px; display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
-.chiban-tree-leaf {
-    font-size: 0.78rem; padding: 4px 10px; border: 1px solid var(--accent-light); border-radius: 14px; cursor: pointer;
-    background: #fff; color: var(--text-muted); transition: var(--transition);
-}
-.chiban-tree-leaf:hover { background: var(--accent-gold); color: #fff; border-color: var(--accent-gold); }
-.chiban-tree-group-select-btn {
-    font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--accent-gold); background: #fff;
-    color: var(--primary-brown); cursor: pointer; margin-left: 8px;
-}
-.chiban-tree-group-select-btn:hover { background: var(--accent-gold); color: #fff; }
-.chiban-tree-hidden { display: none !important; }
-.legend-grid { display: flex; flex-direction: column; gap: 8px; }
-.legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-dark); flex-wrap: wrap; }
-.legend-swatch { display: inline-block; width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.15); }
-.spot-group-title {
-    font-size: 1rem; font-weight: 700; color: #fff; background: var(--primary-brown); padding: 8px 12px;
-    border-radius: 6px; margin: 24px 0 14px; display: flex; align-items: center; gap: 8px;
-}
-.spot-group-title:first-of-type { margin-top: 4px; }
-.hier-tree-container { margin-top: 10px; border: 1px solid var(--accent-light); border-radius: 6px; padding: 8px; max-height: 260px; overflow-y: auto; }
-.hier-details summary { cursor: pointer; font-size: 0.82rem; padding: 5px 4px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.hier-children { padding-left: 16px; border-left: 1px dashed var(--accent-light); margin-left: 6px; }
-.hier-leaf { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 0.8rem; padding: 4px; color: var(--text-muted); }
-
-/* ===== 地図クリック詳細パネル：モードレス（左側スライドイン／スマホは下部シート） ===== */
-#map-detail-panel {
-    position: fixed; top: calc(var(--header-height) + var(--sub-header-height)); left: 0; bottom: 0;
-    width: 420px; max-width: 90%; background: var(--white); box-shadow: 10px 0 35px rgba(0,0,0,0.2);
-    transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1); z-index: 3900;
-    overflow-y: auto; pointer-events: none;
-}
-#map-detail-panel.open { transform: translateX(0); pointer-events: auto; }
-#map-detail-panel .close-btn { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; font-size: 1.4rem; z-index: 10; }
-#map-detail-panel-body { padding: 25px; }
-#map-detail-panel-body .mdp-media { width: 100%; height: 220px; border-radius: 8px; overflow: hidden; margin-bottom: 16px; background: #1a1a1a; }
-#map-detail-panel-body .mdp-gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 10px; }
-#map-detail-panel-body .mdp-db-btn {
-    width: 100%; margin-top: 18px; padding: 12px; background: var(--primary-brown); color: #fff; border: none;
-    border-radius: 6px; cursor: pointer; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; gap: 8px;
-}
-#map-detail-panel-body .mdp-db-btn:hover { background: var(--primary-light); }
-@media (max-width: 768px) {
-    #map-detail-panel {
-        left: 0; right: 0; width: 100%; max-width: 100%; top: auto; bottom: 0; height: 65vh;
-        transform: translateY(100%); border-radius: 16px 16px 0 0; box-shadow: 0 -10px 35px rgba(0,0,0,0.25);
-    }
-    #map-detail-panel.open { transform: translateY(0); }
-}
-
-.spot-section { margin-bottom: 20px; }
-.spot-section h4 { font-size: 0.95rem; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-.text-blue-500 { color: #3b82f6; }
-.text-emerald-600 { color: #059669; }
-.spot-section label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 6px; cursor: pointer; }
-.spot-section hr { border: none; border-top: 1px solid var(--accent-light); margin: 18px 0; }
-.spot-section select, .spot-section input[type=number] {
-    width: 100%; padding: 8px 10px; border: 1px solid var(--accent-light); border-radius: 6px; margin-bottom: 8px; font-size: 0.85rem;
-}
-.btn-spatial { width: 100%; justify-content: center; margin-bottom: 8px; }
-.spatial-status { font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; }
-.year-range-inputs { display: flex; gap: 8px; align-items: center; }
-.year-range-inputs input { width: 100%; }
-
-/* 被写地点指定モード中のマップカーソル（ピン型） */
-#map.map-cursor-pin {
-    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="30" height="42" viewBox="0 0 30 42"><path d="M15 0C6.7 0 0 6.7 0 15c0 11 15 27 15 27s15-16 15-27C30 6.7 23.3 0 15 0z" fill="%23e74c3c" stroke="white" stroke-width="2"/><circle cx="15" cy="15" r="5" fill="white"/></svg>') 15 42, pointer;
-}
-
-/* ===== 詳細モーダル ===== */
-#detail-modal {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000;
-    align-items: center; justify-content: center; padding: 20px;
-}
-.modal-content {
-    background: var(--white); width: 96%; max-width: 1400px; height: 85vh; overflow: hidden;
-    display: flex; flex-direction: column; position: relative;
-}
-.close-btn {
-    position: absolute; top: 15px; right: 15px; width: 45px; height: 45px; border-radius: 50%;
-    background: rgba(255,255,255,0.95); border: 2px solid var(--accent-gold); display: flex; align-items: center;
-    justify-content: center; font-size: 1.8rem; color: var(--primary-brown); cursor: pointer; z-index: 20100;
-    transition: var(--transition);
-}
-.close-btn:hover { transform: scale(1.1); background: var(--white); }
-#modal-body { display: flex; flex: 1; min-height: 0; overflow: hidden; position: relative; }
-.modal-image-section { flex: 1; background: #1a1a1a; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.modal-image-section img { width: 100%; height: 100%; object-fit: contain; cursor: zoom-in; }
-.info-section-wrapper { width: 440px; min-width: 440px; background: var(--white); position: relative; transition: width 0.3s, min-width 0.3s; }
-.info-section-wrapper.collapsed { width: 0 !important; min-width: 0 !important; }
-.info-section-wrapper.collapsed .modal-info-section { opacity: 0; overflow: hidden; pointer-events: none; border-left: none !important; }
-.info-section-wrapper.collapsed .modal-pane-toggle { left: -32px; border-right: 2px solid var(--accent-gold); border-radius: 8px 0 0 8px; }
-.modal-info-section {
-    width: 100%; height: 100%; padding: 35px; overflow-y: auto; border-left: 1px solid rgba(189,160,109,0.2);
-}
-.modal-info-section h2 { color: var(--primary-brown); margin-bottom: 18px; font-size: 1.4rem; }
-.modal-pane-toggle {
-    position: absolute; left: -32px; top: 50%; transform: translateY(-50%); width: 32px; height: 75px;
-    background: var(--white); border: 2px solid var(--accent-gold); border-right: none; border-radius: 8px 0 0 8px;
-    display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 1000;
-}
-.meta-info-list {
-    display: grid; grid-template-columns: 118px 1fr; row-gap: 0; column-gap: 16px;
-}
-.meta-info-list dt {
-    font-family: 'Noto Sans JP', sans-serif; font-weight: 700; font-size: 0.78rem; color: var(--text-muted);
-    padding: 11px 0; border-bottom: 1px solid rgba(189,160,109,0.25); display: flex; align-items: flex-start;
-}
-.meta-info-list dd {
-    font-size: 0.92rem; color: var(--text-dark); line-height: 1.6; margin: 0;
-    padding: 11px 0; border-bottom: 1px solid rgba(189,160,109,0.25); display: flex; align-items: flex-start;
-}
-.modal-map-container { width: 100%; height: 220px; margin-top: 16px; border-radius: 8px; overflow: hidden; border: 1px solid var(--accent-light); }
-.map-focus-btn, .compare-btn {
-    width: 100%; margin-top: 16px; padding: 12px; background: var(--primary-brown); color: var(--white);
-    border: none; border-radius: 6px; cursor: pointer; font-size: 0.95rem; display: flex; align-items: center;
-    justify-content: center; gap: 8px; transition: var(--transition);
-}
-.map-focus-btn:hover, .compare-btn:hover { background: var(--primary-light); }
-.modal-related-assets { margin-top: 24px; border-top: 1px solid var(--accent-light); padding-top: 16px; }
-.modal-related-assets h4 { color: var(--primary-brown); margin-bottom: 10px; }
-.asset-mini-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-.asset-mini-card {
-    cursor: pointer; border-radius: 6px; overflow: hidden; border: 1px solid var(--accent-light);
-    min-height: 44px; background: var(--bg-cream); transition: var(--transition);
-}
-.asset-mini-card:hover { border-color: var(--accent-gold); transform: translateY(-2px); }
-.asset-mini-card img { width: 100%; height: 80px; object-fit: cover; display: block; }
-.asset-mini-card .amc-title { font-size: 0.72rem; padding: 5px 6px; line-height: 1.3; }
-.asset-mini-card .amc-badge {
-    font-size: 0.62rem; padding: 1px 6px; border-radius: 10px; color: #fff; display: inline-block; margin: 4px 6px 0;
-}
-
-/* ===== 全画面画像ズーム ===== */
-#full-screen-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 20000;
-    justify-content: center; align-items: center; cursor: zoom-out; touch-action: none; overflow: hidden;
-}
-#full-screen-img {
-    max-width: 95%; max-height: 95%; object-fit: contain; transform-origin: center center;
-    cursor: grab; transition: transform 0.15s ease-out;
-}
-#full-screen-img:active { cursor: grabbing; }
-#fs-iiif-osd { display: none; position: absolute; inset: 0; width: 100%; height: 100%; }
-.gallery-zoom-badge {
-    position: absolute; left: 10px; bottom: 10px; z-index: 3; pointer-events: none;
-    background: rgba(0,0,0,0.55); color: #fff; font-size: 0.72rem; padding: 3px 9px; border-radius: 12px;
-}
-#full-screen-overlay .close-btn { color: #fff; }
-
-/* ===== 図書データベース：検索ヒット箇所の表示／目次の強調 ===== */
-.dlc-toc-hits { margin-top: 6px; border-top: 1px dashed var(--accent-light); padding-top: 6px; }
-.dlc-toc-hit {
-    font-size: 0.8rem; color: var(--text-muted); padding: 3px 0; cursor: pointer;
-    display: flex; align-items: baseline; gap: 5px;
-}
-.dlc-toc-hit:hover { color: var(--accent-gold); text-decoration: underline; }
-.dlc-toc-hit-page { margin-left: auto; color: var(--accent-gold); font-weight: 700; white-space: nowrap; }
-.dlc-toc-hit-more { font-size: 0.75rem; color: var(--text-muted); padding-top: 2px; }
-.dlc-hit-group-label { font-size: 0.72rem; color: var(--accent-gold); font-weight: 700; margin-bottom: 2px; }
-.dlc-text-hits { margin-top: 8px; }
-.dlc-text-hit-snippet { line-height: 1.4; }
-.doc-subject-link-item.search-hit { background: #fff3b0; border-left: 3px solid #e65100; }
-.doc-subject-link-item.search-hit.current { background: #ffe27a; }
-
-/* ===== OCRテキストレイヤー（通常OCR＝選択可能／古典籍OCR＝翻刻ラベル） ===== */
-.iiif-text-line {
-    color: transparent; -webkit-text-fill-color: transparent;
-    -webkit-user-select: text; user-select: text; cursor: text;
-    white-space: nowrap; line-height: 1; overflow: hidden;
-}
-.iiif-text-line.vertical { writing-mode: vertical-rl; }
-.iiif-text-line::selection, .iiif-text-line::-moz-selection { background: rgba(70,130,255,0.35); }
-.iiif-translit-label {
-    font-size: 12px; line-height: 1.3; background: rgba(255,252,240,0.92); color: #2a2622;
-    padding: 1px 5px; border-radius: 3px; white-space: nowrap; pointer-events: none;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.1);
-    max-width: 160px; overflow: hidden; text-overflow: ellipsis; margin-left: 4px;
-}
-
-/* ===== ビフォーアフター比較 ===== */
-#before-after-overlay {
-    display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000;
-    overflow: hidden; z-index: 30000; align-items: center; justify-content: center; user-select: none;
-}
-.ba-close-btn {
-    position: absolute; top: 20px; right: 20px; z-index: 30100; width: 46px; height: 46px; border-radius: 50%;
-    background: rgba(0,0,0,0.5); color: #fff; display: flex; align-items: center; justify-content: center;
-    cursor: pointer; font-size: 1.4rem;
-}
-.ba-slider-container { position: relative; width: 100%; height: 100%; overflow: hidden; }
-.ba-image-layer { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-.ba-image-fit { width: 100%; height: 100%; object-fit: contain; display: block; }
-#ba-img-overlay-wrap { clip-path: inset(0 50% 0 0); }
-.ba-divider { position: absolute; top: 0; bottom: 0; width: 4px; background: #fff; cursor: ew-resize; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
-.ba-divider::after {
-    content: '\f337'; font-family: "Font Awesome 6 Free"; font-weight: 900; position: absolute; top: 50%; left: 50%;
-    transform: translate(-50%,-50%); width: 40px; height: 40px; background: #fff; color: var(--primary-brown);
-    border-radius: 50%; display: flex; align-items: center; justify-content: center;
-}
-.ba-label { position: absolute; bottom: 30px; color: #fff; background: rgba(0,0,0,0.5); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; }
-
-/* ===== トースト通知 ===== */
-#notification-toast {
-    position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%) translateY(100px);
-    opacity: 0; background: rgba(44,30,26,0.95); color: #fff; padding: 14px 28px; border-radius: 50px;
-    font-size: 0.95rem; z-index: 21000; box-shadow: 10px 30px rgba(0,0,0,0.3); transition: all 0.4s ease;
-    pointer-events: none; max-width: 90%; text-align: center;
-}
-#notification-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-
-/* ===== カルーセル (ポータル) ===== */
-.carousel-container {
-    height: 620px; border-radius: 0 !important; overflow: hidden; background: #2a201e;
-    box-shadow: var(--shadow); margin-bottom: 40px; position: relative;
-}
-.carousel-track { display: flex; height: 100%; transition: transform 0.6s cubic-bezier(0.25,1,0.5,1); }
-.carousel-slide { min-width: 100%; height: 100%; position: relative; }
-.carousel-slide img { width: 100%; height: 100%; object-fit: cover; }
-.carousel-overlay {
-    position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent 70%);
-    display: flex; flex-direction: column; justify-content: flex-end; padding: 40px; color: #fff;
-}
-.carousel-overlay h3 { font-size: 2rem; font-weight: 700; letter-spacing: 1.5px; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
-.carousel-overlay p { font-size: 1.1rem; color: var(--accent-light); line-height: 1.5; text-shadow: 0 2px 8px rgba(0,0,0,0.6); margin-top: 6px; }
-.carousel-nav-btn {
-    position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.4); color: #fff;
-    width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 1.5rem; cursor: pointer; z-index: 10;
-    display: flex; align-items: center; justify-content: center; transition: var(--transition);
-}
-.carousel-nav-btn:hover { background: rgba(0,0,0,0.8); }
-.carousel-nav-btn.prev { left: 20px; } .carousel-nav-btn.next { right: 20px; }
-.carousel-dots { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; z-index: 10; }
-.carousel-dot { width: 12px; height: 12px; border-radius: 50%; background: rgba(255,255,255,0.4); cursor: pointer; transition: var(--transition); }
-.carousel-dot.active { background: #fff; transform: scale(1.2); }
-
-/* ===== ポータル説明・カード ===== */
-.portal-description {
-    background: var(--white); padding: 25px 30px; box-shadow: var(--shadow);
-    border: 1px solid rgba(189,160,109,0.2); line-height: 1.8; font-size: 1.05rem;
-}
-.portal-description p { margin-bottom: 12px; }
-.portal-description p:last-child { margin-bottom: 0; }
-.portal-section-title { font-size: 1.5rem; color: var(--primary-brown); border-bottom: 2px solid var(--accent-gold); padding-bottom: 8px; margin: 40px 0 20px; display: inline-block; }
-.portal-nav-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 30px; }
-.portal-nav-card {
-    background: var(--white); border-radius: 0; overflow: hidden; box-shadow: var(--shadow); height: 300px;
-    border: 1px solid rgba(189,160,109,0.2); display: flex; flex-direction: column; cursor: pointer;
-    transition: var(--transition); max-width: 600px;
-}
-.portal-nav-card:hover { transform: translateY(-8px); box-shadow: 0 12px 30px rgba(0,0,0,0.2); border-color: var(--accent-gold); }
-.portal-card-banner { height: 160px; background-size: cover; background-position: center; position: relative; flex-shrink: 0; }
-.portal-card-tag {
-    position: absolute; top: 12px; right: 12px; background: var(--primary-brown); color: #fff;
-    font-size: 0.75rem; font-weight: 700; letter-spacing: 1px; padding: 4px 10px; border-radius: 3px;
-}
-.portal-card-info { padding: 20px; text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center; }
-.portal-card-info h3 { font-size: 1.25rem; color: var(--primary-brown); font-weight: 700; margin-bottom: 8px; }
-.portal-card-info p { font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; }
-
-.animate-on-scroll { opacity: 0; transform: translateY(30px); transition: opacity 0.8s cubic-bezier(0.25,1,0.5,1), transform 0.8s cubic-bezier(0.25,1,0.5,1); }
-.animate-on-scroll.is-visible { opacity: 1; transform: translateY(0); }
-
-/* ===== ヒーロー / 検索パネル 共通 ===== */
-.hero-section {
-    background: linear-gradient(135deg, rgba(78,52,46,0.9), rgba(189,160,109,0.7)); padding: 60px 20px;
-    text-align: center; color: #fff; position: relative; overflow: hidden;
-}
-.hero-section.with-bg { background-size: cover; background-position: center; }
-.hero-section.with-bg::before { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.35); }
-.hero-section h2, .hero-section p { position: relative; z-index: 1; }
-.hero-section h2 { font-size: 2rem; letter-spacing: 1px; margin-bottom: 8px; text-shadow: 1px 1px 4px rgba(0,0,0,0.8); }
-.hero-section p { font-size: 0.95rem; letter-spacing: 2px; opacity: 0.9; text-shadow: 1px 1px 4px rgba(0,0,0,0.8); }
-
-.db-search-panel {
-    background: var(--white); border-radius: 16px; padding: 30px; margin: -30px auto 30px; max-width: 1200px;
-    box-shadow: var(--shadow); position: relative; z-index: 10;
-}
-.search-tabs { display: flex; gap: 10px; margin-bottom: 18px; }
-.search-tab {
-    padding: 8px 20px; border: 1px solid var(--accent-light); border-radius: 20px; cursor: pointer; font-size: 0.9rem;
-    background: var(--white); color: var(--text-muted); transition: var(--transition);
-}
-.search-tab.active { background: var(--primary-brown); color: #fff; border-color: var(--primary-brown); }
-.search-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 12px; }
-.search-field label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; }
-.search-field input, .search-field select {
-    width: 100%; padding: 9px 12px; border: 1px solid var(--accent-light); border-radius: 6px; font-size: 0.9rem;
-}
-.search-field-wide { grid-column: 1 / -1; }
-.search-exec-btn {
-    padding: 12px 30px; background: var(--primary-brown); color: #fff; border: none; border-radius: 6px;
-    cursor: pointer; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; margin: 10px auto 0;
-    transition: var(--transition);
-}
-.search-exec-btn:hover { background: var(--primary-light); }
-.search-note { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px; background: var(--bg-cream); padding: 10px 14px; border-radius: 6px; }
-
-.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px; margin-top: 10px; }
-.photo-card {
-    background: #2e2624; cursor: pointer; overflow: hidden; position: relative; height: 240px;
-    box-shadow: var(--shadow); transition: var(--transition);
-}
-.photo-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,0.3); }
-.photo-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.photo-card p {
-    position: absolute; bottom: 0; left: 0; right: 0; padding: 10px 12px; background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
-    color: #fff; font-size: 0.85rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
-}
-.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
-.empty-state i { font-size: 2.5rem; color: var(--accent-gold); margin-bottom: 14px; display: block; }
-
-.pagination-container { display: flex; justify-content: center; gap: 8px; margin-top: 30px; flex-wrap: wrap; }
-.pagination-btn {
-    width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--accent-light); background: #fff;
-    cursor: pointer; font-size: 0.9rem; transition: var(--transition);
-}
-.pagination-btn.active { background: var(--primary-brown); color: #fff; border-color: var(--primary-brown); }
-.pagination-btn:hover { border-color: var(--accent-gold); }
-
-.result-map-section { margin-top: 40px; }
-.result-map-section h3 { color: var(--primary-brown); margin-bottom: 14px; }
-.result-map-box { height: 400px; border-radius: 12px; border: 1px solid var(--accent-gold); box-shadow: var(--shadow); }
-
-/* ===== 総合検索結果 / ギャラリーカード ===== */
-.omni-results-grid, .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 16px; margin-top: 20px; }
-.omni-result-card, .gallery-card {
-    background: #fff; border-radius: 8px; overflow: hidden; box-shadow: var(--shadow); cursor: pointer;
-    border: 1px solid var(--accent-light); transition: var(--transition);
-}
-.omni-result-card:hover, .gallery-card:hover { transform: translateY(-4px); border-color: var(--accent-gold); }
-.omni-result-card img, .gallery-card img { width: 100%; height: 150px; object-fit: cover; display: block; }
-.gallery-card img { height: 180px; }
-.omni-result-card .orc-body { padding: 10px 12px; }
-.gallery-card h3 { font-size: 16px; font-weight: bold; margin: 10px; text-align: center; }
-.type-badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 10px; color: #fff; display: inline-block; margin-bottom: 6px; }
-.orc-title { font-size: 0.85rem; font-weight: 700; }
-
-/* ===== 3Dグリッド共通 ===== */
-.doc-list-card {
-    display: flex; gap: 14px; background: #fff; border: 1px solid var(--accent-light); border-radius: 8px;
-    padding: 14px; margin-bottom: 12px; cursor: pointer; transition: var(--transition);
-}
-.doc-list-card:hover { border-color: var(--accent-gold); box-shadow: var(--shadow); }
-.doc-list-card .dlc-thumb { width: 80px; height: 100px; object-fit: cover; border-radius: 4px; background: #eee; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-.doc-list-card .dlc-thumb canvas, .doc-list-card .dlc-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.doc-list-card .dlc-body { flex: 1; }
-.doc-list-card .dlc-title { font-weight: 700; margin-bottom: 6px; }
-.doc-list-card .dlc-meta { font-size: 0.8rem; color: var(--text-muted); }
-.doc-list-card .dlc-year { font-size: 12px; color: #777; }
-
-/* ===== 詳細/簡易 タブ, 情報バッジ ===== */
-.info-badge { display: inline-block; background: var(--accent-gold); color: #fff; font-size: 0.68rem; padding: 2px 8px; border-radius: 10px; margin-bottom: 8px; }
-
-/* ===== 刻銘縦書き（4方向・均一サイズのグレー長方形／4つまとめてスクロール） ===== */
-.kokumei-table { display: flex; height: 260px; overflow: auto; border: 1px solid #c9c5b9; margin-top: 12px; background: #fff; }
-.kokumei-cell-wrapper { flex-shrink: 0; width: 90px; display: flex; flex-direction: column; border-right: 1px solid #c9c5b9; }
-.kokumei-cell-wrapper:first-child { border-left: 1px solid #c9c5b9; }
-.kokumei-label {
-    text-align: center; font-size: 0.75rem; color: var(--text-muted); padding: 6px 0; flex-shrink: 0;
-    background: #fff; border-bottom: 1px solid #c9c5b9; font-family: 'Noto Sans JP', sans-serif; font-weight: 700;
-}
-.kokumei-box-3to1 {
-    flex: 1 0 auto; padding: 10px 6px; white-space: pre-wrap; text-align: center;
-    writing-mode: vertical-rl; text-orientation: upright; font-size: 0.9rem;
-    color: #616161; background: #e6e6e6;
-}
-
-/* ===== 地番ポップアップ ===== */
-.chiban-assets-container { max-height: 250px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(100px,1fr)); gap: 8px; margin-top: 8px; }
-
-/* ===== Leaflet 独自ピン ===== */
-.marker-wrapper { width: 44px; height: 44px; position: relative; display: flex; align-items: center; justify-content: center; }
-.marker-photo-pin {
-    width: 32px; height: 32px; background: #fff; border-radius: 0% 50% 50% 50%; transform: rotate(45deg);
-    border: 3.5px solid; box-shadow: 0 2px 8px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;
-}
-.marker-wrapper.no-direction .marker-photo-pin { border-radius: 50%; transform: none; }
-.marker-photo-pin i { transform: rotate(-45deg); font-size: 0.85rem; }
-.marker-wrapper.no-direction .marker-photo-pin i { transform: none; }
-.marker-3d-pin-circle {
-    border-radius: 50%; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-    display: flex; align-items: center; justify-content: center; color: #fff;
-    transition: width 0.15s ease, height 0.15s ease, box-shadow 0.15s ease;
-}
-.marker-3d-pin-circle i { font-size: 0.9rem; }
-.map-popup-custom { min-width: 200px; font-family: 'Noto Serif JP', serif; }
-.map-popup-custom b { display: block; margin-bottom: 6px; color: var(--primary-brown); }
-.map-popup-custom img { width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px; }
-.marker-cluster-photo-custom { background: rgba(30,100,220,0.35) !important; }
-.marker-cluster-photo-custom div { background: #1E88E5 !important; color: #fff !important; }
-.marker-cluster-model { background: rgba(255,140,0,0.35) !important; }
-.marker-cluster-model div { background: #ff8c00 !important; color: #fff !important; }
-
-/* レイヤ選択一覧の「詳細」ボタン */
-.leaflet-control-layers-overlays label { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.layer-detail-btn {
-    border: none; background: transparent; color: var(--accent-gold); cursor: pointer; font-size: 0.9rem; padding: 2px 4px; flex-shrink: 0;
-}
-.layer-detail-btn:hover { color: var(--primary-brown); }
-.doc-tile-panel { max-height: 260px; overflow-y: auto; }
-.doc-tile-panel-title { font-size: 0.78rem; color: #666; margin: 2px 0 4px; font-weight: bold; }
-details.doc-tile-group { margin-bottom: 2px; }
-details.doc-tile-group summary { cursor: pointer; font-size: 0.85rem; padding: 2px 0; list-style: revert; }
-label.doc-tile-leaf { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; padding: 2px 0 2px 16px; cursor: pointer; }
-label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ===== 詳細モーダル内 画像/3Dローディングスピナー（共通） ===== */
-.media-loading-wrap { position: relative; width: 100%; height: 100%; }
-.media-loading-wrap .media-spinner {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: var(--accent-gold); font-size: 2.2rem; background: rgba(0,0,0,0.1); z-index: 1;
-}
-.media-loading-wrap.loaded .media-spinner { display: none; }
-.mv-spinner-overlay {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 2.5rem; background: rgba(0,0,0,0.35); z-index: 5; pointer-events: none;
-}
-
-/* ===== 3Dビュアー内オーバーレイボタン（テクスチャ切替・全画面） ===== */
-.mv-overlay-btn {
-    width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.55); color: #fff;
-    border: 1px solid rgba(255,255,255,0.4); display: flex; align-items: center; justify-content: center;
-    cursor: pointer; font-size: 1rem; backdrop-filter: blur(4px); transition: var(--transition);
-}
-.mv-overlay-btn:hover { background: rgba(0,0,0,0.8); }
-
-/* ===== 文書・史料 PDFビュアー ===== */
-.doc-modal-layout { display: flex; width: 100%; height: 100%; }
-.doc-pdf-section { flex: 1; background: #3a3632; display: flex; flex-direction: column; min-width: 0; }
-.pdf-viewer-scroll {
-    flex: 1; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory;
-    background: #2a2622; scrollbar-width: thin;
-}
-.pdf-page-slot {
-    min-width: 100%; width: 100%; height: 100%; flex-shrink: 0; scroll-snap-align: start;
-    display: flex; align-items: center; justify-content: center; position: relative; direction: ltr;
-}
-.pdf-page-slot canvas {
-    max-width: 92%; max-height: 92%; box-shadow: 0 4px 20px rgba(0,0,0,0.5); background: #fff;
-    transform-origin: center center; transition: transform 0.08s ease-out;
-}
-.pdf-viewer-scroll.zoomed .pdf-page-slot canvas { cursor: grab; }
-.pdf-page-slot .pdf-page-placeholder { color: #888; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.pdf-page-slot .pdf-page-num-badge {
-    position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.7rem;
-    padding: 3px 10px; border-radius: 10px; direction: ltr;
-}
-.pdf-viewer-controls {
-    height: 60px; flex-shrink: 0; background: #2c1e1a; display: flex; align-items: center; gap: 14px;
-    padding: 0 20px; direction: ltr;
-}
-.pdf-viewer-controls .pdf-nav-arrow {
-    width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
-    color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.pdf-viewer-controls .pdf-nav-arrow:hover { background: var(--accent-gold); }
-.pdf-slider-wrap { flex: 1; transform: scaleX(-1); }
-.pdf-slider-wrap input[type=range] { width: 100%; accent-color: var(--accent-gold); }
-.pdf-page-counter { color: #fff; font-size: 0.8rem; min-width: 90px; text-align: center; flex-shrink: 0; direction: ltr; }
-.pdf-fallback-link { color: var(--accent-gold); text-decoration: underline; cursor: pointer; }
-
-/* ===== IIIFビュアー（OpenSeadragon） ===== */
-.pdf-viewer-scroll.iiif-mode { overflow: hidden; scroll-snap-type: none; }
-.iiif-wrap { flex: 0 0 100%; min-width: 100%; height: 100%; position: relative; direction: ltr; background: #2a2622; }
-.iiif-osd { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
-.iiif-tools { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
-.iiif-tools button {
-    width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.35);
-    background: rgba(0,0,0,0.55); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
-}
-.iiif-tools button:hover { background: var(--accent-gold); }
-.iiif-status {
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; align-items: center; justify-content: center;
-    gap: 8px; color: #ccc; font-size: 0.85rem; background: rgba(42,38,34,0.55); pointer-events: none;
-}
-
-.doc-info-header-fixed { padding-bottom: 10px; border-bottom: 1px solid var(--accent-light); margin-bottom: 12px; }
-.doc-info-header-fixed .doc-cat-small { font-size: 0.72rem; color: var(--text-muted); display: flex; gap: 10px; }
-.doc-info-header-fixed .doc-vol-title { font-size: 1.05rem; font-weight: 700; color: var(--primary-brown); margin-top: 4px; }
-.doc-modal-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-.doc-modal-tab { padding: 7px 16px; border-radius: 16px; border: 1px solid var(--accent-light); font-size: 0.85rem; cursor: pointer; background: #fff; }
-.doc-modal-tab.active { background: var(--primary-brown); color: #fff; border-color: var(--primary-brown); }
-.doc-modal-subtabs { display: flex; gap: 16px; margin-bottom: 12px; font-size: 0.82rem; }
-.doc-modal-subtabs label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
-.doc-subject-link-list { display: flex; flex-direction: column; gap: 2px; }
-.doc-subject-link-item {
-    padding: 8px 10px; font-size: 0.85rem; border-radius: 4px; cursor: pointer; color: var(--text-dark);
-    border-left: 3px solid transparent;
-}
-.doc-subject-link-item:hover { background: var(--bg-cream); }
-.doc-subject-link-item.current { background: var(--bg-cream); border-left-color: var(--accent-gold); font-weight: 700; }
-.doc-image-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.doc-image-grid-item { cursor: pointer; text-align: center; }
-.doc-image-grid-item canvas, .doc-image-grid-item img, .doc-image-grid-item .thumb-ph { width: 100%; height: 90px; object-fit: cover; background: #eee; border: 1px solid var(--accent-light); display: flex; align-items: center; justify-content: center; color: #999; }
-.doc-image-grid-item.current canvas, .doc-image-grid-item.current img, .doc-image-grid-item.current .thumb-ph { border-color: var(--accent-gold); border-width: 2px; }
-.doc-image-grid-item p { font-size: 0.68rem; margin-top: 4px; line-height: 1.3; }
-.doc-detail-tab-body h3 { font-size: 1.15rem; color: var(--primary-brown); margin-bottom: 12px; }
-
-@media (max-width: 768px) {
-    .archive-title { font-size: 1.1rem; letter-spacing: 0; max-width: 180px; }
-    .archive-subtitle { display: none; }
-    .header-container { padding: 0 10px; }
-    .nav-btn span { display: none; }
-    .nav-btn { padding: 8px 10px; }
-    #map-ui { flex-wrap: wrap; height: auto; padding: 10px 15px; gap: 8px; align-items: center; }
-    #content-wrapper.map-active { top: calc(var(--header-height) + 96px); }
-    #slider-box { order: 1; width: 100%; max-width: 100%; }
-    #era-slider { flex: 1 1 auto; width: auto; }
-    .control-group { order: 2; }
-    .sub-nav-btn span { display: none; }
-    .sub-nav-btn { padding: 8px 10px; }
-    .carousel-container { height: 450px; }
-    .carousel-overlay h3 { font-size: 1.4rem; }
-    .portal-nav-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .portal-nav-card { height: 220px; border-radius: 0; }
-    .portal-card-banner { height: 100px; }
-    .portal-card-info { padding: 10px; }
-    .portal-card-info h3 { font-size: 0.95rem; margin-bottom: 5px; }
-    .portal-card-info p { font-size: 0.75rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-    #detail-modal { align-items: flex-start; padding: 10px; }
-    .modal-content { height: 95vh; max-height: none; }
-    #modal-body { flex-direction: column; overflow-y: auto; }
-    .modal-image-section { flex: none; height: 40vh; }
-    .modal-image-section img { max-height: 40vh; }
-    .info-section-wrapper { flex-direction: column; width: 100% !important; min-width: 100% !important; height: auto; }
-    .modal-info-section { flex: none; width: 100%; min-width: 100%; overflow-y: visible; padding: 20px; border-left: none; }
-    .modal-pane-toggle { display: none; }
-    #spot-settings-box { top: 120px; }
-    #spot-settings-wrapper { top: var(--header-height); }
-    #chiban-panel-wrapper { top: var(--header-height); }
-    .doc-modal-layout { flex-direction: column; }
-    .doc-pdf-section { height: 40vh; }
-    .doc-image-grid { grid-template-columns: repeat(2, 1fr); }
-}
-</style>
+<link rel="stylesheet" href="archive.css">
 </head>
 <body>
 
@@ -973,22 +217,17 @@ label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; w
         <div class="scroll-container">
             <div class="carousel-container animate-on-scroll">
                 <div class="carousel-track" id="carousel-track">
-                    <div class="carousel-slide"><img id="slide-img-0" src="https://placehold.co/1400x620/2c1e1a/bda06d?text=Yamashina+Archive"><div class="carousel-overlay"><h3 id="slide-title-0">山科盆地の空中変遷</h3><p id="slide-desc-0">現代のオルソ画像から戦前の地籍、昭和の測量図まで遡る空間探求</p></div></div>
-                    <div class="carousel-slide"><img id="slide-img-1" src="https://placehold.co/1400x620/4e342e/e0d1b3?text=3D+Heritage"><div class="carousel-overlay"><h3 id="slide-title-1">歴史的遺産の3D立体復元</h3><p id="slide-desc-1">失われた大正・戦前モダン建築の姿や道標をデジタル空間上に精密復元</p></div></div>
-                    <div class="carousel-slide"><img id="slide-img-2" src="https://placehold.co/1400x620/6d4c41/fdfaf2?text=Old+Photos"><div class="carousel-overlay"><h3 id="slide-title-2">山科の古写真アーカイブ</h3><p id="slide-desc-2">地域に遺された貴重な写真を地図上の位置情報と結びつけて保存・公開</p></div></div>
-                    <div class="carousel-slide"><img id="slide-img-3" src="https://placehold.co/1400x620/7b5e57/fdfaf2?text=Old+Maps"><div class="carousel-overlay"><h3 id="slide-title-3">古地図データベース</h3><p id="slide-desc-3">江戸期の絵図、近世測量絵図等の詳細インデックスと高精細画像</p></div></div>
-                    <div class="carousel-slide"><img id="slide-img-4" src="https://placehold.co/1400x620/bda06d/2c1e1a?text=Documents"><div class="carousel-overlay"><h3 id="slide-title-4">文書・史料データベース</h3><p id="slide-desc-4">書籍、古文書（手書き）、近現代行政文書などの総合検索</p></div></div>
+                    <div class="carousel-slide"><img id="slide-img-0" src="https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/25e2a82bf_generated_image.png"><div class="carousel-overlay"><h3 id="slide-title-0">山科盆地の空中変遷</h3><p id="slide-desc-0">現代のオルソ画像から戦前の地籍、昭和の測量図まで遡る空間探求</p></div></div>
+                    <div class="carousel-slide"><img id="slide-img-1" src="https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/7d3cea7d4_generated_098e7415.png"><div class="carousel-overlay"><h3 id="slide-title-1">歴史的遺産の3D立体復元</h3><p id="slide-desc-1">失われた大正・戦前モダン建築の姿や道標をデジタル空間上に精密復元</p></div></div>
+                    <div class="carousel-slide"><img id="slide-img-2" src="https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/449135e93_generated_8b405df6.png"><div class="carousel-overlay"><h3 id="slide-title-2">山科の古写真アーカイブ</h3><p id="slide-desc-2">地域に遺された貴重な写真を地図上の位置情報と結びつけて保存・公開</p></div></div>
+                    <div class="carousel-slide"><img id="slide-img-3" src="https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/46fb70415_generated_image.png"><div class="carousel-overlay"><h3 id="slide-title-3">古地図データベース</h3><p id="slide-desc-3">江戸期の絵図、近世測量絵図等の詳細インデックスと高精細画像</p></div></div>
+                    <div class="carousel-slide"><img id="slide-img-4" src="https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/b7c59e577_generated_image.png"><div class="carousel-overlay"><h3 id="slide-title-4">文書・史料データベース</h3><p id="slide-desc-4">書籍、古文書（手書き）、近現代行政文書などの総合検索</p></div></div>
                 </div>
                 <button class="carousel-nav-btn prev" onclick="moveCarousel(-1)"><i class="fa-solid fa-chevron-left"></i></button>
                 <button class="carousel-nav-btn next" onclick="moveCarousel(1)"><i class="fa-solid fa-chevron-right"></i></button>
-                <div class="carousel-dots" id="carousel-dots">
-                    <div class="carousel-dot active" onclick="setCarouselSlide(0)"></div>
-                    <div class="carousel-dot" onclick="setCarouselSlide(1)"></div>
-                    <div class="carousel-dot" onclick="setCarouselSlide(2)"></div>
-                    <div class="carousel-dot" onclick="setCarouselSlide(3)"></div>
-                    <div class="carousel-dot" onclick="setCarouselSlide(4)"></div>
-                </div>
+                <div class="carousel-dots" id="carousel-dots"><div class="carousel-dot active" onclick="setCarouselSlide(0)"></div><div class="carousel-dot" onclick="setCarouselSlide(1)"></div><div class="carousel-dot" onclick="setCarouselSlide(2)"></div><div class="carousel-dot" onclick="setCarouselSlide(3)"></div><div class="carousel-dot" onclick="setCarouselSlide(4)"></div></div>
             </div>
+            <div class="portal-omni-search animate-on-scroll"><i class="fa-solid fa-magnifying-glass"></i><input id="portal-omni-input" type="text" placeholder="古写真・古地図・史料・石造物を横断して検索…" onkeydown="if(event.key==='Enter')portalOmniGo()"><button onclick="portalOmniGo()"><i class="fa-solid fa-arrow-right"></i> 検索</button></div>
 
             <div class="portal-description animate-on-scroll">
                 <p><strong>山科歴史デジタルアーカイブ</strong>は、京都府京都市山科区に伝わる古地図・古写真・史料・歴史的建造物・自然環境・石造物などを、地理情報システム（GIS）と3Dモデリング技術を用いて体系的に保存・公開するプラットフォームです。明治期以降の地籍図のジオリファレンス（歪み補正・座標付与）を行い、時代ごとの歴史地図をメインマップ上にオーバーレイ表示するとともに、失われた建築物や石造物を3Dモデルとしてデジタル復元し、誰もが自由に空間的な視点から山科の歴史を探索できることを目指しています。</p>
@@ -998,7 +237,7 @@ label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; w
             <h2 class="portal-section-title animate-on-scroll">地図から探索</h2>
             <div class="portal-nav-grid">
                 <div class="portal-nav-card animate-on-scroll" onclick="showPage('map')">
-                    <div class="portal-card-banner" id="map-banner" style="background-image:url('https://placehold.co/600x160/4e342e/ffffff?text=GIS+MAP');">
+                    <div class="portal-card-banner" id="map-banner" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/241c81612_generated_cabd23c3.png');">
                         <span class="portal-card-tag">GIS MAP</span>
                     </div>
                     <div class="portal-card-info">
@@ -1011,35 +250,35 @@ label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; w
             <h2 class="portal-section-title animate-on-scroll">データベース一覧</h2>
             <div class="portal-nav-grid">
                 <div class="portal-nav-card animate-on-scroll" onclick="showPage('omni')">
-                    <div class="portal-card-banner" id="db-banner-omni" style="background-image:url('https://placehold.co/600x160/2c1e1a/ffffff?text=Omni+Search');"><span class="portal-card-tag">SEARCH</span></div>
+                    <div class="portal-card-banner" id="db-banner-omni" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/8cc7a9701_generated_e8d8caed.png');"><span class="portal-card-tag">SEARCH</span></div>
                     <div class="portal-card-info"><h3 id="db-title-omni">総合検索</h3><p id="db-desc-omni">全データベースを横断してキーワード検索できます。</p></div>
                 </div>
                 <div class="portal-nav-card animate-on-scroll" onclick="showPage('db')">
-                    <div class="portal-card-banner" id="db-banner-photo" style="background-image:url('https://placehold.co/600x160/4e342e/ffffff?text=Photo+Database');"><span class="portal-card-tag">PHOTO DB</span></div>
+                    <div class="portal-card-banner" id="db-banner-photo" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/35dfa0f02_generated_d7198bbb.png');"><span class="portal-card-tag">PHOTO DB</span></div>
                     <div class="portal-card-info"><h3 id="db-title-photo">古写真データベース</h3><p id="db-desc-photo">約700点の古写真を地図・メタデータから検索できます。</p></div>
                 </div>
                 <div class="portal-nav-card animate-on-scroll" onclick="showPage('map-db')">
-                    <div class="portal-card-banner" id="db-banner-map" style="background-image:url('https://placehold.co/600x160/bda06d/2c1e1a?text=Old+Maps');"><span class="portal-card-tag">ARCHIVE</span></div>
+                    <div class="portal-card-banner" id="db-banner-map" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/46fb70415_generated_image.png');"><span class="portal-card-tag">ARCHIVE</span></div>
                     <div class="portal-card-info"><h3 id="db-title-map">古地図データベース</h3><p id="db-desc-map">歴史地図タイル・絵図の詳細インデックス。</p></div>
                 </div>
                 <div class="portal-nav-card animate-on-scroll" onclick="showPage('doc')">
-                    <div class="portal-card-banner" id="db-banner-doc" style="background-image:url('https://placehold.co/600x160/7b5e57/ffffff?text=Documents');"><span class="portal-card-tag">NEW</span></div>
+                    <div class="portal-card-banner" id="db-banner-doc" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/b7c59e577_generated_image.png');"><span class="portal-card-tag">NEW</span></div>
                     <div class="portal-card-info"><h3 id="db-title-doc">文書・史料データベース</h3><p id="db-desc-doc">行政文書・古文書などの総合検索。</p></div>
                 </div>
                 <div class="portal-nav-card animate-on-scroll" onclick="showPage('td')">
-                    <div class="portal-card-banner" id="db-banner-td" style="background-image:url('https://placehold.co/600x160/e67e22/ffffff?text=3D+Models');"><span class="portal-card-tag">3D ARCHIVE</span></div>
+                    <div class="portal-card-banner" id="db-banner-td" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/7d3cea7d4_generated_098e7415.png');"><span class="portal-card-tag">3D ARCHIVE</span></div>
                     <div class="portal-card-info"><h3 id="db-title-td">石造物データベース</h3><p id="db-desc-td">道標・石碑などの3Dモデルアーカイブ。</p></div>
                 </div>
                 <div class="portal-nav-card animate-on-scroll" onclick="showPage('nature-db')">
-                    <div class="portal-card-banner" id="db-banner-nature" style="background-image:url('https://placehold.co/600x160/228b22/ffffff?text=Nature');"><span class="portal-card-tag">NATURE</span></div>
+                    <div class="portal-card-banner" id="db-banner-nature" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/a92101bf2_generated_image.png');"><span class="portal-card-tag">NATURE</span></div>
                     <div class="portal-card-info"><h3 id="db-title-nature">自然系データベース</h3><p id="db-desc-nature">巨樹・地形・水路など、山科の自然環境に関する記録。</p></div>
                 </div>
                 <div class="portal-nav-card animate-on-scroll" onclick="showPage('oldroad-db')">
-                    <div class="portal-card-banner" id="db-banner-oldroad" style="background-image:url('https://placehold.co/600x160/20b2aa/ffffff?text=Old+Roads');"><span class="portal-card-tag">ROAD</span></div>
+                    <div class="portal-card-banner" id="db-banner-oldroad" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/4e03e14e0_generated_image.png');"><span class="portal-card-tag">ROAD</span></div>
                     <div class="portal-card-info"><h3 id="db-title-oldroad">古道データベース</h3><p id="db-desc-oldroad">里道・参道など、失われた・現存する古道の記録。</p></div>
                 </div>
                 <div class="portal-nav-card animate-on-scroll" onclick="showPage('building-db')">
-                    <div class="portal-card-banner" id="db-banner-building" style="background-image:url('https://placehold.co/600x160/ff8c00/ffffff?text=Buildings');"><span class="portal-card-tag">HERITAGE</span></div>
+                    <div class="portal-card-banner" id="db-banner-building" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/0e34bbbd4_generated_image.png');"><span class="portal-card-tag">HERITAGE</span></div>
                     <div class="portal-card-info"><h3 id="db-title-building">歴史的建造物データベース</h3><p id="db-desc-building">神社・寺院・町家など、山科の歴史的建造物を記録。</p></div>
                 </div>
             </div>
@@ -1264,7 +503,7 @@ label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; w
     <!-- ===== 自然系データベースページ ===== -->
     <div class="page" id="page-nature-db">
         <div class="scroll-container" style="padding:0; background:#f7f7f7;">
-            <div class="hero-section with-bg" style="background-image:url('https://placehold.co/1400x300/228b22/ffffff?text=Nature');"><h2>自然系データベース</h2><p>NATURAL HERITAGE &amp; ENVIRONMENT DATABASE</p></div>
+            <div class="hero-section with-bg" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/a92101bf2_generated_image.png');"><h2>自然系データベース</h2><p>NATURAL HERITAGE &amp; ENVIRONMENT DATABASE</p></div>
             <div class="db-search-panel">
                 <div class="search-row"><div class="search-field search-field-wide"><label>キーワード横断検索</label><input id="nature-search-q" placeholder="樹木・地形・水路など"></div></div>
                 <div class="search-row">
@@ -1293,7 +532,7 @@ label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; w
     <!-- ===== 古道データベースページ ===== -->
     <div class="page" id="page-oldroad-db">
         <div class="scroll-container" style="padding:0; background:#f7f7f7;">
-            <div class="hero-section with-bg" style="background-image:url('https://placehold.co/1400x300/20b2aa/ffffff?text=Old+Roads');"><h2>古道データベース</h2><p>HISTORICAL ROAD DATABASE</p></div>
+            <div class="hero-section with-bg" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/4e03e14e0_generated_image.png');"><h2>古道データベース</h2><p>HISTORICAL ROAD DATABASE</p></div>
             <div class="db-search-panel">
                 <div class="search-row"><div class="search-field search-field-wide"><label>キーワード横断検索</label><input id="oldroad-search-q" placeholder="里道・参道・国道など"></div></div>
                 <div class="search-row">
@@ -1323,7 +562,7 @@ label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; w
     <!-- ===== 歴史的建造物データベースページ ===== -->
     <div class="page" id="page-building-db">
         <div class="scroll-container" style="padding:0; background:#f7f7f7;">
-            <div class="hero-section with-bg" style="background-image:url('https://placehold.co/1400x300/ff8c00/ffffff?text=Buildings');"><h2>歴史的建造物データベース</h2><p>HISTORICAL BUILDINGS DATABASE</p></div>
+            <div class="hero-section with-bg" style="background-image:url('https://media.base44.com/images/public/6a3003d4a692b0d770d6d388/0e34bbbd4_generated_image.png');"><h2>歴史的建造物データベース</h2><p>HISTORICAL BUILDINGS DATABASE</p></div>
             <div class="db-search-panel">
                 <div class="search-row"><div class="search-field search-field-wide"><label>キーワード横断検索</label><input id="bldg-search-q" placeholder="神社・寺院・町家など"></div></div>
                 <div class="search-row">
@@ -2049,7 +1288,7 @@ function initMap() {
     let _chibanMoveDebounce = null;
     map.on('moveend', () => {
         clearTimeout(_chibanMoveDebounce);
-        _chibanMoveDebounce = setTimeout(() => { renderChibanLayer(); }, 200);
+        _chibanMoveDebounce = setTimeout(() => { renderChibanLayer({ fromMove: true }); }, 200);
     });
 
     const clusterIconFn = (cluster) => L.divIcon({
@@ -2679,14 +1918,8 @@ function getNatureStyle(row) {
 }
 
 function styledDivIcon(color, iconType) {
-    let inner;
-    if (iconType === 'manji') inner = '卍';
-    else if (iconType) inner = `<i class="fa-solid fa-${iconType}"></i>`;
-    else inner = '<i class="fa-solid fa-circle" style="font-size:0.6rem;"></i>';
-    return L.divIcon({
-        html: `<div style="width:30px;height:30px;background:${color};border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-size:0.9rem;">${inner}</div>`,
-        className: '', iconSize: [30, 30], iconAnchor: [15, 15]
-    });
+    const inner = iconType === 'manji' ? '卍' : (iconType ? `<i class="fa-solid fa-${iconType}"></i>` : '<i class="fa-solid fa-circle" style="font-size:0.5rem;"></i>');
+    return L.divIcon({ html: `<div class="sty-pin" style="--pin:${color}"><span>${inner}</span></div>`, className: '', iconSize: [32, 32], iconAnchor: [16, 27] });
 }
 
 function findChibanFeature(key) {
@@ -3246,6 +2479,12 @@ self.onmessage = function(e) {
 
             if (!merged) return;
             try { merged = turf.buffer(merged, -GAP_CLOSE_METERS, { units: 'meters' }) || merged; } catch (shrinkErr) {}
+            /* 統合後の形状は頂点数が非常に多いため、描画・メモリ負荷を下げる目的で簡略化する
+               （大字は約11m、小字は約4m以下のズレを無視。この縮尺では見た目はほぼ変わらない） */
+            try {
+                const simp = turf.simplify(merged, { tolerance: level === 'oaza' ? 0.0001 : 0.00004, highQuality: false, mutate: false });
+                if (simp && simp.geometry && simp.geometry.coordinates && simp.geometry.coordinates.length) merged = simp;
+            } catch (simpErr) {}
             /* 最後まで結合できなかった図形は、面を失わないようMultiPolygonとして残す
                （境界線が1本多く残ることはあるが、面が消えるよりはるかにまし） */
             if (stillLeftover.length) {
@@ -3391,6 +2630,7 @@ function bboxIntersectsMapBounds(bbox, bounds) {
      CHIBAN_ZOOM_BANCHI_LABEL以上のズームで一律に表示する
      （このズーム帯では通常十分な大きさがあるため）。
    ===================================================================== */
+const CHIBAN_LABEL_MAX_COUNT = 1500; /* 地番ラベルを出す上限件数（超えたら表示しない） */
 const CHIBAN_LABEL_FIXED_PX = 12; /* 全階層共通：画面に対して常に一定の大きさ */
 
 function getChibanLabelText(feature, level) {
@@ -3460,11 +2700,14 @@ function doesChibanLabelFit(text, feature, bbox, fontSizePx) {
    ポリゴン外にはみ出したりする。そこでturf.flattenで個々の部分に分解し、
    部分ごとに収まるかを判定して、同じテキストをそれぞれに表示する。 */
 function flattenFeatureParts(f) {
+    if (f._cachedParts) return f._cachedParts;   /* ズームのたびに再計算しないようキャッシュ */
+    let parts = [f];
     try {
         const flat = turf.flatten(f);
-        if (flat && flat.features && flat.features.length) return flat.features;
+        if (flat && flat.features && flat.features.length) parts = flat.features;
     } catch (e) { /* 分解できない場合は元のfeatureをそのまま1件として扱う */ }
-    return [f];
+    f._cachedParts = parts;
+    return parts;
 }
 
 function makeChibanLabelMarker(text, fontSizePx, lngLat) {
@@ -3489,6 +2732,8 @@ function buildChibanLabelLayer(features, level) {
            （ポリゴン自体が個別表示に切り替わるズームより1段階遅らせ、
            切り替え直後の混雑を避けている） */
         if (!map || map.getZoom() < CHIBAN_ZOOM_BANCHI_LABEL) return group;
+        /* ラベルは1件ごとにHTML要素になるため、多すぎるとき（広く表示しているとき）は出さない */
+        if (features.length > CHIBAN_LABEL_MAX_COUNT) return group;
         features.forEach(f => {
             const text = getChibanLabelText(f, level);
             if (!text) return;
@@ -3517,14 +2762,27 @@ function buildChibanLabelLayer(features, level) {
     return group;
 }
 
-async function renderChibanLayer() {
+/* 地番ポリゴンは数が多いため、Leaflet標準のSVG（1件=1個のHTML要素）ではなく
+   Canvas（1枚の画像に描画）で描く。これだけでメモリ・描画負荷が大幅に下がる。
+   他の強調表示ポリゴン（SVG）より下に表示して、そちらのクリックを妨げないよう専用paneに置く。 */
+let _chibanRenderer = null;
+function getChibanRenderer() {
+    if (!map.getPane('chibanPane')) { map.createPane('chibanPane').style.zIndex = 390; }
+    if (!_chibanRenderer) _chibanRenderer = L.canvas({ pane: 'chibanPane', padding: 0.5, tolerance: 2 });
+    return _chibanRenderer;
+}
+
+function clearChibanLayers() {
+    if (chibanLayer) { map.removeLayer(chibanLayer); chibanLayer = null; }
+    if (chibanLabelLayer) { map.removeLayer(chibanLabelLayer); chibanLabelLayer = null; }
+}
+
+/* opts.fromMove：パン（移動）による呼び出し。描画済みの範囲内ならやり直さない。 */
+async function renderChibanLayer(opts) {
+    const fromMove = !!(opts && opts.fromMove);
     if (!chibanGeoJSON || !map) return;
     const visibilityChk = document.getElementById('chk-chiban-layer-visible');
-    if (visibilityChk && !visibilityChk.checked) {
-        if (chibanLayer) { map.removeLayer(chibanLayer); chibanLayer = null; }
-        if (chibanLabelLayer) { map.removeLayer(chibanLabelLayer); chibanLabelLayer = null; }
-        return;
-    }
+    if (visibilityChk && !visibilityChk.checked) { clearChibanLayers(); return; }
 
     const level = currentChibanLevel();
     window._chibanRenderToken = (window._chibanRenderToken || 0) + 1;
@@ -3536,14 +2794,34 @@ async function renderChibanLayer() {
     /* 待機中にチェックボックスがオフにされていた場合も描画しない */
     if (visibilityChk && !visibilityChk.checked) return;
 
-    if (chibanLayer) map.removeLayer(chibanLayer);
-    if (chibanLabelLayer) map.removeLayer(chibanLabelLayer);
     const allFeatures = chibanHierarchy[level] || [];
-    /* 現在の表示範囲に重ならない図形は描画対象から除外し、大量描画による負荷を抑える */
+    const zoom = map.getZoom();
     const bounds = map.getBounds();
-    const features = allFeatures.filter(f => bboxIntersectsMapBounds(getFeatureBBoxCached(f), bounds));
+    const isBanchi = (level === 'banchi');
+    /* 描画済みのレイヤが「同じデータ・同じ階層」のものか */
+    const sameLayer = !!(chibanLayer && map.hasLayer(chibanLayer) && chibanLayer._chibanSrc === allFeatures && chibanLayer._chibanLevel === level);
+
+    /* 大字・小字：ポリゴンはどこを見ても同じなので、パンでは何もしない。
+       ズームだけが変わった場合（同じ階層内）は、ポリゴンは作り直さずラベルだけ更新する。 */
+    if (sameLayer && !isBanchi) {
+        if (fromMove) return;
+        if (chibanLabelLayer) map.removeLayer(chibanLabelLayer);
+        chibanLabelLayer = buildChibanLabelLayer(allFeatures, level).addTo(map);
+        return;
+    }
+    /* 地番：描画済みの範囲（表示範囲より広めに描いてある）にまだ収まっているパンでは作り直さない */
+    if (sameLayer && isBanchi && fromMove && chibanLayer._chibanZoom === zoom
+        && chibanLayer._chibanBounds && chibanLayer._chibanBounds.contains(bounds)) return;
+
+    clearChibanLayers();
+    /* 地番は、表示範囲より一回り広い範囲だけを描画対象にする（パンのたびに作り直さずに済む） */
+    const drawBounds = bounds.pad(0.5);
+    const features = isBanchi
+        ? allFeatures.filter(f => bboxIntersectsMapBounds(getFeatureBBoxCached(f), drawBounds))
+        : allFeatures;
     const style = CHIBAN_LEVEL_STYLE[level];
     chibanLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
+        renderer: getChibanRenderer(),
         style,
         onEachFeature: (feature, layer) => {
             layer.on('mouseover', function () { if (!layer._chibanActive) this.setStyle({ fillOpacity: Math.min(style.fillOpacity + 0.3, 0.6) }); });
@@ -3551,7 +2829,16 @@ async function renderChibanLayer() {
             layer.on('click', (e) => onChibanClick(feature, layer, e, level));
         }
     }).addTo(map);
-    chibanLabelLayer = buildChibanLabelLayer(features, level).addTo(map);
+    chibanLayer._chibanSrc = allFeatures;
+    chibanLayer._chibanLevel = level;
+    chibanLayer._chibanZoom = zoom;
+    chibanLayer._chibanBounds = drawBounds;
+
+    /* ラベルは、実際に見えている範囲のものだけ作る（地番は件数が多いため） */
+    const labelFeatures = isBanchi
+        ? features.filter(f => bboxIntersectsMapBounds(getFeatureBBoxCached(f), bounds))
+        : features;
+    chibanLabelLayer = buildChibanLabelLayer(labelFeatures, level).addTo(map);
 }
 
 function toggleChibanLayerVisibility() {
@@ -5172,12 +4459,7 @@ function openBookDetailModal(bookRow, targetRow, hitIds) {
         <div class="doc-modal-layout">
             <div class="doc-pdf-section">
                 <div class="pdf-viewer-scroll" id="pdf-viewer-scroll" dir="rtl"></div>
-                <div class="pdf-viewer-controls">
-                    <div class="pdf-nav-arrow" onclick="docPageArrowNext()" title="次のページへ進む"><i class="fa-solid fa-chevron-left"></i></div>
-                    <div class="pdf-slider-wrap"><input type="range" id="pdf-page-slider" min="1" max="1" value="1" oninput="docSliderInput(this.value)"></div>
-                    <div class="pdf-nav-arrow" onclick="docPageArrowPrev()" title="前のページへ戻る"><i class="fa-solid fa-chevron-right"></i></div>
-                    <div class="pdf-page-counter" id="pdf-page-counter">読込中 / －</div>
-                </div>
+                <div class="pdf-viewer-controls"><span class="pdf-page-counter" id="pdf-page-counter">読込中 / －</span></div>
             </div>
             <div class="info-section-wrapper" id="modal-info-wrapper">
                 <div class="modal-pane-toggle" onclick="toggleModalPanel()"><i class="fa-solid fa-chevron-right" id="modal-pane-toggle-icon"></i></div>
@@ -6871,12 +6153,7 @@ function openDocDetailModal(row) {
         <div class="doc-modal-layout">
             <div class="doc-pdf-section">
                 <div class="pdf-viewer-scroll" id="pdf-viewer-scroll" dir="rtl"></div>
-                <div class="pdf-viewer-controls">
-                    <div class="pdf-nav-arrow" onclick="docPageArrowNext()" title="次のページへ進む"><i class="fa-solid fa-chevron-left"></i></div>
-                    <div class="pdf-slider-wrap"><input type="range" id="pdf-page-slider" min="1" max="1" value="1" oninput="docSliderInput(this.value)"></div>
-                    <div class="pdf-nav-arrow" onclick="docPageArrowPrev()" title="前のページへ戻る"><i class="fa-solid fa-chevron-right"></i></div>
-                    <div class="pdf-page-counter" id="pdf-page-counter">読込中 / －</div>
-                </div>
+                <div class="pdf-viewer-controls"><span class="pdf-page-counter" id="pdf-page-counter">読込中 / －</span></div>
             </div>
             <div class="info-section-wrapper" id="modal-info-wrapper">
                 <div class="modal-pane-toggle" onclick="toggleModalPanel()"><i class="fa-solid fa-chevron-right" id="modal-pane-toggle-icon"></i></div>
@@ -7399,27 +6676,9 @@ function closeBeforeAfter() { document.getElementById('before-after-overlay').st
 /* =====================================================================
    ■80 window公開・初期化機能
    ===================================================================== */
-window.openDetail = openDetail;
-window.closeModal = closeModal;
-window.openFullScreenImage = openFullScreenImage;
-window.closeFullScreenImage = closeFullScreenImage;
-window.showPage = showPage;
-window.requestLocation = requestLocation;
-window.open3DDetail = open3DDetail;
-
-window.onload = () => {
-    initMap();
-    loadPhotoData();
-    load3DData();
-    loadPortalConfig();
-    loadMapData();
-    loadBuildingData();
-    loadNatureData();
-    loadOldRoadData();
-    loadDocData();
-    loadBookData();
-    initCarousel();
-};
+Object.assign(window, { openDetail, closeModal, openFullScreenImage, closeFullScreenImage, showPage, requestLocation, open3DDetail });
+window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConfig(); loadMapData(); loadBuildingData(); loadNatureData(); loadOldRoadData(); loadDocData(); loadBookData(); initCarousel(); try { initScrollFX(); } catch (e) {} try { buildTimelineWhenReady(); } catch (e) {} };
 </script>
+<script src="storytelling.js"></script>
 </body>
 </html>
