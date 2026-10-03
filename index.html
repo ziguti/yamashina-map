@@ -1036,8 +1036,9 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
     box-shadow: 0 4px 10px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; font-size: 0.82rem;
 }
 .sty-pin span { transform: rotate(45deg); display: flex; align-items: center; justify-content: center; line-height: 1; }
-.sty-pin::after { content: ''; position: absolute; inset: -6px; border-radius: 50% 50% 50% 0; border: 2px solid var(--pin, #8a6a3b); opacity: 0.5; animation: sty-pin-pulse 2.4s ease-out infinite; }
-@keyframes sty-pin-pulse { 0% { transform: scale(0.85); opacity: 0.5; } 70%, 100% { transform: scale(1.25); opacity: 0; } }
+.sty-pin::after { content: ''; position: absolute; inset: -6px; border-radius: 50% 50% 50% 0; border: 2px solid var(--pin, #8a6a3b); opacity: 0.3; }
+/* 以前は全ピンが常時パルスのアニメーションをしていたため、ピンが多いほど地図の操作が重くなっていた。静止した輪にして、ホバー時だけ強調する */
+.leaflet-marker-icon:hover .sty-pin::after { opacity: 0.6; }
 
 /* ---- 写真ピン：金縁の石版トーンに ---- */
 .marker-photo-pin { box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 0 2px rgba(255,253,247,0.65); }
@@ -1160,6 +1161,13 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
 .tl-chip.active.kind-book { background: #6b4a8a; }
 .tl-chip.active.kind-map { background: #a8874c; }
 .timeline-decade { content-visibility: auto; contain-intrinsic-size: auto 640px; }
+
+/* ---- 地図操作の軽量化 ---- */
+.leaflet-marker-icon:hover { z-index: 100000 !important; }
+.marker-wrapper { transition: scale 0.12s ease; }
+.leaflet-marker-icon:hover .marker-wrapper { scale: 1.2; }
+.map-zooming .leaflet-marker-icon { pointer-events: none !important; }
+.map-zooming .marker-wrapper, .map-zooming .marker-3d-pin-circle { transition: none !important; }
 </style>
 </head>
 <body>
@@ -2233,37 +2241,280 @@ function closeChibanPanel() {
 </script>
 <script>
 /* =====================================================================
-   ■12b 古地図タイル：ネイティブ最大ズームの一度きりの自動補正
+   ■マップ操作の軽量化・滑らかなズーム・タイルの拡大表示（過拡大）対応
    -------------------------------------------------------------------
-   これまでは各タイルを独自のJavaScript（canvas）で1枚ずつ読み込み・
-   合成していたが、これがPCでの「ズーム時に一瞬タイルが消える」
-   原因だった。PCは画面が大きく一度に表示されるタイル枚数が多いため、
-   独自処理の読み込みが束になって走り、全部が揃うまでの隙間が
-   目立っていた（スマホは表示タイル数が少なく目立たなかった）。
-
-   地理院地図の基本タイル（フリッカーが起きていない）は、Leaflet標準の
-   L.tileLayer＋maxNativeZoomオプションだけで動いている。そこで古地図
-   タイルもこの標準の仕組みに一本化する。Leaflet自身がブラウザの画像
-   読み込み・ズームアニメーションと一体で最適化しているため、独自実装
-   より確実に滑らかで、フリッカーも起きない。
-
-   ただし、各史料の実際の最大ズーム（maxNativeZoom）は史料ごとに
-   バラバラで未検証。かといって、
-     ・事前にズームを1つずつ探るような余計な通信（探索）は増やしたくない
-     ・タイル読み込み失敗のたびに毎回、設定を下げるような処理は、
-       史料のカバー範囲外（そもそも地図がないエリア）に対しても
-       誤反応して不安定になった過去の反省がある
-   ため、次の一度きりの単純なルールだけで自動補正する。
-
-   「これまでに実際に読み込めた最大のズームdより1段階だけ深いズームで
-   初めて404が起きたら、そのレイヤの実際の最大ネイティブズームはdだった
-   と判断し、maxNativeZoomにdを設定して1回だけredrawする」
-
-   これにより、余計な通信は増やさず（＝実際にユーザーがズームした分だけ）、
-   史料のカバー範囲外のタイルが失敗しても補正のきっかけにはならず
-   （＝「未確認の一段深いズーム」でない限り無視される）、補正後は
-   完全にLeaflet標準の仕組みに委ねられる。
+   (1) 滑らかなホイールズーム
+       Leaflet標準は「1段階ずつ」ズームが固定されて動くため、カクカクして見える。
+       ここではホイール操作を毎フレームのズーム量に変換し、マウスカーソルの位置を
+       基準に連続的（小数ズーム）にスーッと拡大縮小する（スマホのピンチと同じ仕組み）。
+   (2) タイルの「無い所は上位ズームのタイルを拡大して表示」
+       以前は「これまで読めた最大ズーム」を推測してそれ以上を引き伸ばしていたが、
+       推測が外れると、実際には存在する高ズームのタイルまで表示されなくなっていた。
+       今は常に現在のズームのタイルを探し、無いタイルだけ上位ズームを拡大して補う。
+   (3) 範囲外のピンを描画しない（DOMの数を減らす）
    ===================================================================== */
+
+/* ---------- (1) 滑らかなホイールズーム ---------- */
+L.Map.mergeOptions({ smoothWheelZoom: false, smoothSensitivity: 1.5 });   /* 既定はオフ（ミニマップ等は標準のまま）。メインマップだけ initMap で有効化する */
+L.Map.SmoothWheelZoom = L.Handler.extend({
+    addHooks: function () { L.DomEvent.on(this._map.getContainer(), 'wheel', this._onWheel, this); },
+    removeHooks: function () { L.DomEvent.off(this._map.getContainer(), 'wheel', this._onWheel, this); this._finish(); },
+
+    _onWheel: function (e) {
+        const map = this._map;
+        let delta = L.DomEvent.getWheelDelta(e);
+        if (!delta) return;
+        L.DomEvent.preventDefault(e);
+        L.DomEvent.stopPropagation(e);
+        if (map._animatingZoom) return;                 /* ボタン等のズームアニメーション中は無視 */
+        if (e.ctrlKey) delta *= 5;                      /* トラックパッドのピンチ（ctrl+ホイール）は変化量が小さいため増幅 */
+        if (!this._active) this._begin();
+        this._mouse = map.mouseEventToContainerPoint(e);
+        this._anchor = map.containerPointToLatLng(this._mouse);   /* カーソルの下にある地点を基準にする */
+        this._last = Date.now();
+        const goal = (this._goal === undefined ? map.getZoom() : this._goal) + delta * 0.004 * map.options.smoothSensitivity;
+        this._goal = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), goal));
+        if (!this._raf) this._raf = L.Util.requestAnimFrame(this._tick, this);
+    },
+
+    _begin: function () {
+        const map = this._map;
+        map._stop();
+        this._active = true;
+        this._moved = false;
+        this._goal = map.getZoom();
+        L.DomUtil.addClass(map.getContainer(), 'map-zooming');
+    },
+
+    _tick: function () {
+        this._raf = null;
+        if (!this._active) return;
+        const map = this._map;
+        const cur = map.getZoom();
+        const diff = this._goal - cur;
+        const nz = Math.abs(diff) < 0.003 ? this._goal : cur + diff * 0.22;   /* 目標へ近づくほど減速（滑るような動き） */
+        if (nz !== cur) {
+            const offset = this._mouse.subtract(map.getSize().divideBy(2));
+            const center = map.unproject(map.project(this._anchor, nz).subtract(offset), nz);
+            if (!this._moved) { map._moveStart(true, false); this._moved = true; }
+            map._move(center, nz, { pinch: true, round: false });
+        }
+        if (Math.abs(this._goal - nz) < 0.003 && Date.now() - this._last > 120) { this._finish(); return; }
+        this._raf = L.Util.requestAnimFrame(this._tick, this);
+    },
+
+    _finish: function () {
+        if (!this._active) return;
+        const map = this._map;
+        this._active = false;
+        if (this._raf) { L.Util.cancelAnimFrame(this._raf); this._raf = null; }
+        this._goal = undefined;
+        L.DomUtil.removeClass(map.getContainer(), 'map-zooming');
+        if (this._moved) map._moveEnd(true);            /* ここでタイル・ピンの再配置（zoomend / moveend）が走る */
+        this._moved = false;
+    }
+});
+L.Map.addInitHook('addHandler', 'smoothWheelZoom', L.Map.SmoothWheelZoom);
+
+/* ---------- (2) タイルの過拡大（無いタイルは上位ズームを拡大表示） ---------- */
+const TILE_MISS_TTL_MS = 5 * 60 * 1000;     /* 「無かった」記録の有効期間（通信エラーで永久に無扱いにならないように） */
+const TILE_EMPTY_ZOOM_FAILS = 20;           /* このズームで成功ゼロのまま失敗がこの数に達したら「このズームはほぼ無い」と見なす */
+
+const FallbackTileMixin = {
+    options: { maxFallbackDepth: 6 },
+
+    _fbInit: function () {
+        this._missing = {};      /* "z/x/y" → 無いと分かった時刻 */
+        this._zStat = {};        /* ズーム → { ok, fail } */
+    },
+    _stat: function (z) { return this._zStat[z] || (this._zStat[z] = { ok: 0, fail: 0 }); },
+    _noteHit: function (z) {
+        const st = this._stat(z);
+        const wasEmpty = st.ok === 0 && st.fail >= TILE_EMPTY_ZOOM_FAILS;
+        st.ok++;
+        if (wasEmpty) {   /* 「ほぼ無い」と見なしていたズームで実際に見つかった → 引き伸ばしていた分を描き直す */
+            clearTimeout(this._fbRedraw);
+            this._fbRedraw = setTimeout(() => { if (this._map) this.redraw(); }, 60);
+        }
+    },
+    _noteMiss: function (z, key) {
+        this._stat(z).fail++;
+        this._missing[key] = Date.now();
+        if (Object.keys(this._missing).length > 30000) this._missing = {};
+    },
+    _isMissing: function (key) {
+        const t = this._missing[key];
+        if (!t) return false;
+        if (Date.now() - t > TILE_MISS_TTL_MS) { delete this._missing[key]; return false; }
+        return true;
+    },
+    /* そのズームが「ほぼ無い」と分かっている場合は、10枚に1枚だけ確認用に試し、残りは最初から上位ズームを使う */
+    _skipLevel: function (z, x, y) {
+        const st = this._zStat[z];
+        return !!st && st.ok === 0 && st.fail >= TILE_EMPTY_ZOOM_FAILS && ((x + y) % 10 !== 0);
+    },
+
+    createTile: function (coords, done) {
+        const layer = this;
+        const size = this.getTileSize().x;
+        const wrap = document.createElement('div');
+        wrap.style.overflow = 'hidden';
+        const img = document.createElement('img');
+        img.alt = '';
+        img.draggable = false;
+        if (this.options.crossOrigin || this.options.crossOrigin === '') img.crossOrigin = this.options.crossOrigin === true ? '' : this.options.crossOrigin;
+        img.style.position = 'absolute';
+        wrap.appendChild(img);
+
+        let depth = 0, finished = false, cancelled = false, controller = null;
+        wrap._done = false;
+        wrap._cancel = function () {
+            cancelled = true;
+            if (controller) { try { controller.abort(); } catch (e) {} }
+            img.onload = img.onerror = null;
+            img.src = L.Util.emptyImageUrl;
+        };
+
+        function place(k, ax, ay) {   /* 上位ズームk段階ぶんの画像のうち、このタイルに当たる部分だけを表示する */
+            if (k === 0) {
+                img.style.width = '100%'; img.style.height = '100%'; img.style.left = '0'; img.style.top = '0';
+            } else {
+                const f = Math.pow(2, k);
+                img.style.width = (size * f) + 'px'; img.style.height = (size * f) + 'px';
+                img.style.left = (-(coords.x - ax * f) * size) + 'px';
+                img.style.top = (-(coords.y - ay * f) * size) + 'px';
+            }
+        }
+        function finish(err) {
+            if (finished) return;
+            finished = true; wrap._done = true;
+            done(err || null, wrap);
+        }
+        function release(src) { if (src && String(src).indexOf('blob:') === 0) { try { URL.revokeObjectURL(src); } catch (e) {} } }
+
+        function attempt() {
+            if (cancelled || finished) return;
+            const k = depth, z = coords.z - k;
+            if (z < 0 || k > layer.options.maxFallbackDepth) { finish(new Error('tile not found')); return; }
+            const f = Math.pow(2, k);
+            const ax = Math.floor(coords.x / f), ay = Math.floor(coords.y / f);
+            const key = z + '/' + ax + '/' + ay;
+            if (layer._isMissing(key) || layer._skipLevel(z, ax, ay)) { depth++; attempt(); return; }
+            controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+            Promise.resolve(layer._resolveTileSrc(z, ax, ay, controller && controller.signal)).then(function (src) {
+                if (cancelled) { release(src); return; }
+                if (!src) { layer._noteMiss(z, key); depth++; attempt(); return; }
+                img.onload = function () {
+                    if (cancelled) return;
+                    release(src);
+                    layer._noteHit(z);
+                    place(k, ax, ay);
+                    finish(null);
+                };
+                img.onerror = function () {
+                    if (cancelled) return;
+                    release(src);
+                    layer._noteMiss(z, key);
+                    depth++; attempt();
+                };
+                img.src = src;
+            }, function () {
+                if (cancelled) return;
+                layer._noteMiss(z, key);
+                depth++; attempt();
+            });
+        }
+        attempt();
+        return wrap;
+    },
+
+    _removeTile: function (key) {
+        const t = this._tiles[key];
+        if (t && t.el && t.el._cancel) t.el._cancel();
+        return L.GridLayer.prototype._removeTile.call(this, key);
+    },
+    _abortLoading: function () {
+        for (const i in this._tiles) {
+            const t = this._tiles[i];
+            if (t.coords.z !== this._tileZoom && t.el && !t.el._done) {
+                if (t.el._cancel) t.el._cancel();
+                L.DomUtil.remove(t.el);
+                delete this._tiles[i];
+                this.fire('tileabort', { tile: t.el, coords: t.coords });
+            }
+        }
+    }
+};
+
+/* 通常のXYZタイル（{z}/{x}/{y}形式のURL）用 */
+const FallbackTileLayer = L.TileLayer.extend(Object.assign({}, FallbackTileMixin, {
+    initialize: function (url, options) {
+        L.TileLayer.prototype.initialize.call(this, url, options);
+        this._fbInit();
+    },
+    _urlFor: function (z, x, y) {
+        const o = this.options, n = Math.pow(2, z);
+        const data = {
+            r: L.Browser.retina ? '@2x' : '',
+            s: this._getSubdomain({ x: x, y: y }),
+            x: x, y: o.tms ? (n - 1 - y) : y,
+            z: (o.zoomReverse ? o.maxZoom - z : z) + (o.zoomOffset || 0)
+        };
+        data['-y'] = n - 1 - y;
+        return L.Util.template(this._url, L.Util.extend(data, o));
+    },
+    _resolveTileSrc: function (z, x, y) { return this._urlFor(z, x, y); }
+}));
+
+/* pmtiles（単一ファイルのタイルアーカイブ）用：ライブラリが作ったレイヤの「タイルの作り方」だけを差し替える */
+function applyFallbackToPmtilesLayer(tl, archive) {
+    /* options は上書きせず（レイヤ本来の設定を壊さない）、メソッドだけを差し込む */
+    Object.keys(FallbackTileMixin).forEach(function (k) { if (k !== 'options') tl[k] = FallbackTileMixin[k]; });
+    tl.options.maxFallbackDepth = 6;
+    tl._fbInit();
+    tl._resolveTileSrc = function (z, x, y, signal) {
+        return archive.getZxy(z, x, y, signal).then(function (res) {
+            if (!res || !res.data) return null;
+            const h = tl._pmtilesHeader;
+            const mime = h ? ({ 2: 'image/png', 3: 'image/jpeg', 4: 'image/webp', 5: 'image/avif' })[h.tileType] : undefined;
+            return URL.createObjectURL(new Blob([res.data], mime ? { type: mime } : undefined));
+        });
+    };
+    return tl;
+}
+
+/* ---------- (3) 範囲外のピンを描画しない（DOMの数を減らす） ---------- */
+const CullingGroup = L.LayerGroup.extend({
+    onAdd: function (map) {
+        map.on('moveend zoomend', this._sync, this);
+        this._sync();
+    },
+    onRemove: function (map) {
+        map.off('moveend zoomend', this._sync, this);
+        this.eachLayer(map.removeLayer, map);
+    },
+    addLayer: function (layer) {
+        const id = this.getLayerId(layer);
+        this._layers[id] = layer;
+        if (this._map && this._shouldShow(layer, this._viewBounds())) this._map.addLayer(layer);
+        return this;
+    },
+    _viewBounds: function () { return this._map.getBounds().pad(0.6); },
+    _shouldShow: function (layer, bounds) {
+        return !(layer instanceof L.Marker) || bounds.contains(layer.getLatLng());
+    },
+    _sync: function () {
+        const map = this._map;
+        if (!map) return;
+        const b = this._viewBounds();
+        this.eachLayer(function (l) {
+            const show = this._shouldShow(l, b), on = map.hasLayer(l);
+            if (show && !on) map.addLayer(l);
+            else if (!show && on) map.removeLayer(l);
+        }, this);
+    }
+});
+
 /* スプレッドシートの「地図タイルURL」列が .pmtiles で終わる（またはpmtiles://で始まる）
    単一ファイルURLの場合は、通常のXYZタイルURL（{z}/{x}/{y}形式）ではなく
    pmtilesアーカイブなので、L.tileLayerではなくpmtilesライブラリの
@@ -2272,27 +2523,6 @@ function isPmtilesUrl(url) {
     if (!url) return false;
     const u = String(url).trim();
     return /\.pmtiles(\?[^?]*)?$/i.test(u) || /^pmtiles:\/\//i.test(u);
-}
-
-/* 通常のXYZタイル・pmtilesラスタタイルの両方に共通の自動補正
-   （■12b参照：実際に確認できた最大ズームの1段階先で初めて失敗したら、
-   そこがそのレイヤの実際の最大ネイティブズームだったと判断する） */
-function applyAutoMaxNativeZoomCorrection(tl) {
-    let maxSuccessZ = -1;
-    let corrected = false;
-
-    tl.on('tileload', (e) => {
-        if (corrected) return;
-        if (e.coords.z > maxSuccessZ) maxSuccessZ = e.coords.z;
-    });
-    tl.on('tileerror', (e) => {
-        if (corrected) return;
-        if (maxSuccessZ >= 0 && e.coords.z === maxSuccessZ + 1) {
-            corrected = true;
-            tl.options.maxNativeZoom = maxSuccessZ;
-            tl.redraw();
-        }
-    });
 }
 
 /* pmtilesアーカイブからLeaflet用ラスタレイヤを作る。
@@ -2305,6 +2535,7 @@ function createPmtilesRasterLayer(url, opts) {
     const cleanUrl = String(url).trim().replace(/^pmtiles:\/\//i, '');
     const archive = new pmtiles.PMTiles(cleanUrl);
     const tl = pmtiles.leafletRasterLayer(archive, opts);
+    applyFallbackToPmtilesLayer(tl, archive);   /* タイルが欠けている所は上位ズームを拡大して補う */
     tl._isPmtiles = true;
     tl._pmtilesReady = archive.getHeader().then(h => {
         tl._pmtilesHeader = h;
@@ -2332,27 +2563,24 @@ function jumpToTileLayerBounds(tl) {
 }
 
 function createHistoricalTileLayer(url, options) {
-    const opts = Object.assign({ keepBuffer: 4 }, options);
+    /* keepBuffer：画面外に残しておくタイルの量（多いほどメモリを使う）。updateWhenIdle=false：移動中も順次タイルを読み込む */
+    const opts = Object.assign({ keepBuffer: 2, updateInterval: 120, updateWhenIdle: false }, options);
     const trimmedUrl = (url || '').trim();
 
     if (isPmtilesUrl(trimmedUrl)) {
         try {
-            /* pmtilesは実在ズームをヘッダーから正確に取得できるため、
-               XYZタイル用の自動補正（tileload/tileerrorによる推定）は使わない
-               （タイルが存在しない場合もpmtiles側ではエラーにならず、推定を誤らせるため） */
+            /* pmtilesは実在ズームの上限をヘッダーから正確に取得できる。タイルが欠けている所は、
+               createPmtilesRasterLayer内で上位ズームのタイルを拡大して補う */
             return createPmtilesRasterLayer(trimmedUrl, opts);
         } catch (e) {
             console.error('pmtilesアーカイブの読み込みに失敗しました:', trimmedUrl, e);
             /* 失敗時も画面がエラーで止まらないよう、空のタイルレイヤにフォールバックする */
-            const fallback = L.tileLayer('', opts);
-            applyAutoMaxNativeZoomCorrection(fallback);
-            return fallback;
+            return new FallbackTileLayer('', opts);
         }
     }
 
-    const tl = L.tileLayer(trimmedUrl, opts);
-    applyAutoMaxNativeZoomCorrection(tl);
-    return tl;
+    /* 通常のXYZタイル：現在のズームのタイルを常に探し、無いタイルだけ上位ズームを拡大して補う */
+    return new FallbackTileLayer(trimmedUrl, opts);
 }
 
 /* =====================================================================
@@ -2362,10 +2590,12 @@ function initMap() {
     map = L.map('map', {
         zoomControl: false,
         maxZoom: 22,
-        zoomSnap: 1,
+        zoomSnap: 0,                 /* ズームを整数に固定しない（小数ズーム＝Googleマップのような連続的な拡大縮小） */
         zoomDelta: 1,
-        wheelPxPerZoomLevel: 60,
-        wheelDebounceTime: 40,
+        scrollWheelZoom: false,      /* 標準のホイールズーム（1段階ずつ）は使わず、下の滑らかなホイールズームを使う */
+        smoothWheelZoom: true,
+        smoothSensitivity: 1.5,      /* 大きいほど少ない回転で大きくズームする */
+        bounceAtZoomLimits: false,
         zoomAnimation: true,
         fadeAnimation: true,
         inertia: true,
@@ -2388,8 +2618,9 @@ function initMap() {
         minZoom: 2,
         maxNativeZoom: 18,
         maxZoom: 22,
-        updateWhenZooming: false,
-        keepBuffer: 4,
+        keepBuffer: 2,
+        updateInterval: 120,
+        updateWhenIdle: false,
         attribution: '地理院タイル'
     }).addTo(map);
 
@@ -2435,23 +2666,27 @@ function initMap() {
         className: 'marker-cluster marker-cluster-photo-custom',
         iconSize: L.point(40, 40)
     });
+    /* animate:false … ズームのたびにピンが飛び散る／集まるアニメーションを止めて、操作の引っかかりを減らす */
     photoClusterGroup = L.markerClusterGroup({
         disableClusteringAtZoom: 17, maxClusterRadius: 50, maxZoom: 22,
+        animate: false, animateAddingMarkers: false,
         iconCreateFunction: clusterIconFn
     });
     modelClusterGroup = L.markerClusterGroup({
         disableClusteringAtZoom: 17, maxClusterRadius: 50, maxZoom: 22,
+        animate: false, animateAddingMarkers: false,
         iconCreateFunction: (cluster) => L.divIcon({
             html: '<div>' + cluster.getChildCount() + '</div>',
             className: 'marker-cluster marker-cluster-model',
             iconSize: L.point(40, 40)
         })
     });
-    natureLayerGroup = L.layerGroup();
-    oldRoadLayerGroup = L.layerGroup();
-    buildingLayerGroup = L.layerGroup();
-    docLayerGroup = L.layerGroup();
-    bookLayerGroup = L.layerGroup();
+    /* 画面の範囲外にあるピンは地図に載せない（ピンが多いほど操作が重くなるのを防ぐ）。範囲に入ると自動で表示される */
+    natureLayerGroup = new CullingGroup();
+    oldRoadLayerGroup = new CullingGroup();
+    buildingLayerGroup = new CullingGroup();
+    docLayerGroup = new CullingGroup();
+    bookLayerGroup = new CullingGroup();
     chibanSearchLayerGroup = L.layerGroup();
 
     [photoClusterGroup, modelClusterGroup, natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup, bookLayerGroup, chibanSearchLayerGroup]
@@ -2871,8 +3106,6 @@ function addPhotoMarkersToMainMap(data) {
         });
         const marker = L.marker([p.lat, p.lng], { icon });
         marker.on('click', () => openPhotoDetailPanel(p, angle, color));
-        marker.on('mouseover', function () { this.setIcon(L.divIcon({ html: icon.options.html, className: '', iconSize: [53, 53], iconAnchor: [26, 26] })); this.setZIndexOffset(1000); });
-        marker.on('mouseout', function () { this.setIcon(icon); this.setZIndexOffset(0); });
         markers.push(marker);
     });
     photoClusterGroup.addLayers(markers);
