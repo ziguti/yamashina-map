@@ -1139,6 +1139,27 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
     .fx-reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
     .fx-kenburns, .sty-pin::after { animation: none !important; }
 }
+
+/* ---- 年表：種類別の色・絞り込みチップ・描画負荷の軽減 ---- */
+.timeline-kind.kind-photo { background: #3a2a23; }
+.timeline-kind.kind-building { background: #8d3b2e; }
+.timeline-kind.kind-nature { background: #3f7d4e; }
+.timeline-kind.kind-oldroad { background: #7a5a2e; }
+.timeline-kind.kind-doc { background: #3b5a80; }
+.timeline-kind.kind-book { background: #6b4a8a; }
+.timeline-kind.kind-map { background: #a8874c; }
+.tl-filter { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 1020px; margin: 22px auto 0; padding: 0 16px; }
+.tl-chip { font-family: var(--font-sans); font-size: 0.72rem; letter-spacing: 0.08em; padding: 6px 12px; border: 1px solid var(--paper-line); background: transparent; color: var(--text-muted); cursor: pointer; transition: var(--transition); }
+.tl-chip small { margin-left: 6px; opacity: 0.75; }
+.tl-chip.active { color: #fffdf7; border-color: transparent; background: var(--primary-brown); }
+.tl-chip.active.kind-3d { background: #e07b00; }
+.tl-chip.active.kind-building { background: #8d3b2e; }
+.tl-chip.active.kind-nature { background: #3f7d4e; }
+.tl-chip.active.kind-oldroad { background: #7a5a2e; }
+.tl-chip.active.kind-doc { background: #3b5a80; }
+.tl-chip.active.kind-book { background: #6b4a8a; }
+.tl-chip.active.kind-map { background: #a8874c; }
+.timeline-decade { content-visibility: auto; contain-intrinsic-size: auto 640px; }
 </style>
 </head>
 <body>
@@ -3542,91 +3563,107 @@ function detectChibanHierarchyKeys(props) {
    ===================================================================== */
 const CHIBAN_WORKER_SRC = `
 self.importScripts('https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js');
-self.onmessage = function(e) {
-    const requestId = e.data.requestId, level = e.data.level, groups = e.data.groups;
-    /* 隣接する地番同士でも、デジタイズ精度の関係でごくわずかな隙間が残っていると
-       turf.unionが「隣接している」と判定できず、本来消えるべき境界線が残ってしまう。
-       これを避けるため、統合前にバッファ（膨張）で隙間を埋めてからunionし、
-       統合後に同じ量だけ収縮させて戻す（buffer-union-unbuffer方式）。
+/* ポリゴン結合を「まとめて1回」で行える軽量ライブラリ。読み込めなかった場合は turf.union で代替する */
+var HAS_PC = false;
+try { self.importScripts('https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.min.js'); HAS_PC = (typeof polygonClipping !== 'undefined'); } catch (e) { HAS_PC = false; }
 
-       速度と精度を両立するため、次の2段構えにしている。
-       ・通常はすべてのfeatureに対して最初に1回だけバッファをかけてから結合する
-         （高速。ほとんどの隣接ペアはこれだけで正しく結合できる）
-       ・それでも結合できなかった少数のfeatureだけ、より大きいバッファで
-         個別に再挑戦する（対象が少数なので低コスト。以前の版のように
-         結合が進んで大きくなったmerged形状全体へバッファをかけ直すことはしない）
-       ・それでも結合できないものだけ、面を失わないようMultiPolygonとして残す */
-    const GAP_CLOSE_METERS = 1.0;
-    const GAP_CLOSE_RETRY_METERS = 3.0;
+/* 隣接する地番同士でも、デジタイズ精度の関係でごくわずかな隙間が残っていると境界線が消えない。
+   そこで、各地番を少しだけ膨らませて隙間を埋めてから結合し、結合後に同じ量だけ縮める。
+   ・1件ずつ順番に結合していく方式は、結合結果が大きくなるほど1回ごとが遅くなり、メモリも大量に消費していた
+   ・今回は、近い地番どうしを少数ずつまとめて一度に結合し、その結果をさらにまとめる（途中の形状は小さいまま保つ） */
+var GAP_CLOSE_METERS = 1.0;
+var CHUNK_SIZE = 150;
 
-    function bufferSimplify(f, meters) {
-        try {
-            let g = turf.simplify(f, { tolerance: 0.00003, highQuality: false, mutate: false });
-            try { g = turf.buffer(g, meters, { units: 'meters' }); } catch (bufErr) {}
-            return g;
-        } catch (err) { return f; }
-    }
-
+function toMulti(geom) {
+    if (!geom) return null;
+    if (geom.type === 'Polygon') return [geom.coordinates];
+    if (geom.type === 'MultiPolygon') return geom.coordinates;
+    return null;
+}
+function firstPoint(geom) {
     try {
-        const result = [];
-        Object.keys(groups).forEach(function (key) {
-            const feats = groups[key];
-            const prepared = feats.map(function (f) { return bufferSimplify(f, GAP_CLOSE_METERS); });
+        if (geom.type === 'Polygon') return geom.coordinates[0][0];
+        if (geom.type === 'MultiPolygon') return geom.coordinates[0][0][0];
+    } catch (e) {}
+    return null;
+}
+function prepareGeom(geom) {
+    var f = { type: 'Feature', properties: {}, geometry: geom };
+    var g = f;
+    try { g = turf.simplify(f, { tolerance: 0.00003, highQuality: false, mutate: false }); } catch (e) { g = f; }
+    try {
+        var b = turf.buffer(g, GAP_CLOSE_METERS, { units: 'meters', steps: 1 });
+        if (b && b.geometry) g = b;
+    } catch (e) {}
+    return toMulti(g.geometry);
+}
+function unionList(list) {
+    if (!list.length) return [];
+    if (list.length === 1) return list[0];
+    if (HAS_PC) {
+        try { return polygonClipping.union.apply(null, list); }
+        catch (err) {
+            /* 一部の図形が原因で失敗した場合は、半分ずつに分けて再挑戦し、最後まで失敗した部分は面を失わないよう並べて残す */
+            var mid = list.length >> 1;
+            var a = unionList(list.slice(0, mid)), b = unionList(list.slice(mid));
+            try { return polygonClipping.union(a, b); } catch (err2) { return a.concat(b); }
+        }
+    }
+    var m = list[0];
+    for (var i = 1; i < list.length; i++) {
+        try {
+            var u = turf.union(turf.multiPolygon(m), turf.multiPolygon(list[i]));
+            if (u && u.geometry) m = (u.geometry.type === 'Polygon') ? [u.geometry.coordinates] : u.geometry.coordinates;
+            else m = m.concat(list[i]);
+        } catch (e) { m = m.concat(list[i]); }
+    }
+    return m;
+}
+function dissolveGeoms(geoms, level) {
+    /* 近くにある地番どうしが同じまとまりに入るよう、位置順に並べる */
+    var items = [];
+    geoms.forEach(function (g) {
+        var c = firstPoint(g);
+        items.push({ g: g, row: c ? Math.floor(c[1] * 1500) : 0, lon: c ? c[0] : 0 });
+    });
+    items.sort(function (a, b) { return (a.row - b.row) || (a.lon - b.lon); });
 
-            let merged = prepared[0];
-            const leftoverRaw = [];
-            for (let i = 1; i < prepared.length; i++) {
-                try {
-                    const u = turf.union(merged, prepared[i]);
-                    if (u) merged = u; else leftoverRaw.push(feats[i]);
-                } catch (err) {
-                    leftoverRaw.push(feats[i]);
-                }
-            }
+    var acc = [], chunk = [];
+    function flush() {
+        if (!chunk.length) return;
+        acc.push(unionList(chunk));
+        chunk = [];
+        if (acc.length >= 8) acc = [unionList(acc)];
+    }
+    items.forEach(function (it) {
+        var m = prepareGeom(it.g);
+        if (m && m.length) chunk.push(m);
+        if (chunk.length >= CHUNK_SIZE) flush();
+    });
+    flush();
+    var merged = acc.length > 1 ? unionList(acc) : (acc[0] || []);
+    if (!merged.length) return null;
 
-            /* 1回目で結合できなかった少数分だけ、大きいバッファで個別に再挑戦する */
-            const stillLeftover = [];
-            leftoverRaw.forEach(function (f) {
-                const g = bufferSimplify(f, GAP_CLOSE_RETRY_METERS);
-                try {
-                    const u = merged ? turf.union(merged, g) : g;
-                    if (u) { merged = u; return; }
-                } catch (err) { /* このfeatureだけ最終フォールバックへ */ }
-                stillLeftover.push(f);
-            });
+    var feat = { type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates: merged } };
+    try {
+        var sh = turf.buffer(feat, -GAP_CLOSE_METERS, { units: 'meters', steps: 1 });
+        if (sh && sh.geometry && sh.geometry.coordinates && sh.geometry.coordinates.length) feat = sh;
+    } catch (e) {}
+    /* 統合後の形状は頂点数が多いため簡略化する（大字は約11m、小字は約4m以下のズレを無視） */
+    try {
+        var sp = turf.simplify(feat, { tolerance: level === 'oaza' ? 0.0001 : 0.00004, highQuality: false, mutate: false });
+        if (sp && sp.geometry && sp.geometry.coordinates && sp.geometry.coordinates.length) feat = sp;
+    } catch (e) {}
+    return feat.geometry;
+}
 
-            if (!merged) return;
-            try { merged = turf.buffer(merged, -GAP_CLOSE_METERS, { units: 'meters' }) || merged; } catch (shrinkErr) {}
-            /* 統合後の形状は頂点数が非常に多いため、描画・メモリ負荷を下げる目的で簡略化する
-               （大字は約11m、小字は約4m以下のズレを無視。この縮尺では見た目はほぼ変わらない） */
-            try {
-                const simp = turf.simplify(merged, { tolerance: level === 'oaza' ? 0.0001 : 0.00004, highQuality: false, mutate: false });
-                if (simp && simp.geometry && simp.geometry.coordinates && simp.geometry.coordinates.length) merged = simp;
-            } catch (simpErr) {}
-            /* 最後まで結合できなかった図形は、面を失わないようMultiPolygonとして残す
-               （境界線が1本多く残ることはあるが、面が消えるよりはるかにまし） */
-            if (stillLeftover.length) {
-                try {
-                    const combined = turf.combine(turf.featureCollection([merged].concat(stillLeftover)));
-                    if (combined && combined.features && combined.features[0]) merged = combined.features[0];
-                } catch (combErr) {}
-            }
-            merged = JSON.parse(JSON.stringify(merged));
-            const sampleProps = (feats[0] && feats[0].properties) || {};
-            merged.properties = {
-                level: level, groupKey: key,
-                /* テキストラベル表示用に、結合前の代表的な1件から大字名／小字名をそのまま引き継ぐ
-                   （大字名・小字名・地番を連結せず、レベルごとに単独の項目名だけを表示するため） */
-                oazaName: sampleProps['大字名'] || '',
-                koazaName: level === 'koaza' ? (sampleProps['小字名'] || '') : '',
-                memberChibanKeys: (function () { var ks = []; feats.forEach(function (f) { var pp = f.properties || {}; if (pp.chiban_key) ks.push(pp.chiban_key); if (pp._dk && pp._dk !== pp.chiban_key) ks.push(pp._dk); }); return ks; })(),
-                count: feats.length
-            };
-            result.push(merged);
-        });
-        self.postMessage({ type: 'dissolve-result', requestId: requestId, level: level, features: result });
+/* 1回のメッセージで「1つの大字／小字ぶん」だけを受け取って処理する（全データを一度にコピーしない） */
+self.onmessage = function (e) {
+    var d = e.data;
+    try {
+        self.postMessage({ type: 'dissolve-result', requestId: d.requestId, geometry: dissolveGeoms(d.geoms, d.level) });
     } catch (err) {
-        self.postMessage({ type: 'dissolve-error', requestId: requestId, error: String(err) });
+        self.postMessage({ type: 'dissolve-error', requestId: d.requestId, error: String(err) });
     }
 };
 `;
@@ -3634,6 +3671,7 @@ self.onmessage = function(e) {
 let chibanWorker = null;
 let _chibanWorkerReqId = 0;
 const _chibanWorkerPending = {};
+let _chibanWorkerBusy = 0;
 
 function getChibanWorker() {
     if (!chibanWorker) {
@@ -3644,24 +3682,79 @@ function getChibanWorker() {
             const pending = _chibanWorkerPending[requestId];
             if (!pending) return;
             delete _chibanWorkerPending[requestId];
-            if (type === 'dissolve-result') pending.resolve(e.data.features);
+            if (type === 'dissolve-result') pending.resolve(e.data.geometry);
             else pending.reject(e.data.error);
         };
         chibanWorker.onerror = (err) => {
             console.error('地番統合ワーカーでエラーが発生しました:', err);
+            /* 応答待ちのまま固まらないよう、待機中の処理をすべて失敗として返す */
+            Object.keys(_chibanWorkerPending).forEach(id => {
+                const pd = _chibanWorkerPending[id]; delete _chibanWorkerPending[id];
+                pd.reject('worker error');
+            });
         };
     }
     return chibanWorker;
 }
 
-function dissolveInWorker(level, groups) {
+/* 集計が終わったらワーカーを破棄して、ワーカーが抱えたメモリを手放す（次に必要になったら作り直す） */
+function releaseChibanWorker() {
+    if (_chibanWorkerBusy > 0 || !chibanWorker) return;
+    try { chibanWorker.terminate(); } catch (e) {}
+    chibanWorker = null;
+}
+
+function dissolveGroupInWorker(level, geoms) {
     return new Promise((resolve, reject) => {
         const requestId = ++_chibanWorkerReqId;
         _chibanWorkerPending[requestId] = { resolve, reject };
         try {
-            getChibanWorker().postMessage({ requestId, level, groups });
+            getChibanWorker().postMessage({ requestId, level, geoms });
         } catch (err) { delete _chibanWorkerPending[requestId]; reject(err); }
     });
+}
+
+/* 大字／小字ごとに1グループずつワーカーへ渡して結合する（ジオメトリだけを渡し、結果の属性はこちらで付ける） */
+async function dissolveInWorker(level, groups) {
+    _chibanWorkerBusy++;
+    const result = [];
+    try {
+        const keys = Object.keys(groups);
+        for (let gi = 0; gi < keys.length; gi++) {
+            const key = keys[gi];
+            const feats = groups[key];
+            const geoms = [];
+            feats.forEach(f => { if (f.geometry) geoms.push(f.geometry); });
+            let geometry = null;
+            try { geometry = await dissolveGroupInWorker(level, geoms); }
+            catch (err) { console.warn('地番の統合に失敗したグループがあります:', key, err); }
+            if (!geometry) continue;
+            const sampleProps = (feats[0] && feats[0].properties) || {};
+            const ks = [];
+            feats.forEach(f => {
+                const pp = f.properties || {};
+                if (pp.chiban_key) ks.push(pp.chiban_key);
+                if (pp._dk && pp._dk !== pp.chiban_key) ks.push(pp._dk);
+            });
+            result.push({
+                type: 'Feature',
+                geometry,
+                properties: {
+                    level, groupKey: key,
+                    /* テキストラベル表示用に、結合前の代表的な1件から大字名／小字名をそのまま引き継ぐ */
+                    oazaName: sampleProps['大字名'] || '',
+                    koazaName: level === 'koaza' ? (sampleProps['小字名'] || '') : '',
+                    memberChibanKeys: ks,
+                    count: feats.length
+                }
+            });
+        }
+    } finally {
+        _chibanWorkerBusy--;
+        releaseChibanWorker();
+    }
+    if (!result.length && Object.keys(groups).length) throw new Error('統合結果が空でした');
+    return result;
 }
 
 /* グルーピング自体はジオメトリ演算を伴わず軽量なので、メインスレッドで一度だけ行う */
@@ -3680,19 +3773,26 @@ function buildChibanGroupKeysOnce() {
 async function ensureChibanLevelComputed(level) {
     if (level === 'banchi') { chibanHierarchy.banchi = chibanGeoJSON.features; return; }
     if (chibanHierarchy[level] && chibanHierarchy[level].length > 0) return; /* 計算済みならスキップ */
+    /* 集計中にズーム操作などで再度呼ばれても、同じ集計を重複して走らせない */
+    const targetHierarchy = chibanHierarchy;
+    targetHierarchy._pending = targetHierarchy._pending || {};
+    if (targetHierarchy._pending[level]) return targetHierarchy._pending[level];
     buildChibanGroupKeysOnce();
     const groups = level === 'oaza' ? window._chibanOazaGroups : window._chibanKoazaGroups;
-    /* 集計中にデータセットが切り替えられても、結果を元のデータセット側に書き込めるよう参照を保持しておく */
-    const targetHierarchy = chibanHierarchy;
     showNotification('地番ポリゴンを集計しています（初回のみ）...');
-    try {
-        const features = await dissolveInWorker(level, groups);
-        targetHierarchy[level] = features;
-    } catch (err) {
-        console.error('地番ポリゴンの統合処理に失敗:', err);
-        showNotification('地番ポリゴンの統合処理に失敗しました。個々の地番表示のみ利用可能です。');
-        targetHierarchy[level] = [];
-    }
+    const job = (async () => {
+        try {
+            targetHierarchy[level] = await dissolveInWorker(level, groups);
+        } catch (err) {
+            console.error('地番ポリゴンの統合処理に失敗:', err);
+            showNotification('地番ポリゴンの統合処理に失敗しました。個々の地番表示のみ利用可能です。');
+            targetHierarchy[level] = [];
+        } finally {
+            delete targetHierarchy._pending[level];
+        }
+    })();
+    targetHierarchy._pending[level] = job;
+    return job;
 }
 
 function currentChibanLevel() {
@@ -4298,6 +4398,21 @@ function onChibanTreeSearchInput() {
     renderChibanTree(q);
 }
 
+let _chibanTreeLazySeq = 0;
+window._chibanTreeLazy = {};
+/* 小字の欄を開いたときに、その小字に属する地番ボタンを作る */
+function chibanTreeFillLeaves(det) {
+    if (!det || !det.open || det.dataset.filled === '1') return;
+    const feats = (window._chibanTreeLazy || {})[det.dataset.lazy];
+    const box = det.querySelector('.chiban-tree-leaf-list');
+    if (!feats || !box) return;
+    det.dataset.filled = '1';
+    box.innerHTML = feats.map(f => {
+        const p = f.properties || {};
+        return `<span class="chiban-tree-leaf" onclick='selectChibanLeaf(${JSON.stringify(p._uid)})'>${escapeHtml(p['地番'] || '?')}</span>`;
+    }).join('');
+}
+
 function renderChibanTree(query) {
     const container = document.getElementById('chiban-tree-container');
     if (!container) return;
@@ -4307,6 +4422,7 @@ function renderChibanTree(query) {
     }
     const q = (query || '').trim().toLowerCase();
     const tree = window._chibanTreeData;
+    window._chibanTreeLazy = {};
     let html = '';
     Object.keys(tree).sort().forEach(oaza => {
         const koazaMap = tree[oaza];
@@ -4320,16 +4436,16 @@ function renderChibanTree(query) {
             });
             if (matchedFeats.length === 0) return;
             oazaMatchCount += matchedFeats.length;
-            const leaves = matchedFeats.map(f => {
-                const p = f.properties || {};
-                return `<span class="chiban-tree-leaf" onclick='selectChibanLeaf(${JSON.stringify(p._uid)})'>${escapeHtml(p['地番'] || '?')}</span>`;
-            }).join('');
+            /* 地番（葉）を全件ぶんDOMにすると数十万個の要素になりメモリを大量に消費するため、
+               小字の欄を開いたときに初めて作る（chibanTreeFillLeaves） */
+            const lazyId = ++_chibanTreeLazySeq;
+            window._chibanTreeLazy[lazyId] = matchedFeats;
             oazaHtml += `
-                <details class="chiban-tree-koaza">
+                <details class="chiban-tree-koaza" data-lazy="${lazyId}" ontoggle="chibanTreeFillLeaves(this)">
                     <summary>${escapeHtml(koaza)}（${matchedFeats.length}筆）
                         <button class="chiban-tree-group-select-btn" onclick='event.preventDefault();event.stopPropagation();selectChibanGroup(${JSON.stringify(oaza)}, ${JSON.stringify(koaza)})'>この小字を地図表示</button>
                     </summary>
-                    <div class="chiban-tree-leaf-list">${leaves}</div>
+                    <div class="chiban-tree-leaf-list"></div>
                 </details>`;
         });
         if (oazaMatchCount === 0) return;
@@ -7807,7 +7923,7 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
 (function () {
     'use strict';
 
-    const REVEAL_SELECTOR = '.animate-on-scroll, .portal-nav-card, .gallery-card, .omni-result-card, .timeline-item, .db-search-panel, .portal-description, .result-map-section';
+    const REVEAL_SELECTOR = '.animate-on-scroll, .portal-nav-card, .gallery-card, .omni-result-card, .timeline-decade, .db-search-panel, .portal-description, .result-map-section';
     const io = ('IntersectionObserver' in window) ? new IntersectionObserver((entries) => {
         entries.forEach(en => { if (en.isIntersecting) { en.target.classList.add('fx-in'); io.unobserve(en.target); } });
     }, { threshold: 0.08, rootMargin: '0px 0px -50px 0px' }) : null;
@@ -7825,62 +7941,180 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
         });
     }
 
-    /* ---- 年表の自動生成：古写真・石造物の年代から10年単位のクロノロジーを組み立てる ---- */
-    function buildTimeline() {
-        const esc = (v) => (typeof escapeHtml === 'function' ? escapeHtml(String(v == null ? '' : v)) : String(v == null ? '' : v));
-        const toYear = (v) => { const m = String(v == null ? '' : v).match(/(1[89]\d{2}|20[012]\d)/); return m ? parseInt(m[1], 10) : null; };
+    /* ---- 年表の自動生成：古写真・石造物・歴史的建造物・自然系・古道・文書史料・図書・古地図の全データから、
+            10年単位（1800年より前は100年単位）のクロノロジーを組み立てる。年代が読み取れないデータも「年代不明」にまとめて表示する ---- */
+    const TL_KINDS = {
+        photo:    '古写真',
+        '3d':     '石造物 3D',
+        building: '歴史的建造物',
+        nature:   '自然系',
+        oldroad:  '古道',
+        doc:      '文書・史料',
+        book:     '図書',
+        map:      '古地図'
+    };
+    const TL_WAREKI = { '明治': 1867, '大正': 1911, '昭和': 1925, '平成': 1988, '令和': 2018 };
+
+    /* 年の読み取り：西暦4桁（1955年／1950年代／1955-03-04 など）→ 和暦＋年（昭和30年／昭和元年）の順に探す。
+       「昭和」などの元号だけで年が無いものは、位置づけを推測せず「年代不明」に回す */
+    function toYear(v) {
+        if (v === null || v === undefined || v === '') return null;
+        if (typeof v === 'number') return (v >= 600 && v <= 2100) ? v : null;
+        const str = String(v).replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        let m = str.match(/(?:^|[^\d])(\d{4})(?!\d)/);
+        if (m) { const y = parseInt(m[1], 10); if (y >= 600 && y <= 2100) return y; }
+        m = str.match(/(明治|大正|昭和|平成|令和)\s*(元|\d{1,2})/);
+        if (m) return TL_WAREKI[m[1]] + (m[2] === '元' ? 1 : parseInt(m[2], 10));
+        return null;
+    }
+    const clean = (v) => { const t = String(v == null ? '' : v).trim(); return (t === '－' || t === '-' || t === 'ー') ? '' : t; };
+    const firstYear = (...vals) => { for (const v of vals) { const y = toYear(v); if (y) return y; } return null; };
+
+    function tlSources() {
+        return {
+            photo:    (typeof archiveData  !== 'undefined' && archiveData)  || window.archiveData  || [],
+            '3d':     (typeof models       !== 'undefined' && models)       || window.models       || [],
+            building: (typeof buildingData !== 'undefined' && buildingData) || [],
+            nature:   (typeof natureData   !== 'undefined' && natureData)   || [],
+            oldroad:  (typeof oldRoadData  !== 'undefined' && oldRoadData)  || [],
+            doc:      (typeof docData      !== 'undefined' && docData)      || [],
+            book:     (typeof bookData     !== 'undefined' && bookData)     || [],
+            map:      (typeof mapData      !== 'undefined' && mapData)      || []
+        };
+    }
+    function tlSignature(src) { return Object.keys(TL_KINDS).map(k => (src[k] || []).length).join(','); }
+    function tlTotal(src) { return Object.keys(TL_KINDS).reduce((n, k) => n + (src[k] || []).length, 0); }
+
+    function tlCollect(src) {
         const items = [];
-        (window.archiveData || (typeof archiveData !== 'undefined' ? archiveData : [])).forEach(p => {
-            const y = toYear(p.year);
-            if (y) items.push({ y, era: p.era || '', title: p.title || '無題', kind: 'photo', thumb: p.img || '', open: `openDetail('${String(p.id).replace(/['\\]/g, '')}')` });
-        });
-        (window.models || (typeof models !== 'undefined' ? models : [])).forEach(m => {
-            const y = toYear(m.builtYear) || toYear(m.era) || toYear(m.captureDate);
-            if (y) items.push({ y, era: m.era || '', title: m.name || '石造物', kind: '3d', thumb: m.thumbnail || '', open: `open3DDetail('${String(m.id).replace(/['\\]/g, '')}')` });
-        });
-        if (!items.length || typeof showPage !== 'function') return false;
-        items.sort((a, b) => a.y - b.y);
-        const groups = [];
+        const add = (kind, row, o) => items.push({ kind, id: row.id, y: o.y || null, label: clean(o.label), title: clean(o.title) || '無題', thumb: o.thumb || '' });
+        (src.photo || []).forEach(p => add('photo', p, { y: firstYear(p.year, p.era), label: p.era, title: p.title, thumb: p.img }));
+        (src['3d'] || []).forEach(m => add('3d', m, { y: firstYear(m.builtYear, m.era, m.captureDate), label: m.era || m.category, title: m.name, thumb: m.thumbnail || (m.thumbnails && m.thumbnails[0]) }));
+        (src.building || []).forEach(b => add('building', b, { y: firstYear(b.yearBuild, b.yearLoss), label: b.type, title: b.name, thumb: b.images && b.images[0] }));
+        (src.nature || []).forEach(n => add('nature', n, { y: firstYear(n.yearStart, n.yearEnd), label: n.type, title: n.name, thumb: n.thumbnail || (n.images && n.images[0]) }));
+        (src.oldroad || []).forEach(r => add('oldroad', r, { y: firstYear(r.yearBuild, r.yearLoss), label: r.type, title: r.name, thumb: r.thumbnail }));
+        (src.doc || []).forEach(d => add('doc', d, { y: firstYear(d.yearWest, d.yearJpn), label: d.genre || d.main, title: d.subject, thumb: d.thumbnail }));
+        (src.book || []).forEach(b => add('book', b, { y: firstYear(b.yearWest, b.yearJpn), label: b.creator, title: b.title, thumb: '' }));
+        (src.map || []).forEach(m => add('map', m, { y: firstYear(m.yearContent, m.eraLabel), label: m.eraLabel, title: m.name, thumb: m.previewImg }));
+        return items;
+    }
+
+    function tlGroup(items) {
+        const map = new Map();
         items.forEach(it => {
-            const dec = Math.floor(it.y / 10) * 10;
-            let g = groups[groups.length - 1];
-            if (!g || g.dec !== dec) { g = { dec, items: [] }; groups.push(g); }
-            g.items.push(it);
+            let order, big, small;
+            if (!it.y) { order = Infinity; big = '？'; small = '年代不明'; }
+            else if (it.y >= 1800) { const d = Math.floor(it.y / 10) * 10; order = d; big = d + 's'; small = d + '年代'; }
+            else { const c = Math.floor(it.y / 100) * 100; order = c; big = c + 's'; small = (Math.floor(it.y / 100) + 1) + '世紀'; }
+            if (!map.has(order)) map.set(order, { order, big, small, items: [] });
+            map.get(order).items.push(it);
         });
-        const host = document.querySelector('#page-portal .scroll-container');
-        if (!host || document.getElementById('auto-timeline')) return true;
-        const html = `
+        const groups = Array.from(map.values()).sort((a, b) => (a.order === b.order ? 0 : a.order < b.order ? -1 : 1));
+        groups.forEach(g => g.items.sort((a, b) => ((a.y || 0) - (b.y || 0)) || String(a.title).localeCompare(String(b.title), 'ja')));
+        return groups;
+    }
+
+    const tlEsc = (v) => (typeof escapeHtml === 'function' ? escapeHtml(String(v == null ? '' : v)) : String(v == null ? '' : v));
+
+    function tlRender(items) {
+        const groups = tlGroup(items);
+        const counts = {};
+        items.forEach(it => { counts[it.kind] = (counts[it.kind] || 0) + 1; });
+        const chips = Object.keys(TL_KINDS).filter(k => counts[k]).map(k =>
+            `<button type="button" class="tl-chip kind-${k} active" data-kind="${k}">${TL_KINDS[k]}<small>${counts[k]}</small></button>`).join('');
+        return `
+        <section id="auto-timeline-section">
             <h2 class="portal-section-title animate-on-scroll"><i class="fa-solid fa-timeline"></i> 山科クロノロジー<span class="tl-count">全${items.length}件の記録から自動生成</span></h2>
+            <div class="tl-filter">${chips}</div>
             <div class="timeline-wrap" id="auto-timeline">
                 ${groups.map(g => `
                 <div class="timeline-decade">
                     <div class="timeline-dot"></div>
-                    <div class="timeline-decade-year"><b>${g.dec}s</b><small>${g.dec}年代</small></div>
+                    <div class="timeline-decade-year"><b>${g.big}</b><small>${g.small}</small></div>
                     <div class="timeline-items">
                         ${g.items.map(it => `
-                        <div class="timeline-item" onclick="${it.open}">
-                            ${it.thumb ? `<div class="timeline-thumb"><img src="${esc(it.thumb)}" alt="" loading="lazy"></div>` : ''}
+                        <div class="timeline-item" data-kind="${it.kind}" data-id="${tlEsc(it.id)}">
+                            ${it.thumb ? `<div class="timeline-thumb"><img src="${tlEsc(it.thumb)}" alt="" loading="lazy" decoding="async"></div>` : ''}
                             <div class="timeline-body">
-                                <span class="timeline-kind kind-${it.kind}">${it.kind === 'photo' ? '古写真' : '石造物 3D'}</span>
-                                ${it.era ? `<span class="timeline-era">${esc(it.era)}</span>` : ''}
-                                <h3>${esc(it.title)}</h3>
-                                <span class="timeline-year">${it.y}</span>
+                                <span class="timeline-kind kind-${it.kind}">${TL_KINDS[it.kind]}</span>
+                                ${it.label ? `<span class="timeline-era">${tlEsc(it.label)}</span>` : ''}
+                                <h3>${tlEsc(it.title)}</h3>
+                                ${it.y ? `<span class="timeline-year">${it.y}</span>` : ''}
                             </div>
                         </div>`).join('')}
                     </div>
                 </div>`).join('')}
-            </div>`;
-        host.insertAdjacentHTML('beforeend', html);
-        armReveal(document.getElementById('auto-timeline'));
+            </div>
+        </section>`;
+    }
+
+    /* カードをクリックしたとき、種類ごとの既存の詳細表示を呼び出す */
+    function tlOpen(kind, id) {
+        const src = tlSources();
+        const sid = String(id);
+        const find = (arr) => (arr || []).find(x => String(x.id) === sid);
+        try {
+            if (kind === 'photo') openDetail(sid);
+            else if (kind === '3d') open3DDetail(sid);
+            else if (kind === 'building') { const r = find(src.building); if (r) openBuildingDetailModal(r); }
+            else if (kind === 'nature')   { const r = find(src.nature);   if (r) openNatureDetailModal(r); }
+            else if (kind === 'oldroad')  { const r = find(src.oldroad);  if (r) openOldRoadDetailModal(r); }
+            else if (kind === 'doc')      { const r = find(src.doc);      if (r) openDocDetailModal(r); }
+            else if (kind === 'book')     { const r = find(src.book);     if (r) openBookDetailModalById(sid); }
+            else if (kind === 'map')      { const r = find(src.map);      if (r) openMapDetailModal(r); }
+        } catch (e) { console.error('年表からの詳細表示に失敗:', e); }
+    }
+
+    /* 種類の絞り込み（チップのオン／オフ）。表示するものが無くなった年代ブロックは隠す */
+    function tlApplyFilter(section) {
+        const off = new Set(Array.from(section.querySelectorAll('.tl-chip:not(.active)')).map(c => c.dataset.kind));
+        section.querySelectorAll('.timeline-item').forEach(el => { el.style.display = off.has(el.dataset.kind) ? 'none' : ''; });
+        section.querySelectorAll('.timeline-decade').forEach(d => {
+            let any = false;
+            d.querySelectorAll('.timeline-item').forEach(el => { if (el.style.display !== 'none') any = true; });
+            d.style.display = any ? '' : 'none';
+        });
+    }
+
+    let tlBuiltSig = '';
+    function buildTimeline() {
+        if (typeof showPage !== 'function') return false;
+        const host = document.querySelector('#page-portal .scroll-container');
+        if (!host) return false;
+        const src = tlSources();
+        if (!tlTotal(src)) return false;
+        const sig = tlSignature(src);
+        if (sig === tlBuiltSig && document.getElementById('auto-timeline-section')) return true;
+        const items = tlCollect(src);
+        if (!items.length) return false;
+        const old = document.getElementById('auto-timeline-section');
+        if (old) old.remove();
+        host.insertAdjacentHTML('beforeend', tlRender(items));
+        const section = document.getElementById('auto-timeline-section');
+        section.addEventListener('click', (e) => {
+            const chip = e.target.closest && e.target.closest('.tl-chip');
+            if (chip) { chip.classList.toggle('active'); tlApplyFilter(section); return; }
+            const card = e.target.closest && e.target.closest('.timeline-item');
+            if (card) tlOpen(card.dataset.kind, card.dataset.id);
+        });
+        tlBuiltSig = sig;
+        armReveal(section);
         return true;
     }
     window.buildTimeline = buildTimeline;
 
-    /* データ読み込み完了を待ってから年表を組み立てる（最大約30秒） */
+    /* データは種類ごとに別々のタイミングで読み込まれるため、件数の変化を見張り、読み込みが落ち着いたところで
+       年表を（再）生成する。以前は最初に届いた一部のデータだけで確定してしまい、後から届く古写真などが載らなかった */
     window.buildTimelineWhenReady = function () {
-        if (buildTimeline()) return;
-        let tries = 0;
-        const t = setInterval(() => { if (buildTimeline() || ++tries > 36) clearInterval(t); }, 800);
+        let last = '', stable = 0, ticks = 0;
+        const t = setInterval(() => {
+            ticks++;
+            const src = tlSources();
+            const sig = tlSignature(src);
+            if (sig !== last) { last = sig; stable = 0; } else { stable++; }
+            if (stable >= 2 && tlTotal(src) > 0 && sig !== tlBuiltSig) buildTimeline();
+            if (ticks > 240) clearInterval(t);   /* 最大約4分間見張る */
+        }, 1000);
     };
 
     /* ---- ポータル総合検索ボックス → 既存の横断検索へ ---- */
