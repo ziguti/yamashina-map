@@ -133,33 +133,57 @@ a { color: inherit; text-decoration: none; }
 
 /* ===== サブヘッダー(マップ用) ===== */
 #map-ui {
-    position: fixed; top: var(--header-height); left: 0; right: 0; height: var(--sub-header-height);
-    background: rgba(27,17,11,0.94); backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(168,135,76,0.35);
-    z-index: 2500; display: none; align-items: center; gap: 15px; padding: 0 20px;
+    position: fixed; top: var(--header-height); left: 0; right: 0; height: auto;
+    background: none; border: none; backdrop-filter: none; pointer-events: none;
+    z-index: 2500; display: none; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 14px;
 }
-.control-group { display: flex; gap: 10px; }
+#map-ui > * { pointer-events: auto; }
+.control-group { display: flex; align-items: center; gap: 8px; }
 .sub-nav-btn {
-    background: rgba(255,253,247,0.05); border: 1px solid rgba(220,205,176,0.22); color: #d9cdb2;
-    border-radius: 2px; padding: 7px 16px; font-family: var(--font-sans); font-size: 0.85rem; letter-spacing: 0.06em;
-    cursor: pointer; display: flex; align-items: center; gap: 6px; transition: var(--transition);
+    height: 38px; background: rgba(27,17,11,0.9); border: 1px solid rgba(168,135,76,0.6); color: #e8ddc4;
+    border-radius: 999px; padding: 0 18px; font-family: var(--font-sans); font-size: 0.85rem; letter-spacing: 0.06em;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.38); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: var(--transition);
 }
 .sub-nav-btn i { color: var(--accent-gold); }
 .sub-nav-btn.active { background: var(--accent-gold); color: #1b110b; border-color: var(--accent-gold); }
 .sub-nav-btn.active i { color: #1b110b; }
-.sub-nav-btn:hover:not(.active) { border-color: rgba(168,135,76,0.6); color: #fffdf7; }
+.sub-nav-btn:hover:not(.active) { border-color: var(--accent-gold); color: #fffdf7; }
 #slider-box {
-    display: flex; flex-grow: 1; max-width: 760px; gap: 10px; align-items: center;
+    display: flex; flex: 1 1 260px; min-width: 200px; max-width: 760px; gap: 8px; align-items: center; pointer-events: none;
 }
+#slider-box > * { pointer-events: auto; }
 .slider-arrow-btn {
-    width: 34px; height: 34px; border-radius: 0; background: transparent;
-    border: 1px solid rgba(168,135,76,0.55); color: #d9cdb2; cursor: pointer;
+    width: 34px; height: 34px; border-radius: 50%; background: rgba(27,17,11,0.9);
+    border: 1px solid rgba(168,135,76,0.6); color: #e8ddc4; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.38);
     display: flex; align-items: center; justify-content: center; transition: var(--transition); flex-shrink: 0;
 }
 .slider-arrow-btn:hover { background: var(--accent-gold); border-color: var(--accent-gold); color: #1b110b; }
 #era-slider {
-    flex: 1 1 auto; min-width: 0; height: 2px; background: rgba(255,253,247,0.22); border-radius: 0; appearance: none; outline: none; cursor: pointer;
+    flex: 1 1 auto; min-width: 0; height: 6px; margin: 10px 0; background: rgba(27,17,11,0.82); border-radius: 3px;
+    box-shadow: 0 0 0 1px rgba(255,253,247,0.55), 0 2px 8px rgba(0,0,0,0.3); appearance: none; outline: none; cursor: pointer;
 }
+
+/* 地図タイル／図面タイルのレイヤ選択ボタン：サブヘッダーのボタンと同じ1列に並べる（JSでここへ移す） */
+.map-ui-slot { position: relative; width: 38px; height: 38px; flex: 0 0 38px; }
+#map-ui-slot-doc:not(:has(.doc-tile-control.has-items)) { display: none; }
+.map-ui-slot > .leaflet-control {
+    position: absolute; top: 0; left: 0; margin: 0; float: none; clear: none;
+    background: rgba(27,17,11,0.9); border: 1px solid rgba(168,135,76,0.6) !important; border-radius: 19px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.38); font: 0.85rem/1.5 var(--font-sans); color: #e8ddc4;
+}
+.map-ui-slot .leaflet-control-layers-toggle {
+    width: 36px; height: 36px; background-image: none !important; display: flex; align-items: center; justify-content: center;
+}
+.map-ui-slot .leaflet-control-layers-toggle::before {
+    content: "\f5fd"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: var(--accent-gold); font-size: 0.95rem;
+}
+.map-ui-slot .doc-tile-toggle { width: 36px; height: 36px; line-height: 36px; background: transparent; color: var(--accent-gold); border-radius: 50%; }
+.map-ui-slot .doc-tile-toggle:hover { color: #fffdf7; }
+.map-ui-slot > .leaflet-control-layers-expanded, .map-ui-slot > .doc-tile-control.open {
+    background: #fffdf7; color: #333; border-radius: 14px; z-index: 5;
+}
+.map-ui-slot > .leaflet-control-layers-expanded { padding: 8px 12px; min-width: 230px; max-width: min(340px, 90vw); }
+.map-ui-slot .leaflet-control-layers-expanded label { color: #333; }
 #era-slider::-webkit-slider-thumb {
     appearance: none; width: 16px; height: 16px; background: var(--accent-gold);
     border: 2px solid #1b110b; border-radius: 50%; box-shadow: 0 0 0 1px var(--accent-gold), 0 2px 8px rgba(0,0,0,0.5); cursor: pointer;
@@ -171,7 +195,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ===== コンテンツラッパー & ページ ===== */
 #content-wrapper { position: absolute; top: var(--header-height); left: 0; right: 0; bottom: 0; overflow: hidden; }
-#content-wrapper.map-active { top: calc(var(--header-height) + var(--sub-header-height)); }
+#content-wrapper.map-active { top: var(--header-height); }
 .page {
     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
     visibility: hidden; opacity: 0; pointer-events: none;
@@ -190,11 +214,9 @@ a { color: inherit; text-decoration: none; }
     border: 1px solid rgba(168,135,76,0.45); border-radius: 2px; box-shadow: var(--shadow-lift); padding: 18px;
 }
 #map-overlay-controls { bottom: 30px; right: 20px; width: 240px; }
-#opacity-era-info {
-    margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(168,135,76,0.35);
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-}
-#opacity-era-label { font-family: var(--font-sans); font-size: 0.76rem; color: rgba(232,221,196,0.85); line-height: 1.5; }
+.opacity-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 10px; }
+.opacity-head .control-label { margin-bottom: 0; min-width: 0; overflow-wrap: anywhere; }
+.opacity-head .layer-detail-btn { font-size: 1rem; padding: 2px 4px; }
 .control-label { font-family: var(--font-sans); font-size: 0.76rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #e8ddc4; margin-bottom: 12px; }
 #opacity-slider { width: 100%; accent-color: var(--accent-gold); }
 #location-btn {
@@ -324,7 +346,7 @@ a { color: inherit; text-decoration: none; }
 /* ===== 地図クリック詳細パネル：モードレス（左側スライドイン／スマホは下部シート） ===== */
 #map-detail-panel {
     position: fixed; top: calc(var(--header-height) + var(--sub-header-height)); left: 0; bottom: 0;
-    width: 420px; max-width: 90%; background: #fbf7ec; border-right: 1px solid rgba(168,135,76,0.5);
+    width: var(--mdp-w, 420px); max-width: 90%; background: #fbf7ec; border-right: 1px solid rgba(168,135,76,0.5);
     box-shadow: 24px 0 60px rgba(18,10,5,0.3);
     transform: translateX(-100%); transition: transform 0.35s cubic-bezier(0.22,0.8,0.28,1); z-index: 3900;
     overflow-y: auto; pointer-events: none;
@@ -344,10 +366,34 @@ a { color: inherit; text-decoration: none; }
 #map-detail-panel-body .mdp-db-btn:hover { background: var(--accent-gold); color: #1b110b; }
 @media (max-width: 768px) {
     #map-detail-panel {
-        left: 0; right: 0; width: 100%; max-width: 100%; top: auto; bottom: 0; height: 65vh;
+        left: 0; right: 0; width: 100%; max-width: 100%; top: auto; bottom: 0; height: var(--mdp-h, 40vh);
         transform: translateY(100%); border-radius: 8px 8px 0 0; box-shadow: 0 -10px 35px rgba(18,10,5,0.35);
     }
     #map-detail-panel.open { transform: translateY(0); }
+}
+
+/* ---- 詳細パネルの大きさ調整：PCは右端をつかんで幅、スマホは上端をつかんで高さを変える ---- */
+#map-detail-resizer {
+    position: fixed; top: calc(var(--header-height) + var(--sub-header-height)); bottom: 0;
+    left: min(var(--mdp-w, 420px), 90vw); width: 16px; margin-left: -8px; z-index: 3901;
+    cursor: ew-resize; touch-action: none; display: none; user-select: none; -webkit-user-select: none;
+}
+#map-detail-resizer.open { display: block; }
+#map-detail-resizer::after {
+    content: ''; position: absolute; top: 50%; left: 50%; width: 5px; height: 56px; margin: -28px 0 0 -2.5px;
+    border-radius: 3px; background: rgba(138,106,59,0.55); box-shadow: 0 0 0 1px rgba(255,253,247,0.8);
+}
+#map-detail-resizer:hover::after, #map-detail-resizer.dragging::after { background: rgba(168,135,76,0.95); }
+body.mdp-resizing { user-select: none; -webkit-user-select: none; }
+body.mdp-resizing #map-detail-panel { transition: none !important; }
+#map-detail-panel.mdp-narrow #map-detail-panel-body { padding: 16px; }
+#map-detail-panel.mdp-narrow #map-detail-panel-body .mdp-gallery-grid { columns: 1; }
+@media (max-width: 768px) {
+    #map-detail-resizer {
+        top: auto; left: 0; right: 56px; width: auto; height: 28px; margin-left: 0;
+        bottom: calc(var(--mdp-h, 40vh) - 14px); cursor: ns-resize;
+    }
+    #map-detail-resizer::after { width: 56px; height: 5px; margin: -2.5px 0 0 -28px; }
 }
 
 .spot-section { margin-bottom: 20px; }
@@ -960,13 +1006,22 @@ label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; w
     .header-container { padding: 0 10px; }
     .nav-btn span { display: none; }
     .nav-btn { padding: 8px 10px; }
-    #map-ui { flex-wrap: wrap; height: auto; padding: 10px 15px; gap: 8px; align-items: center; }
-    #content-wrapper.map-active { top: calc(var(--header-height) + 96px); }
-    #slider-box { order: 1; width: 100%; max-width: 100%; }
-    #era-slider { flex: 1 1 auto; width: auto; }
-    .control-group { order: 2; }
+    :root { --sub-header-height: 96px; }
+    #map-ui { padding: 8px 10px; gap: 6px; }
+    #slider-box { order: 2; flex: 1 1 100%; min-width: 0; max-width: 100%; }
+    .slider-arrow-btn { width: 30px; height: 30px; }
+    .control-group { order: 1; gap: 6px; }
     .sub-nav-btn span { display: none; }
-    .sub-nav-btn { padding: 8px 10px; }
+    .sub-nav-btn { width: 38px; padding: 0; justify-content: center; }
+    .map-ui-slot > .leaflet-control-layers-expanded, .map-ui-slot > .doc-tile-control.open {
+        position: fixed; top: calc(var(--header-height) + 56px); left: 10px; right: 10px; width: auto; max-width: none;
+    }
+    .map-ui-slot .doc-tile-body { max-width: none; }
+    #map-overlay-controls { width: 150px; right: 10px; bottom: 14px; padding: 7px 10px; }
+    .opacity-head { margin-bottom: 4px; gap: 4px; }
+    .opacity-head .control-label { font-size: 0.64rem; letter-spacing: 0.03em; text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .opacity-head .layer-detail-btn { font-size: 0.85rem; padding: 0 2px; }
+    #opacity-slider { height: 18px; margin: 0; }
     .scroll-container { padding: 40px 20px 100px; }
     .carousel-container { height: 470px; margin: -40px -20px 48px; }
     .carousel-overlay { padding: 32px 28px; }
@@ -1222,22 +1277,19 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
 <!-- ================= サブヘッダー(マップ専用) ================= -->
 <div id="map-ui">
     <div class="control-group">
-        <button class="sub-nav-btn" id="m-btn-layers" onclick="toggleLayerControlVisibility()">
-            <i class="fa-solid fa-layer-group"></i><span>レイヤ選択</span>
-        </button>
-    </div>
-    <div id="slider-box" style="display:flex;">
-        <button class="slider-arrow-btn" onclick="stepEra(-1)"><i class="fa-solid fa-chevron-left"></i></button>
-        <input type="range" id="era-slider" min="0" max="13" step="1" value="0">
-        <button class="slider-arrow-btn" onclick="stepEra(1)"><i class="fa-solid fa-chevron-right"></i></button>
-    </div>
-    <div class="control-group">
         <button class="sub-nav-btn" id="m-btn-chiban" onclick="toggleChibanPanelMode()">
             <i class="fa-solid fa-map-location"></i><span>地番ポリゴン</span>
         </button>
         <button class="sub-nav-btn" id="m-btn-spot" onclick="toggleSpotSettingsMode()">
             <i class="fa-solid fa-location-dot"></i><span>スポット設定</span>
         </button>
+        <div class="map-ui-slot" id="map-ui-slot-tile"></div>
+        <div class="map-ui-slot" id="map-ui-slot-doc"></div>
+    </div>
+    <div id="slider-box" style="display:flex;">
+        <button class="slider-arrow-btn" onclick="stepEra(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+        <input type="range" id="era-slider" min="0" max="13" step="1" value="0">
+        <button class="slider-arrow-btn" onclick="stepEra(1)"><i class="fa-solid fa-chevron-right"></i></button>
     </div>
 </div>
 <!-- ================= コンテンツラッパー ================= -->
@@ -1370,6 +1422,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
         <div class="close-btn" onclick="closeMapDetailPanel()"><i class="fa-solid fa-xmark"></i></div>
         <div id="map-detail-panel-body"></div>
     </div>
+    <div id="map-detail-resizer" title="ドラッグで大きさを変更"></div>
 
     <!-- ===== ポータルページ ===== -->
     <div class="page active" id="page-portal">
@@ -1448,12 +1501,11 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
     <div class="page" id="page-map">
         <div id="map"></div>
         <div class="map-overlay-panel" id="map-overlay-controls">
-            <div class="control-label" id="opacity-target">調整：未選択</div>
-            <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="1.0">
-            <div id="opacity-era-info">
-                <span id="opacity-era-label">－</span>
-                <button class="layer-detail-btn" id="opacity-era-info-btn" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>
+            <div class="opacity-head">
+                <div class="control-label" id="opacity-target">調整：未選択</div>
+                <button class="layer-detail-btn" id="opacity-era-info-btn" title="詳細を見る" style="display:none;"><i class="fa-solid fa-circle-info"></i></button>
             </div>
+            <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="1.0">
         </div>
         <button id="location-btn" onclick="requestLocation()"><i class="fa-solid fa-location-crosshairs"></i></button>
     </div>
@@ -3063,6 +3115,14 @@ function initMap() {
        その直下（右上）に追加する。地図タイル側の追加・削除で中身が再描画されて壊れることがない。 */
     createDocTileControl().addTo(map);
 
+    /* 地図タイル／図面タイルのレイヤ選択ボタンを、サブヘッダーのボタンと同じ横1列に移す */
+    (function () {
+        const tileSlot = document.getElementById('map-ui-slot-tile');
+        const docSlot = document.getElementById('map-ui-slot-doc');
+        if (tileSlot && window._eraLayerControl) tileSlot.appendChild(window._eraLayerControl.getContainer());
+        if (docSlot && window._docTileControl) docSlot.appendChild(window._docTileControl.getContainer());
+    })();
+
     /* 以前、HiDPI環境向けにzoomOffset/tileSizeを使った疑似高解像度化を試みたが、
        最大ズーム付近でタイルが表示されなくなる不具合が発生したため撤回。
        Leafletの標準的な「maxNativeZoomを超えたら直前のタイルを引き伸ばす」挙動に
@@ -3189,11 +3249,7 @@ function buildEraLayers() {
    ===================================================================== */
 function updateEraUI(index) {
     const era = eras[parseInt(index)];
-    const label = document.getElementById('opacity-era-label');
-    const infoBtn = document.getElementById('opacity-era-info-btn');
-    if (!era) { label.innerText = 'データなし'; infoBtn.onclick = null; return; }
-    label.innerHTML = `${escapeHtml(era.name)}（${escapeHtml(era.year) || '年代不明'}）`;
-    infoBtn.onclick = () => openMapDetailModalByName(era.name);
+    if (!era) return;
 
     Object.values(layers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
     const nextLayer = layers[era.name];
@@ -3223,13 +3279,33 @@ function toggleLayerControlVisibility() {
 function updateOpacityUI() {
     const target = document.getElementById('opacity-target');
     const slider = document.getElementById('opacity-slider');
+    const infoBtn = document.getElementById('opacity-era-info-btn');
     if (activeOverlays.length > 0) {
         const latest = activeOverlays[activeOverlays.length - 1];
-        const name = Object.keys(layers).find(k => layers[k] === latest) || '重畳レイヤ';
+        let name = Object.keys(layers).find(k => layers[k] === latest);
+        let openInfo = null;
+        if (name) {
+            const eraName = name;
+            openInfo = () => openMapDetailModalByName(eraName);
+        } else {
+            const dl = window._docDrawingLayers || {};
+            const docId = Object.keys(dl).find(id => dl[id] === latest);
+            if (docId !== undefined) {
+                const d = (typeof docData !== 'undefined') ? docData.find(x => String(x.id) === String(docId)) : null;
+                name = (d && d.subject) ? d.subject : '史料の図面';
+                openInfo = () => openDocDetailModalById(String(docId));
+            } else {
+                name = '重畳レイヤ';
+            }
+        }
         target.innerText = `調整：${name}`;
+        target.title = name;
         slider.value = (latest.options && latest.options.opacity !== undefined) ? latest.options.opacity : 1.0;
+        if (infoBtn) { infoBtn.style.display = openInfo ? '' : 'none'; infoBtn.onclick = openInfo; }
     } else {
         target.innerText = '調整：未選択';
+        target.title = '';
+        if (infoBtn) { infoBtn.style.display = 'none'; infoBtn.onclick = null; }
     }
 }
 
@@ -4887,12 +4963,82 @@ function resetActiveChibanLayerStyle() {
 function openMapDetailPanel(bodyHtml) {
     document.getElementById('map-detail-panel-body').innerHTML = bodyHtml;
     document.getElementById('map-detail-panel').classList.add('open');
+    const rz = document.getElementById('map-detail-resizer'); if (rz) rz.classList.add('open');
+    if (typeof applyMapDetailPanelSize === 'function') applyMapDetailPanelSize();
 }
 function closeMapDetailPanel() {
     document.getElementById('map-detail-panel').classList.remove('open');
+    const rz = document.getElementById('map-detail-resizer'); if (rz) rz.classList.remove('open');
     resetActiveChibanLayerStyle();
     if (activeSectorLayer) { map.removeLayer(activeSectorLayer); activeSectorLayer = null; }
 }
+
+/* ---- 詳細パネルの大きさ調整（PC：右端をつかんで幅／スマホ：上端をつかんで高さ。前回の大きさは記憶する） ---- */
+function applyMapDetailPanelSize() {
+    const panel = document.getElementById('map-detail-panel');
+    if (panel) panel.classList.toggle('mdp-narrow', panel.getBoundingClientRect().width < 330);
+}
+(function () {
+    const panel = document.getElementById('map-detail-panel');
+    const rz = document.getElementById('map-detail-resizer');
+    if (!panel || !rz) return;
+    const root = document.documentElement;
+    const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
+    const MIN_H = 96;                       /* スマホで最小まで下げたときの高さ（見出しだけ残して地図を広く見られる） */
+    const MIN_W = 220;
+    const store = {
+        get: (k) => { try { return parseFloat(localStorage.getItem(k)); } catch (e) { return NaN; } },
+        set: (k, v) => { try { localStorage.setItem(k, String(Math.round(v))); } catch (e) {} }
+    };
+    const w0 = store.get('mdpW'), h0 = store.get('mdpH');
+    if (w0 >= MIN_W) root.style.setProperty('--mdp-w', w0 + 'px');
+    if (h0 >= MIN_H) root.style.setProperty('--mdp-h', h0 + 'px');
+
+    let dragging = false, moved = false, startPos = 0, lastH = 0;
+    function setSize(clientX, clientY) {
+        if (isMobile()) {
+            const h = Math.max(MIN_H, Math.min(window.innerHeight * 0.92, window.innerHeight - clientY));
+            root.style.setProperty('--mdp-h', h + 'px'); lastH = h;
+        } else {
+            const w = Math.max(MIN_W, Math.min(window.innerWidth * 0.9, clientX));
+            root.style.setProperty('--mdp-w', w + 'px');
+        }
+        applyMapDetailPanelSize();
+    }
+    rz.addEventListener('pointerdown', function (e) {
+        dragging = true; moved = false;
+        startPos = isMobile() ? e.clientY : e.clientX;
+        try { rz.setPointerCapture(e.pointerId); } catch (err) {}
+        rz.classList.add('dragging'); document.body.classList.add('mdp-resizing');
+        e.preventDefault();
+    });
+    rz.addEventListener('pointermove', function (e) {
+        if (!dragging) return;
+        const pos = isMobile() ? e.clientY : e.clientX;
+        if (!moved && Math.abs(pos - startPos) < 4) return;
+        moved = true;
+        setSize(e.clientX, e.clientY);
+        e.preventDefault();
+    });
+    function end(e) {
+        if (!dragging) return;
+        dragging = false;
+        rz.classList.remove('dragging'); document.body.classList.remove('mdp-resizing');
+        if (moved) {
+            const cs = getComputedStyle(root);
+            if (isMobile()) store.set('mdpH', parseFloat(cs.getPropertyValue('--mdp-h')) || lastH);
+            else store.set('mdpW', parseFloat(cs.getPropertyValue('--mdp-w')) || panel.getBoundingClientRect().width);
+        } else if (isMobile()) {
+            /* ドラッグせずにタップしたとき：最小 ⇔ 既定の高さ を切り替える（地図をさっと見たいとき用） */
+            const cur = panel.getBoundingClientRect().height;
+            if (cur > MIN_H + 20) { root.style.setProperty('--mdp-h', MIN_H + 'px'); }
+            else { root.style.setProperty('--mdp-h', Math.round(window.innerHeight * 0.4) + 'px'); }
+        }
+    }
+    rz.addEventListener('pointerup', end);
+    rz.addEventListener('pointercancel', end);
+    window.addEventListener('resize', applyMapDetailPanelSize);
+})();
 
 /* 地番詳細パネル：個々の地番(banchi)は実測属性を通常の詳細モーダルと同じdl形式で表示、
    大字/小字の集約(oaza/koaza)は属性情報を持たないため、紐づくデータのみ表示する。
