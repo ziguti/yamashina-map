@@ -1614,7 +1614,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
             <div class="hero-section with-bg" id="book-db-hero"><h2 id="book-db-hero-title">図書データベース</h2><p id="book-db-hero-desc">BOOKS &amp; PUBLICATIONS</p></div>
             <div class="db-search-panel">
                 <div class="search-row">
-                    <div class="search-field search-field-wide"><label>横断キーワード</label><input id="book-search-main" placeholder="書名・目次・著者など全項目から検索"></div>
+                    <div class="search-field search-field-wide"><label>横断キーワード</label><input id="book-search-main" placeholder="書名・目次・著者・マニフェストのメタデータ・本文など全項目から検索"></div>
                 </div>
                 <div class="search-row">
                     <div class="search-field"><label>整理番号</label><input id="book-search-id"></div>
@@ -1651,7 +1651,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
                 </div>
                 <div id="doc-text-ui">
                     <div class="search-row">
-                        <div class="search-field search-field-wide"><label>横断キーワード</label><input id="doc-search-main" placeholder="件名・内容など全項目から検索"></div>
+                        <div class="search-field search-field-wide"><label>横断キーワード</label><input id="doc-search-main" placeholder="件名・内容・マニフェストのメタデータ・本文など全項目から検索"></div>
                     </div>
                     <div class="search-row">
                         <div class="search-field"><label>整理番号</label><input id="doc-search-id"></div>
@@ -1671,6 +1671,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
                     <div id="doc-tree-container"></div>
                 </div>
                 <button class="search-exec-btn" onclick="filterDocDB()"><i class="fa-solid fa-filter"></i> 検索する</button>
+                <span id="doc-search-status" style="margin-left:10px;color:var(--text-muted);font-size:0.85rem;"></span>
             </div>
             <div id="doc-list-container">
                 <div class="empty-state"><i class="fa-solid fa-scroll"></i>検索条件を指定してください。</div>
@@ -5625,30 +5626,34 @@ async function loadDocData() {
         const res = await fetch(CSV_DOC_URL);
         const text = await res.text();
         const rows = parseCSV(text).slice(1);
+        /* 文書スプレッドシートの列対応（1行目の見出しどおり）
+           A整理番号 B分類コード C大分類 D中分類 E小分類（簿冊） F資料URL G開始ページ H件名
+           I作成者・差出人 J宛先人 K作成年（西暦） L作成年（和暦） M内容・概要 N場所・地名 O所蔵
+           P所蔵機関の請求記号 Q形態 R枚数 S状態 T地番キー U備考・説明 V図面タイルURL Wジャンル */
         docData = rows.filter(r => r.length > 7 && (r[7] || '').trim() !== '').map((cols, index) => ({
-            id: cols[0] || `D-${index}`,
-            catCode: cols[1] || '',
-            main: cols[2] || '',
-            mid: cols[3] || '',
-            sub: cols[4] || '',
-            pdfUrl: cols[5] || '',
-            startPage: cols[6] || '',
-            subject: cols[7] || '無題史料',
-            creator: cols[8] || '',
-            recipient: cols[9] || '',
-            yearWest: cols[10] || '',
-            yearJpn: cols[11] || '',
-            desc: cols[12] || '',
-            storage: cols[13] || '',
-            pos: cols[14] || '',
-            callNum: cols[15] || '',
-            form: cols[16] || '',
-            qty: cols[17] || '',
-            cond: cols[18] || '',
-            chibanKey: cols[19] || '',
-            drawingTileUrl: cols[20] || '',
-            remarks: cols[21] || '',
-            genre: cols[22] || ''
+            id: cols[0] || `D-${index}`,             // A 整理番号
+            catCode: cols[1] || '',                  // B 分類コード
+            main: cols[2] || '',                     // C 大分類
+            mid: cols[3] || '',                      // D 中分類
+            sub: cols[4] || '',                      // E 小分類（簿冊）
+            pdfUrl: cols[5] || '',                   // F 資料URL（PDF／IIIFマニフェスト）
+            startPage: cols[6] || '',                // G 開始ページ
+            subject: cols[7] || '無題史料',          // H 件名
+            creator: cols[8] || '',                  // I 作成者・差出人
+            recipient: cols[9] || '',                // J 宛先人
+            yearWest: cols[10] || '',                // K 作成年（西暦）
+            yearJpn: cols[11] || '',                 // L 作成年（和暦）
+            desc: cols[12] || '',                    // M 内容・概要
+            pos: cols[13] || '',                     // N 場所・地名
+            storage: cols[14] || '',                 // O 所蔵
+            callNum: cols[15] || '',                 // P 所蔵機関の請求記号
+            form: cols[16] || '',                    // Q 形態
+            qty: cols[17] || '',                     // R 枚数
+            cond: cols[18] || '',                    // S 状態
+            chibanKey: cols[19] || '',               // T 地番キー
+            remarks: cols[20] || '',                 // U 備考・説明
+            drawingTileUrl: (cols[21] || '').trim(), // V 図面タイルURL
+            genre: cols[22] || ''                    // W ジャンル
         }));
         renderDocMapLayers();
         buildDocDrawingTree();
@@ -6361,15 +6366,18 @@ function filterBookDB() {
     const chiban = document.getElementById('book-search-chiban').value.trim().toLowerCase();
     const myGen = ++window._bookSearchGen;
 
+    /* 横断キーワード以外の絞り込み条件（マニフェスト検索の結果にも同じ条件を適用する） */
+    const fieldOk = b => (!id || String(b.id).toLowerCase().includes(id)) && (!title || (b.title || '').toLowerCase().includes(title))
+        && (!kana || (b.titleKana || '').toLowerCase().includes(kana)) && (!creator || (b.creator || '').toLowerCase().includes(creator))
+        && (!publisher || (b.publisher || '').toLowerCase().includes(publisher)) && (!yearWest || (b.yearWest || '').includes(yearWest))
+        && (!storage || (b.storage || '').toLowerCase().includes(storage))
+        && (!chiban || b.rows.some(r => (r.chibanKey || '').toLowerCase().includes(chiban)));
+
     bookData.forEach(b => { b.matchedTextHits = null; });
     pagedFilteredBookData = bookData.filter(b => {
         const tocText = b.rows.map(r => [r.h1, r.h2, r.h3, r.chibanKey].join(' ')).join(' ');
         const full = [b.id, b.title, b.titleKana, b.creator, b.publisher, b.yearWest, b.yearJpn, b.desc, b.storage, b.callNum, tocText].join(' ').toLowerCase();
-        const hit = (!qOmni || full.includes(qOmni)) && (!id || String(b.id).toLowerCase().includes(id)) && (!title || (b.title || '').toLowerCase().includes(title))
-            && (!kana || (b.titleKana || '').toLowerCase().includes(kana)) && (!creator || (b.creator || '').toLowerCase().includes(creator))
-            && (!publisher || (b.publisher || '').toLowerCase().includes(publisher)) && (!yearWest || (b.yearWest || '').includes(yearWest))
-            && (!storage || (b.storage || '').toLowerCase().includes(storage))
-            && (!chiban || b.rows.some(r => (r.chibanKey || '').toLowerCase().includes(chiban)));
+        const hit = (!qOmni || full.includes(qOmni)) && fieldOk(b);
         /* ヒットした目次項目（キーワード・地番キーがその行自体に一致するもの）を控えておく。
            一覧カードでの「ヒット箇所」表示と、詳細モーダルを開いたときの目次ハイライトに使う。 */
         b.matchedRows = (qOmni || chiban) ? b.rows.filter(r => bookRowMatchesQuery(r, qOmni, chiban)) : [];
@@ -6379,54 +6387,72 @@ function filterBookDB() {
     renderBookList();
     renderGenericResultMap('book-result-map', 'book-result-map-container', pagedFilteredBookData, () => ({ color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book }));
 
-    /* OCRの本文（search-index.json）を対象にした全文検索は、各冊ぶんの取得が必要なため非同期で行い、
-       見つかりしだい一覧に追加していく（キーワード検索のときだけ・本の背表紙検索や地番検索では行わない） */
+    /* マニフェストの中身（メタデータ・目次・埋め込みOCR・資料内検索API）と、OCR本文（search-index.json）の検索は、
+       1冊ずつ取得が必要なため非同期で行い、見つかりしだい一覧に追加していく（横断キーワードのときだけ行う） */
     const statusEl = document.getElementById('book-search-status');
     if (!qOmni) { if (statusEl) statusEl.textContent = ''; return; }
-    if (statusEl) statusEl.textContent = '本文を検索中…';
-    bookFullTextSearch(qOmni, myGen).then(hitsByBook => {
+    const total = bookData.filter(b => b.url).length;
+    let done = 0, added = false, timer = null;
+    const flush = () => {
+        timer = null;
+        if (myGen !== window._bookSearchGen) return;
+        renderBookList();
+        if (added) { added = false; renderGenericResultMap('book-result-map', 'book-result-map-container', pagedFilteredBookData, () => ({ color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book })); }
+    };
+    const onHit = (b, hits) => {
+        if (myGen !== window._bookSearchGen) return;
+        b.matchedTextHits = hits;
+        if (!pagedFilteredBookData.includes(b)) { pagedFilteredBookData.push(b); added = true; }
+        if (!timer) timer = setTimeout(flush, 1200);
+    };
+    const onProgress = () => {
+        done++;
+        if (statusEl && myGen === window._bookSearchGen) statusEl.textContent = `マニフェスト・本文を検索中… ${done}/${total}`;
+    };
+    if (statusEl) statusEl.textContent = `マニフェスト・本文を検索中… 0/${total}`;
+    bookFullTextSearch(qOmni, myGen, fieldOk, onHit, onProgress).then(() => {
         if (myGen !== window._bookSearchGen) return; /* 新しい検索が始まっていれば古い結果は捨てる */
         if (statusEl) statusEl.textContent = '';
-        if (hitsByBook.size === 0) return;
-        let added = false;
-        hitsByBook.forEach((hits, bookId) => {
-            const b = bookData.find(x => String(x.id) === String(bookId));
-            if (!b) return;
-            b.matchedTextHits = hits;
-            if (!pagedFilteredBookData.includes(b)) { pagedFilteredBookData.push(b); added = true; }
-        });
-        renderBookList();
-        if (added) renderGenericResultMap('book-result-map', 'book-result-map-container', pagedFilteredBookData, () => ({ color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book }));
+        if (timer) clearTimeout(timer);
+        flush();
     });
 }
 
-/* 本のOCR本文（search-index.json）をキーワードで検索する。OCR未実施の本（ファイルが無い本）は静かに無視する。 */
-async function bookFullTextSearch(q, myGen) {
-    const results = new Map();
+/* 各冊について、マニフェストの中身と、OCR本文（search-index.json）をキーワード検索する。
+   ・マニフェスト：メタデータ・目次・マニフェストに埋め込まれたOCR・資料内検索API（IIIF Content Search）
+   ・search-index.json：自前IIIFで作ったOCR本文の索引（マニフェストに本文検索の手段が無い本だけ確認する）
+   どちらも無い本は静かに無視する。 */
+async function bookFullTextSearch(q, myGen, fieldOk, onHit, onProgress) {
     const tasks = bookData.filter(b => b.url).map(b => async () => {
-        if (myGen !== window._bookSearchGen) return;
         try {
-            const idx = await getBookSearchIndex(b);
+            if (myGen !== window._bookSearchGen || !fieldOk(b)) return;
             const hits = [];
-            Object.keys(idx).forEach(page => {
-                const text = idx[page] || '';
-                const low = text.toLowerCase();
-                const i = low.indexOf(q);
-                if (i !== -1) {
-                    const s = Math.max(0, i - 12), e = Math.min(text.length, i + q.length + 18);
-                    hits.push({ page, snippet: (s > 0 ? '…' : '') + text.slice(s, e) + (e < text.length ? '…' : '') });
-                }
-            });
-            if (hits.length) results.set(b.id, hits);
-        } catch (e) { /* OCR未実施（search-index.jsonなし）は無視 */ }
+            let hasMfText = false;
+            if (isIiifUrl(b.url)) {
+                try { const r = await manifestSearch(b.url, q); hits.push(...r.hits); hasMfText = r.hasText; } catch (e) { /* 取得できないマニフェストは無視 */ }
+            }
+            if (!hasMfText) {
+                try {
+                    const idx = await getBookSearchIndex(b);
+                    Object.keys(idx).forEach(page => {
+                        const text = idx[page] || '';
+                        if (text.toLowerCase().includes(q)) hits.push({ page, kind: 'ocr', snippet: '【本文】' + iiifSnippet(text, q) });
+                    });
+                } catch (e) { /* OCR未実施（search-index.jsonなし）は無視 */ }
+            }
+            if (hits.length) onHit(b, hits);
+        } finally { onProgress(); }
     });
     await runWithConcurrencyLimit(tasks, 4);
-    return results;
 }
 function getBookSearchIndex(b) {
     if (!b._searchIndexPromise) {
-        const url = b.url.replace(/manifest\.json$/, 'search-index.json');
-        b._searchIndexPromise = fetch(url, { mode: 'cors' }).then(r => { if (!r.ok) throw new Error('no index'); return r.json(); });
+        /* search-index.json は「…/manifest.json」と同じ場所に置く規約。それ以外のURL（PDFなど）には取りにいかない */
+        if (!/manifest\.json(\?.*)?$/i.test(b.url)) { b._searchIndexPromise = Promise.reject(new Error('no index')); b._searchIndexPromise.catch(() => {}); }
+        else {
+            const url = b.url.replace(/manifest\.json(\?.*)?$/i, 'search-index.json');
+            b._searchIndexPromise = fetch(url, { mode: 'cors' }).then(r => { if (!r.ok) throw new Error('no index'); return r.json(); });
+        }
     }
     return b._searchIndexPromise;
 }
@@ -6442,21 +6468,21 @@ function renderBookList() {
         const shown = hits.slice(0, 4);
         const hitsHtml = hits.length > 0 ? `
             <div class="dlc-toc-hits">
-                ${shown.map(r => `<div class="dlc-toc-hit" onclick="event.stopPropagation(); openBookDetailModalAtRow(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(r.id))})">
+                ${shown.map(r => `<div class="dlc-toc-hit" onclick="event.stopPropagation(); openBookDetailModalAtRow('${escapeJsAttr(b.id)}', '${escapeJsAttr(r.id)}')">
                     <i class="fa-solid fa-arrow-turn-down-right"></i> ${escapeHtml([...r.chain, r.entryLabel].join(' ＞ '))} <span class="dlc-toc-hit-page">p.${r.startPage}</span></div>`).join('')}
                 ${hits.length > 4 ? `<div class="dlc-toc-hit-more">ほか${hits.length - 4}件ヒット</div>` : ''}
             </div>` : '';
         const textHits = b.matchedTextHits || [];
         const textHitsHtml = textHits.length > 0 ? `
             <div class="dlc-toc-hits dlc-text-hits">
-                <div class="dlc-hit-group-label"><i class="fa-solid fa-file-lines"></i> 本文でヒット</div>
-                ${textHits.slice(0, 3).map(h => `<div class="dlc-toc-hit" onclick="event.stopPropagation(); openBookDetailModalAtPage(${JSON.stringify(String(b.id))}, ${JSON.stringify(h.page)})">
+                <div class="dlc-hit-group-label"><i class="fa-solid fa-file-lines"></i> メタデータ・目次・本文でヒット</div>
+                ${textHits.slice(0, 4).map(h => `<div class="dlc-toc-hit" onclick="event.stopPropagation(); openBookDetailModalAtPage('${escapeJsAttr(b.id)}', '${escapeJsAttr(h.page)}')">
                     <span class="dlc-text-hit-snippet">${escapeHtml(h.snippet)}</span></div>`).join('')}
-                ${textHits.length > 3 ? `<div class="dlc-toc-hit-more">ほか${textHits.length - 3}件ヒット</div>` : ''}
+                ${textHits.length > 4 ? `<div class="dlc-toc-hit-more">ほか${textHits.length - 4}件ヒット</div>` : ''}
             </div>` : '';
         const jumpRowId = hits[0] ? String(hits[0].id) : '';
         return `
-        <div class="doc-list-card" onclick='openBookDetailModalAtRow(${JSON.stringify(String(b.id))}, ${JSON.stringify(jumpRowId)})'>
+        <div class="doc-list-card" onclick="openBookDetailModalAtRow('${escapeJsAttr(b.id)}', '${escapeJsAttr(jumpRowId)}')">
             <div class="dlc-thumb media-loading-wrap" id="book-list-thumb-${idx}">
                 <div class="media-spinner" style="font-size:1.2rem;"><i class="fa-solid fa-spinner fa-spin"></i></div>
             </div>
@@ -6649,17 +6675,99 @@ function filterDocDB() {
     const chiban = document.getElementById('doc-search-chiban').value.trim().toLowerCase();
     const genre = document.getElementById('doc-search-genre').value.trim().toLowerCase();
 
+    const myGen = ++window._docSearchGen;
+    /* 横断キーワード以外の絞り込み条件（マニフェスト検索の結果にも同じ条件を適用する） */
+    const fieldOk = d => (!id || (d.id||'').toLowerCase().includes(id)) && (!mid || (d.main||'').toLowerCase().includes(mid))
+        && (!sub || (d.mid||'').toLowerCase().includes(sub)) && (!subject || (d.subject||'').toLowerCase().includes(subject))
+        && (!creator || (d.creator||'').toLowerCase().includes(creator)) && (!recipient || (d.recipient||'').toLowerCase().includes(recipient))
+        && (!yearWest || (d.yearWest||'').includes(yearWest)) && (!loc || (d.storage||'').toLowerCase().includes(loc))
+        && (!chiban || (d.chibanKey||'').toLowerCase().includes(chiban)) && (!genre || (d.genre||'').toLowerCase().includes(genre));
+
+    docData.forEach(d => { d.matchedTextHits = null; });
     pagedFilteredDocData = docData.filter(d => {
         const full = [d.id, d.main, d.mid, d.sub, d.subject, d.creator, d.recipient, d.yearWest, d.yearJpn, d.desc, d.storage, d.pos, d.callNum, d.form, d.qty, d.cond, d.chibanKey, d.remarks, d.genre].join(' ').toLowerCase();
-        return (!qOmni || full.includes(qOmni)) && (!id || (d.id||'').toLowerCase().includes(id)) && (!mid || (d.main||'').toLowerCase().includes(mid))
-            && (!sub || (d.mid||'').toLowerCase().includes(sub)) && (!subject || (d.subject||'').toLowerCase().includes(subject))
-            && (!creator || (d.creator||'').toLowerCase().includes(creator)) && (!recipient || (d.recipient||'').toLowerCase().includes(recipient))
-            && (!yearWest || (d.yearWest||'').includes(yearWest)) && (!loc || (d.storage||'').toLowerCase().includes(loc))
-            && (!chiban || (d.chibanKey||'').toLowerCase().includes(chiban)) && (!genre || (d.genre||'').toLowerCase().includes(genre));
+        return (!qOmni || full.includes(qOmni)) && fieldOk(d);
     });
     currentDocPage = 1;
     renderDocList();
     renderGenericResultMap('doc-result-map', 'doc-result-map-container', pagedFilteredDocData, () => ({ color: '#000080', fillColor: '#000080' }));
+
+    /* IIIFマニフェストの資料は、マニフェストの中身（メタデータ・目次・埋め込みOCR・資料内検索API）も検索する。
+       1つのマニフェストにつき1回だけ取得し、見つかりしだい一覧に追加する（横断キーワードのときだけ行う） */
+    const statusEl = document.getElementById('doc-search-status');
+    if (!qOmni) { if (statusEl) statusEl.textContent = ''; return; }
+    const groups = docIiifGroups();
+    const total = groups.size;
+    if (!total) { if (statusEl) statusEl.textContent = ''; return; }
+    let done = 0, added = false, timer = null;
+    const flush = () => {
+        timer = null;
+        if (myGen !== window._docSearchGen) return;
+        renderDocList();
+        if (added) { added = false; renderGenericResultMap('doc-result-map', 'doc-result-map-container', pagedFilteredDocData, () => ({ color: '#000080', fillColor: '#000080' })); }
+    };
+    if (statusEl) statusEl.textContent = `マニフェストを検索中… 0/${total}`;
+    const tasks = [...groups.entries()].map(([url, rows]) => async () => {
+        try {
+            if (myGen !== window._docSearchGen) return;
+            if (!rows.some(fieldOk)) return;
+            const r = await manifestSearch(url, qOmni);
+            if (myGen !== window._docSearchGen || !r.hits.length) return;
+            /* ヒットしたコマを、そのコマを含む史料（行）に振り分ける。メタデータのヒットは先頭の史料に付ける */
+            const perDoc = new Map();
+            r.hits.forEach(h => {
+                const owner = h.kind === 'meta' ? rows[0] : findOwningDocItem(rows, parseInt(h.page, 10) || 1);
+                if (!owner) return;
+                if (!perDoc.has(owner)) perDoc.set(owner, []);
+                perDoc.get(owner).push(h);
+            });
+            perDoc.forEach((hits, d) => {
+                if (!fieldOk(d)) return;
+                d.matchedTextHits = hits;
+                if (!pagedFilteredDocData.includes(d)) { pagedFilteredDocData.push(d); added = true; }
+            });
+            if (!timer) timer = setTimeout(flush, 1200);
+        } catch (e) { /* 取得できないマニフェストは無視 */ }
+        finally {
+            done++;
+            if (statusEl && myGen === window._docSearchGen) statusEl.textContent = `マニフェストを検索中… ${done}/${total}`;
+        }
+    });
+    runWithConcurrencyLimit(tasks, 4).then(() => {
+        if (myGen !== window._docSearchGen) return;
+        if (statusEl) statusEl.textContent = '';
+        if (timer) clearTimeout(timer);
+        flush();
+    });
+}
+
+window._docSearchGen = window._docSearchGen || 0;
+
+/* 文書・史料のうち、資料URLがIIIFマニフェストのものを、マニフェストURLごとにまとめる（開始ページ順）。
+   資料URLが空欄の行は、同じ簿冊（大・中・小分類が同じ）で最初に入力されているURLを使う（ビュアーと同じ規則） */
+function docIiifGroups() {
+    const keyUrl = new Map();
+    docData.forEach(d => {
+        const u = (d.pdfUrl || '').trim();
+        if (u && u !== '-' && !keyUrl.has(docBookKey(d))) keyUrl.set(docBookKey(d), u);
+    });
+    const groups = new Map();
+    docData.forEach(d => {
+        const own = (d.pdfUrl || '').trim();
+        const u = (own && own !== '-') ? own : (keyUrl.get(docBookKey(d)) || '');
+        if (!u || !isIiifUrl(u)) return;
+        if (!groups.has(u)) groups.set(u, []);
+        groups.get(u).push(d);
+    });
+    groups.forEach(rows => rows.sort((a, b) => parseStartPage(a.startPage) - parseStartPage(b.startPage)));
+    return groups;
+}
+
+/* 検索ヒット箇所のクリック用：その史料を、ヒットしたコマで開く */
+function openDocDetailModalAtPage(docId, page) {
+    const d = docData.find(x => String(x.id) === String(docId));
+    if (!d) return;
+    openDocDetailModal(Object.assign({}, d, { startPage: String(parseInt(page, 10) || 1) }));
 }
 
 function renderDocList() {
@@ -6677,6 +6785,13 @@ function renderDocList() {
                 <div class="dlc-title">${escapeHtml(d.subject)}</div>
                 <div class="dlc-meta">${escapeHtml(d.main)} ／ ${escapeHtml(d.mid)} ／ ${escapeHtml(d.sub)}</div>
                 <span class="dlc-year">作成年：${escapeHtml(d.yearWest) || escapeHtml(d.yearJpn) || '不明'}</span>
+                ${(d.matchedTextHits && d.matchedTextHits.length) ? `
+                <div class="dlc-toc-hits dlc-text-hits">
+                    <div class="dlc-hit-group-label"><i class="fa-solid fa-file-lines"></i> マニフェスト内でヒット</div>
+                    ${d.matchedTextHits.slice(0, 4).map(h => `<div class="dlc-toc-hit" onclick="event.stopPropagation(); openDocDetailModalAtPage('${escapeJsAttr(d.id)}', '${escapeJsAttr(h.page)}')">
+                        <span class="dlc-text-hit-snippet">${escapeHtml(h.snippet)}</span></div>`).join('')}
+                    ${d.matchedTextHits.length > 4 ? `<div class="dlc-toc-hit-more">ほか${d.matchedTextHits.length - 4}件ヒット</div>` : ''}
+                </div>` : ''}
             </div>
         </div>`).join('');
     renderGenericPagination(pager, pagedFilteredDocData.length, currentDocPage, (i) => { currentDocPage = i; renderDocList(); });
@@ -6691,16 +6806,23 @@ function renderDocList() {
 
 /* 簡易な同時実行数制限キュー */
 function runWithConcurrencyLimit(taskFns, limit) {
-    let cursor = 0;
-    let active = 0;
-    const runNext = () => {
-        while (active < limit && cursor < taskFns.length) {
-            const fn = taskFns[cursor++];
-            active++;
-            Promise.resolve().then(fn).catch(() => {}).finally(() => { active--; runNext(); });
-        }
-    };
-    runNext();
+    /* 全タスクが終わったら解決するPromiseを返す（呼び出し側が await しなくても従来どおり動く） */
+    return new Promise(resolve => {
+        const total = taskFns.length;
+        if (!total) { resolve(); return; }
+        let cursor = 0, active = 0, finished = 0;
+        const runNext = () => {
+            while (active < limit && cursor < total) {
+                const fn = taskFns[cursor++];
+                active++;
+                Promise.resolve().then(fn).catch(() => {}).finally(() => {
+                    active--; finished++;
+                    if (finished === total) resolve(); else runNext();
+                });
+            }
+        };
+        runNext();
+    });
 }
 
 async function loadDocListThumbnail(row, containerId) {
@@ -7822,6 +7944,35 @@ function iiifBuildToc(m, idToIdx, title) {
     return { rows, outline };
 }
 
+/* コマ（Canvas）に直接埋め込まれたテキスト注釈（OCR翻刻など）を取り出す。
+   v3：canvas.annotations（AnnotationPage）／v2：canvas.otherContent のうち、中身（resources）が
+   Manifestの中に書かれているもの。URLで外部参照しているだけの注釈リストは、ここでは対象外。 */
+function iiifInlineText(cv) {
+    const parts = [];
+    const take = a => {
+        if (!a || typeof a !== 'object') return;
+        if (/tagging|highlighting|bookmarking|identifying/i.test(iiifText(a.motivation))) return;
+        const res = a.body !== undefined ? a.body : a.resource;
+        (Array.isArray(res) ? res : [res]).forEach(r => {
+            if (!r || typeof r !== 'object') return;
+            const v = r.value !== undefined ? r.value : (r.chars !== undefined ? r.chars : r['@value']);
+            if (v !== undefined && v !== null && String(v).trim()) parts.push(iiifText(v));
+        });
+    };
+    (Array.isArray(cv.annotations) ? cv.annotations : []).forEach(pg => ((pg && (pg.items || pg.resources)) || []).forEach(take));
+    (Array.isArray(cv.otherContent) ? cv.otherContent : []).forEach(oc => ((oc && (oc.resources || oc.items)) || []).forEach(take));
+    return parts.join('\n');
+}
+
+/* ManifestのIIIF Content Search API（資料内検索）のURLを探す */
+function iiifFindSearchService(m) {
+    const svcs = [].concat(m.service || [], m.services || []);
+    const sv = svcs.find(x => x && typeof x === 'object'
+        && /iiif\.io\/api\/search|SearchService/i.test(JSON.stringify([x['@context'], x.profile, x.type, x['@type']])));
+    const id = sv ? _iiifId(sv) : '';
+    return /^https?:\/\//i.test(id) ? id : '';
+}
+
 /* Manifest（Presentation API 3.0 / 2.x）を、ビュアーが使う形に整える。
    画像のコマ情報に加えて、メタデータ・説明・提供元・ライセンス・目次（structures）も取り出す。 */
 function normalizeIiifManifest(m) {
@@ -7834,15 +7985,17 @@ function normalizeIiifManifest(m) {
                 const body = _iiifFirst(anno.body);
                 serviceId = _iiifId(body.service || body.services);
             } catch (e) {}
-            canvases.push({ id: cv.id || cv['@id'] || '', width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail) });
+            canvases.push({ id: cv.id || cv['@id'] || '', width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail), ocrText: iiifInlineText(cv) });
         });
     } else if (m.sequences && m.sequences[0]) {
         (m.sequences[0].canvases || []).forEach(cv => {
             let serviceId = '';
             try { serviceId = _iiifId(cv.images[0].resource.service); } catch (e) {}
-            canvases.push({ id: cv['@id'] || cv.id || '', width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail) });
+            canvases.push({ id: cv['@id'] || cv.id || '', width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail), ocrText: iiifInlineText(cv) });
         });
     }
+    const ocr = [];
+    canvases.forEach((c, i) => { if (c.ocrText) ocr.push({ page: i + 1, text: c.ocrText }); delete c.ocrText; });
     canvases.forEach(c => {
         c.serviceId = (c.serviceId || '').replace(/\/+$/, '');
         if (!c.thumb && c.serviceId) c.thumb = c.serviceId + '/full/!400,400/0/default.jpg';
@@ -7869,7 +8022,8 @@ function normalizeIiifManifest(m) {
         title, desc, meta, attribution: attribution || provider, license: /^https?:\/\//i.test(license) ? license : '',
         links: iiifCollectLinks(m),
         guess: iiifGuessFields(meta, title, desc, canvases.length),
-        tocRows: toc.rows, tocOutline: toc.outline
+        tocRows: toc.rows, tocOutline: toc.outline,
+        ocr, searchService: iiifFindSearchService(m)
     };
 }
 
@@ -7958,6 +8112,82 @@ function getIiifManifestCached(url) {
             .catch(e => { delete cache[url]; throw e; });
     }
     return cache[url];
+}
+
+/* ---------- マニフェスト内の検索（メタデータ・目次・埋め込みOCR・資料内検索API） ---------- */
+function iiifSnippet(text, q) {
+    const t = String(text || '').replace(/\s+/g, ' ').trim();
+    const i = t.toLowerCase().indexOf(q);
+    if (i < 0) return t.slice(0, 40);
+    const a = Math.max(0, i - 12), b = Math.min(t.length, i + q.length + 22);
+    return (a > 0 ? '…' : '') + t.slice(a, b) + (b < t.length ? '…' : '');
+}
+
+/* IIIF Content Search API（v1/v2）の応答から、ヒット箇所（コマ番号＋前後の文章）を取り出す */
+function iiifParseSearchResponse(j, q, mf) {
+    const idToPage = new Map();
+    mf.canvases.forEach((c, i) => { if (c.id) idToPage.set(String(c.id).split('#')[0], i + 1); });
+    const items = [].concat(j.resources || [], j.items || [], ...((Array.isArray(j.annotations) ? j.annotations : []).map(a => (a && (a.items || a.resources)) || [])));
+    const seen = new Set(), out = [];
+    items.forEach(a => {
+        if (!a || typeof a !== 'object') return;
+        let t = a.on || a.target;
+        if (Array.isArray(t)) t = t[0];
+        if (t && typeof t === 'object') t = t.full || (t.source && (t.source.id || t.source['@id'] || t.source)) || t.id || t['@id'] || '';
+        const page = idToPage.get(String(t || '').split('#')[0]);
+        if (!page || seen.has(page)) return;
+        seen.add(page);
+        let r = a.resource || a.body; if (Array.isArray(r)) r = r[0];
+        const text = iiifText((r && (r.chars !== undefined ? r.chars : r.value)) || '');
+        out.push({ page: String(page), kind: 'ocr', snippet: '【本文】' + (text ? iiifSnippet(text, q) : q) });
+    });
+    return out;
+}
+
+/* 1つのマニフェストを検索する。q は小文字化済みの検索語。
+   戻り値：{ hits: [{page, kind, snippet}], metaHit, hasText }
+   hasText＝このマニフェストが本文検索の手段（埋め込みOCR／検索API）を持っているか */
+async function manifestSearch(url, q) {
+    const mf = await getIiifManifestCached(url);
+    const out = { hits: [], metaHit: false, hasText: !!((mf.ocr && mf.ocr.length) || mf.searchService) };
+    const has = v => String(v || '').toLowerCase().includes(q);
+
+    /* ① メタデータ（タイトル・各項目・説明・提供元） */
+    const pairs = [];
+    if (mf.title) pairs.push(['タイトル', mf.title]);
+    (mf.meta || []).forEach(p => pairs.push([p.label, p.value]));
+    if (mf.desc) pairs.push(['説明', mf.desc]);
+    if (mf.attribution) pairs.push(['提供', mf.attribution]);
+    let nMeta = 0;
+    pairs.forEach(([label, value]) => {
+        if (nMeta < 3 && (has(value) || has(label))) {
+            nMeta++; out.metaHit = true;
+            out.hits.push({ page: '1', kind: 'meta', snippet: '【メタデータ】' + label + '：' + iiifSnippet(value, q) });
+        }
+    });
+    /* ② 目次（マニフェストのstructures） */
+    let nToc = 0;
+    (mf.tocRows || []).forEach(r => {
+        const label = [...r.chain, r.entryLabel].join(' ＞ ');
+        if (nToc < 20 && has(label)) { nToc++; out.hits.push({ page: String(r.startPage), kind: 'toc', snippet: '【目次】' + label }); }
+    });
+    /* ③ マニフェストに埋め込まれたOCR・翻刻テキスト */
+    let nOcr = 0;
+    (mf.ocr || []).forEach(o => {
+        if (nOcr < 30 && has(o.text)) { nOcr++; out.hits.push({ page: String(o.page), kind: 'ocr', snippet: '【本文】' + iiifSnippet(o.text, q) }); }
+    });
+    /* ④ マニフェストが宣言している資料内検索API（IIIF Content Search） */
+    if (mf.searchService) {
+        try {
+            const u = mf.searchService + (mf.searchService.includes('?') ? '&' : '?') + 'q=' + encodeURIComponent(q);
+            const res = await fetch(u, { mode: 'cors' });
+            if (res.ok) {
+                const have = new Set(out.hits.filter(h => h.kind === 'ocr').map(h => h.page));
+                iiifParseSearchResponse(await res.json(), q, mf).slice(0, 30).forEach(h => { if (!have.has(h.page)) out.hits.push(h); });
+            }
+        } catch (e) { /* 検索APIが使えない・CORS不可のときは、メタデータ等の結果だけを返す */ }
+    }
+    return out;
 }
 
 /* ---------- サムネイル（一覧・地図パネル） ---------- */
@@ -8424,18 +8654,19 @@ function openDocDetailPanel(row) {
         <h3 style="font-size:0.95rem;color:var(--primary-brown);margin:6px 0 12px;">${escapeHtml(row.subject)}</h3>
         <dl class="meta-info-list">
             <dt>整理番号</dt><dd>${escapeHtml(row.id)}</dd>
-            <dt>作成者</dt><dd>${escapeHtml(row.creator) || '－'}</dd>
-            <dt>宛先</dt><dd>${escapeHtml(row.recipient) || '－'}</dd>
+            <dt>作成者・差出人</dt><dd>${escapeHtml(row.creator) || '－'}</dd>
+            <dt>宛先人</dt><dd>${escapeHtml(row.recipient) || '－'}</dd>
             <dt>作成年（西暦）</dt><dd>${escapeHtml(row.yearWest) || '不明'}</dd>
             <dt>作成年（和暦）</dt><dd>${escapeHtml(row.yearJpn) || '－'}</dd>
-            <dt>内容</dt><dd>${escapeHtml(row.desc) || '（説明なし）'}</dd>
+            <dt>内容・概要</dt><dd>${escapeHtml(row.desc) || '（説明なし）'}</dd>
+            <dt>場所・地名</dt><dd>${escapeHtml(row.pos) || '－'}</dd>
             <dt>所蔵</dt><dd>${escapeHtml(row.storage) || '－'}</dd>
             <dt>請求記号</dt><dd>${escapeHtml(row.callNum) || '－'}</dd>
             <dt>形態</dt><dd>${escapeHtml(row.form) || '－'}</dd>
-            <dt>数量</dt><dd>${escapeHtml(row.qty) || '－'}</dd>
+            <dt>枚数</dt><dd>${escapeHtml(row.qty) || '－'}</dd>
             <dt>状態</dt><dd>${escapeHtml(row.cond) || '－'}</dd>
             <dt>ジャンル</dt><dd>${escapeHtml(row.genre) || '－'}</dd>
-            <dt>備考</dt><dd>${escapeHtml(row.remarks) || '－'}</dd>
+            <dt>備考・説明</dt><dd>${escapeHtml(row.remarks) || '－'}</dd>
             <dt>地番キー</dt><dd>${escapeHtml(row.chibanKey) || '－'}</dd>
         </dl>
         <button class="mdp-db-btn" onclick="openDocDetailModalFromPanel('${escapeJsAttr(row.id)}')"><i class="fa-solid fa-database"></i> データベースで確認</button>
@@ -8838,19 +9069,19 @@ function updateDocDetailTabContent() {
             <dt>中分類</dt><dd>${escapeHtml(owning.mid) || '－'}</dd>
             <dt>小分類（簿冊）</dt><dd>${escapeHtml(owning.sub) || '－'}</dd>
             <dt>開始ページ</dt><dd>${escapeHtml(owning.startPage) || '－'}</dd>
-            <dt>作成者</dt><dd>${mfFieldHtml(owning.creator, 'creator')}</dd>
-            <dt>宛先</dt><dd>${escapeHtml(owning.recipient) || '－'}</dd>
+            <dt>作成者・差出人</dt><dd>${mfFieldHtml(owning.creator, 'creator')}</dd>
+            <dt>宛先人</dt><dd>${escapeHtml(owning.recipient) || '－'}</dd>
             <dt>作成年（西暦）</dt><dd>${mfFieldHtml(owning.yearWest, 'yearWest', '不明', owning.yearJpn)}</dd>
             <dt>作成年（和暦）</dt><dd>${mfFieldHtml(owning.yearJpn, 'yearJpn', '－', owning.yearWest)}</dd>
-            <dt>内容</dt><dd>${mfFieldHtml(owning.desc, 'desc', '（説明なし）')}</dd>
+            <dt>内容・概要</dt><dd>${mfFieldHtml(owning.desc, 'desc', '（説明なし）')}</dd>
             <dt>所蔵</dt><dd>${mfFieldHtml(owning.storage, 'storage')}</dd>
-            <dt>位置</dt><dd>${escapeHtml(owning.pos) || '－'}</dd>
+            <dt>場所・地名</dt><dd>${escapeHtml(owning.pos) || '－'}</dd>
             <dt>請求記号</dt><dd>${mfFieldHtml(owning.callNum, 'callNum')}</dd>
             <dt>形態</dt><dd>${mfFieldHtml(owning.form, 'form')}</dd>
-            <dt>数量</dt><dd>${escapeHtml(owning.qty) || '－'}</dd>
+            <dt>枚数</dt><dd>${escapeHtml(owning.qty) || '－'}</dd>
             <dt>状態</dt><dd>${escapeHtml(owning.cond) || '－'}</dd>
             <dt>地番キー</dt><dd>${escapeHtml(owning.chibanKey) || '－'}</dd>
-            <dt>備考</dt><dd>${escapeHtml(owning.remarks) || '－'}</dd>
+            <dt>備考・説明</dt><dd>${escapeHtml(owning.remarks) || '－'}</dd>
             <dt>ジャンル</dt><dd>${escapeHtml(owning.genre) || '－'}</dd>
         </dl>
         <div class="modal-map-container" id="doc-detail-inline-map"></div>
