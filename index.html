@@ -469,6 +469,12 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
     font-size: 0.92rem; color: var(--text-dark); line-height: 1.65; margin: 0;
     padding: 12px 0; border-bottom: 1px solid rgba(168,135,76,0.2); display: flex; align-items: flex-start;
 }
+.toc-source-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 8px 10px; margin-bottom: 4px; font-size: 0.78rem; color: #8d7a63; border-bottom: 1px solid rgba(168,135,76,0.25); }
+.toc-source-bar button { font: inherit; padding: 3px 10px; border: 1px solid rgba(168,135,76,0.55); background: transparent; color: var(--primary-brown); border-radius: 2px; cursor: pointer; }
+.toc-source-bar button.on { background: var(--primary-brown); color: #f3ead6; border-color: var(--primary-brown); }
+.mf-auto-tag { margin-left: 8px; padding: 0 6px; font-size: 0.66rem; line-height: 1.7; border: 1px solid rgba(168,135,76,0.5); color: #8d7a63; border-radius: 2px; white-space: nowrap; align-self: center; }
+.mf-meta-list dd { white-space: pre-line; overflow-wrap: anywhere; }
+.mf-meta-list dd a { color: var(--primary-brown); }
 .modal-map-container { width: 100%; height: 220px; margin-top: 16px; border-radius: 2px; overflow: hidden; border: 1px solid rgba(168,135,76,0.45); }
 .map-focus-btn, .compare-btn {
     width: 100%; margin-top: 16px; padding: 13px; background: var(--primary-brown); color: #f3ead6;
@@ -6548,7 +6554,7 @@ function switchBookModalTab(mode) {
 /* 現在表示中のページを含む目次項目（行）を返す（目次タブのハイライト・詳細タブの現在地表示の両方で使う） */
 function findCurrentBookRow() {
     const cur = window._docViewer.currentPage;
-    const rows = window._docViewer.book;
+    const rows = activeBookRows();
     let best = null;
     rows.forEach(r => { if (r.startPage <= cur && (!best || r.startPage > best.startPage)) best = r; });
     return best || rows[0];
@@ -6559,20 +6565,24 @@ function findCurrentBookRow() {
 function renderBookOutlineTree() {
     const container = document.getElementById('book-outline-body');
     if (!container) return;
+    const v = window._docViewer;
     const currentRow = findCurrentBookRow();
-    const hitIds = window._docViewer.hitIds || new Set();
+    const hitIds = v.hitIds || new Set();
+    const useMf = v.tocSource === 'manifest' && v.mfOutline && v.mfOutline.length;
     const renderNodes = (nodes, depth) => nodes.map(n => {
         const indent = 8 + depth * 18;
         if (n.row) {
             const active = n.row === currentRow;
             const hit = hitIds.has(String(n.row.id));
             return `<div class="doc-subject-link-item ${active ? 'current' : ''} ${hit ? 'search-hit' : ''}" style="padding-left:${indent}px;" onclick="goToDocPage(${n.row.startPage}, true)">
-                <span style="color:var(--accent-gold);font-weight:700;margin-right:8px;">${n.row.startPage}</span>${escapeHtml(n.label)}${hit ? ' <i class="fa-solid fa-magnifying-glass" style="font-size:0.75em;color:#e65100;"></i>' : ''}</div>`;
+                <span style="color:var(--accent-gold);font-weight:700;margin-right:8px;">${n.row.startPage}</span>${escapeHtml(n.label)}${hit ? ' <i class="fa-solid fa-magnifying-glass" style="font-size:0.75em;color:#e65100;"></i>' : ''}</div>`
+                + renderNodes(n.children, depth + 1).join('');
         }
         return `<div class="doc-subject-link-item" style="padding-left:${indent}px;font-weight:700;color:#666;cursor:default;">${escapeHtml(n.label)}</div>`
             + renderNodes(n.children, depth + 1).join('');
     });
-    container.innerHTML = renderNodes(window._docViewer.bookMeta.outline, 0).join('') || '<p style="padding:10px;color:#888;">目次項目がありません。</p>';
+    container.innerHTML = tocSourceBarHTML()
+        + (renderNodes(useMf ? v.mfOutline : v.bookMeta.outline, 0).join('') || '<p style="padding:10px;color:#888;">目次項目がありません。</p>');
 }
 
 function highlightCurrentBookOutline() { renderBookOutlineTree(); }
@@ -6597,15 +6607,15 @@ function updateBookDetailTabContent() {
         <dl class="meta-info-list">
             <dt>整理番号</dt><dd>${escapeHtml(b.id)}</dd>
             <dt>カナ読み</dt><dd>${escapeHtml(b.titleKana) || '－'}</dd>
-            <dt>著者・作成者</dt><dd>${escapeHtml(b.creator) || '－'}</dd>
-            <dt>出版・発行</dt><dd>${escapeHtml(b.publisher) || '－'}</dd>
-            <dt>出版年（西暦）</dt><dd>${escapeHtml(b.yearWest) || '不明'}</dd>
-            <dt>出版年（和暦）</dt><dd>${escapeHtml(b.yearJpn) || '－'}</dd>
-            <dt>全ページ数</dt><dd>${escapeHtml(b.totalPages) || '－'}</dd>
-            <dt>説明・概要</dt><dd>${escapeHtml(b.desc) || '（説明なし）'}</dd>
-            <dt>所蔵</dt><dd>${escapeHtml(b.storage) || '－'}</dd>
-            <dt>所蔵機関の整理番号</dt><dd>${escapeHtml(b.callNum) || '－'}</dd>
-            <dt>形態</dt><dd>${escapeHtml(b.form) || '－'}</dd>
+            <dt>著者・作成者</dt><dd>${mfFieldHtml(b.creator, 'creator')}</dd>
+            <dt>出版・発行</dt><dd>${mfFieldHtml(b.publisher, 'publisher')}</dd>
+            <dt>出版年（西暦）</dt><dd>${mfFieldHtml(b.yearWest, 'yearWest', '不明', b.yearJpn)}</dd>
+            <dt>出版年（和暦）</dt><dd>${mfFieldHtml(b.yearJpn, 'yearJpn', '－', b.yearWest)}</dd>
+            <dt>全ページ数</dt><dd>${mfFieldHtml(b.totalPages, 'totalPages')}</dd>
+            <dt>説明・概要</dt><dd>${mfFieldHtml(b.desc, 'desc', '（説明なし）')}</dd>
+            <dt>所蔵</dt><dd>${mfFieldHtml(b.storage, 'storage')}</dd>
+            <dt>所蔵機関の整理番号</dt><dd>${mfFieldHtml(b.callNum, 'callNum')}</dd>
+            <dt>形態</dt><dd>${mfFieldHtml(b.form, 'form')}</dd>
             <dt>著作権</dt><dd>${escapeHtml(b.copyright) || '－'}</dd>
             <dt>公開区分</dt><dd>${escapeHtml(b.accessType) || '－'}</dd>
         </dl>
@@ -6619,6 +6629,7 @@ function updateBookDetailTabContent() {
             ? `<button class="map-focus-btn" onclick="focusDataOnMapWithPanel('book', ${JSON.stringify(String(cur.id))})"><i class="fa-solid fa-location-dot"></i> 地図上で表示</button>`
             : `<p style="color:#888;font-size:0.85rem;">表示中の項目には位置情報が登録されていません。</p>`}
         ${translitBtnHtml}
+        ${manifestMetaBlockHTML()}
     `;
 }
 
@@ -7657,7 +7668,162 @@ function _iiifId(o) {
     return o.id || o['@id'] || '';
 }
 
-/* Manifest（Presentation API 3.0 / 2.x）を、ビュアーが使う形に整える */
+/* ---------- IIIF文字列（多言語・HTML混じり）を、表示用の素のテキストにする ---------- */
+function iiifText(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    let s = '';
+    if (typeof v === 'string') {
+        s = v;
+    } else if (Array.isArray(v)) {
+        const langOf = x => (x && typeof x === 'object' && x['@language']) || '';
+        const tagged = v.filter(x => x && typeof x === 'object' && x['@value'] !== undefined);
+        if (tagged.length) {
+            const ja = tagged.filter(x => /^ja/i.test(langOf(x)));
+            const none = tagged.filter(x => !langOf(x));
+            const pick = ja.length ? ja : (none.length ? none : [tagged[0]]);
+            s = pick.map(x => iiifText(x['@value'])).join(' / ');
+        } else {
+            s = v.map(iiifText).filter(Boolean).join(' / ');
+        }
+    } else if (typeof v === 'object') {
+        if (v['@value'] !== undefined) {
+            s = iiifText(v['@value']);
+        } else {
+            const keys = Object.keys(v);
+            const k = keys.find(x => /^ja/i.test(x)) || keys.find(x => x === 'none') || keys.find(x => /^en/i.test(x)) || keys[0];
+            s = k ? iiifText(v[k]) : '';
+        }
+    }
+    return s.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li)>/gi, '\n').replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+        .trim();
+}
+
+/* Manifestのリンク欄（related / homepage）を {url,label} の配列にする（http/httpsのみ） */
+function iiifCollectLinks(m) {
+    const out = [];
+    [m.homepage, m.related].forEach(src => {
+        if (!src) return;
+        (Array.isArray(src) ? src : [src]).forEach(x => {
+            const url = _iiifId(x);
+            if (/^https?:\/\//i.test(url) && !out.some(o => o.url === url)) {
+                out.push({ url, label: (x && typeof x === 'object' && iiifText(x.label)) || '' });
+            }
+        });
+    });
+    return out;
+}
+
+/* Manifestのメタデータ（label/value組）から、スプレッドシートの列に相当する値を推定する。
+   ラベルは国立国会図書館デジタルコレクション等の日本語ラベル・英語ラベルの両方に対応。 */
+function iiifGuessFields(meta, title, desc, pageCount) {
+    const rules = [
+        ['title',     /^(タイトル|書名|題名|標題|title)/i],
+        ['publisher', /(出版者|出版社|発行者|発行元|刊行者|publisher)/i],
+        ['creator',   /(著者|作成者|作者|編者|責任表示|creator|author|contributor)/i],
+        ['year',      /(出版年|刊行年|発行年|作成年|成立年|制作年|年代|date|issued|created)/i],
+        ['storage',   /(所蔵機関|所蔵者|所蔵|提供機関|holding|repository)/i],
+        ['callNum',   /(請求記号|請求番号|所蔵番号|資料番号|call ?number|shelfmark)/i],
+        ['form',      /(形態|大きさ|寸法|形状|physical|extent|format)/i],
+        ['desc',      /(注記|内容|説明|要旨|概要|description|note|abstract|summary)/i]
+    ];
+    const g = {};
+    meta.forEach(p => {
+        const label = (p.label || '').replace(/[\s:：]/g, '');
+        for (const [key, re] of rules) {
+            if (re.test(label)) { if (!g[key] && p.value) g[key] = p.value; break; }
+        }
+    });
+    if (!g.title && title) g.title = title;
+    if (!g.desc && desc) g.desc = desc;
+    if (g.year) {
+        if (/[\u4e00-\u9fff]/.test(g.year)) g.yearJpn = g.year; else g.yearWest = g.year;
+    }
+    if (pageCount) g.totalPages = String(pageCount);
+    return g;
+}
+
+/* Manifestの structures（目次）を、入れ子の木に変換する。v2（ranges/canvases）・v3（items）の両対応。
+   戻り値：{ rows: 平らな目次項目（ビュアーのページ送り用）, outline: 入れ子の目次 } */
+function iiifBuildToc(m, idToIdx, title) {
+    if (!Array.isArray(m.structures) || !m.structures.length) return { rows: [], outline: [] };
+    const idxOf = ref => {
+        let id = ref;
+        if (ref && typeof ref === 'object') id = ref.source || ref.id || ref['@id'];
+        if (id && typeof id === 'object') id = id.id || id['@id'];
+        id = String(id || '').split('#')[0];
+        return idToIdx.has(id) ? idToIdx.get(id) : -1;
+    };
+    const isRange = it => { const t = it && (it.type || it['@type']); return t === 'Range' || t === 'sc:Range'; };
+    const byId = new Map();
+    m.structures.forEach(r => { const id = _iiifId(r); if (id) byId.set(id, r); });
+
+    const build = (r, depth, trail) => {
+        const node = { label: iiifText(r.label), pages: [], children: [], start: null, end: null, top: r.viewingHint === 'top' };
+        const rid = _iiifId(r);
+        if (depth > 12 || (rid && trail.has(rid))) return node;
+        const trail2 = new Set(trail); if (rid) trail2.add(rid);
+        (r.items || []).forEach(it => {
+            if (isRange(it)) {
+                const full = (it.items || it.canvases || it.ranges) ? it : (byId.get(_iiifId(it)) || it);
+                node.children.push(build(full, depth + 1, trail2));
+            } else {
+                const i = idxOf(it); if (i >= 0) node.pages.push(i);
+            }
+        });
+        (r.canvases || []).forEach(c => { const i = idxOf(c); if (i >= 0) node.pages.push(i); });
+        (r.ranges || []).forEach(cr => {
+            const child = typeof cr === 'string' ? byId.get(cr) : (byId.get(_iiifId(cr)) || cr);
+            if (child) node.children.push(build(child, depth + 1, trail2));
+        });
+        return node;
+    };
+
+    const childIds = new Set();
+    m.structures.forEach(r => {
+        (r.ranges || []).forEach(c => { const id = typeof c === 'string' ? c : _iiifId(c); if (id) childIds.add(id); });
+        (r.items || []).forEach(it => { if (isRange(it)) { const id = _iiifId(it); if (id) childIds.add(id); } });
+        const w = _iiifId(r.within);
+        const rid = _iiifId(r);
+        if (w && byId.has(w) && rid) childIds.add(rid);
+    });
+    let roots = m.structures.filter(r => { const id = _iiifId(r); return !(id && childIds.has(id)); })
+        .map(r => build(r, 0, new Set()));
+
+    const span = nd => {
+        nd.children.forEach(span);
+        let lo = Infinity, hi = -Infinity;
+        nd.pages.forEach(p => { lo = Math.min(lo, p); hi = Math.max(hi, p); });
+        nd.children.forEach(c => { if (c.start !== null) { lo = Math.min(lo, c.start); hi = Math.max(hi, c.end); } });
+        nd.start = lo === Infinity ? null : lo;
+        nd.end = hi === -Infinity ? null : hi;
+    };
+    roots.forEach(span);
+    /* 「書名だけの1段」で全体を包んでいる場合は、その1段を外す */
+    if (roots.length === 1 && roots[0].children.length && (!roots[0].label || roots[0].label === title || roots[0].top)) {
+        roots = roots[0].children;
+    }
+
+    const rows = []; let seq = 0;
+    const walk = (nodes, depth, chain) => nodes.map(nd => {
+        const label = nd.label || (nd.start !== null ? 'コマ' + (nd.start + 1) : '（無題）');
+        const out = { label, row: null, children: [] };
+        if (nd.start !== null) {
+            const row = { id: 'mf-' + (++seq), startPage: nd.start + 1, endPage: nd.end + 1, chain: chain.slice(), entryLabel: label, chibanKey: '', coords: [0, 0], _depth: depth };
+            out.row = row; rows.push(row);
+        }
+        out.children = walk(nd.children, depth + 1, chain.concat(label));
+        return out;
+    });
+    const outline = walk(roots, 0, []);
+    /* 同じコマから始まる項目は、より深い階層（細かい項目）を優先して「現在地」にする */
+    rows.sort((a, b) => a.startPage - b.startPage || b._depth - a._depth);
+    return { rows, outline };
+}
+
+/* Manifest（Presentation API 3.0 / 2.x）を、ビュアーが使う形に整える。
+   画像のコマ情報に加えて、メタデータ・説明・提供元・ライセンス・目次（structures）も取り出す。 */
 function normalizeIiifManifest(m) {
     const canvases = [];
     if (Array.isArray(m.items)) {
@@ -7668,20 +7834,118 @@ function normalizeIiifManifest(m) {
                 const body = _iiifFirst(anno.body);
                 serviceId = _iiifId(body.service || body.services);
             } catch (e) {}
-            canvases.push({ width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail) });
+            canvases.push({ id: cv.id || cv['@id'] || '', width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail) });
         });
     } else if (m.sequences && m.sequences[0]) {
         (m.sequences[0].canvases || []).forEach(cv => {
             let serviceId = '';
             try { serviceId = _iiifId(cv.images[0].resource.service); } catch (e) {}
-            canvases.push({ width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail) });
+            canvases.push({ id: cv['@id'] || cv.id || '', width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail) });
         });
     }
     canvases.forEach(c => {
         c.serviceId = (c.serviceId || '').replace(/\/+$/, '');
         if (!c.thumb && c.serviceId) c.thumb = c.serviceId + '/full/!400,400/0/default.jpg';
     });
-    return { canvases, rtl: m.viewingDirection === 'right-to-left' };
+
+    const title = iiifText(m.label);
+    const desc = iiifText(m.description) || iiifText(m.summary);
+    const meta = (Array.isArray(m.metadata) ? m.metadata : [])
+        .map(p => ({ label: iiifText(p && p.label), value: iiifText(p && p.value) }))
+        .filter(p => p.label && p.value);
+    const attribution = iiifText(m.attribution) || iiifText(m.requiredStatement && m.requiredStatement.value);
+    const provider = (Array.isArray(m.provider) ? m.provider : []).map(p => iiifText(p && p.label)).filter(Boolean).join(' / ');
+    const license = _iiifId(m.license) || _iiifId(m.rights);
+
+    let toc = { rows: [], outline: [] };
+    try {
+        const idToIdx = new Map();
+        canvases.forEach((c, i) => { if (c.id) idToIdx.set(String(c.id).split('#')[0], i); });
+        toc = iiifBuildToc(m, idToIdx, title);
+    } catch (e) { console.warn('目次の自動生成に失敗:', e); }
+
+    return {
+        canvases, rtl: m.viewingDirection === 'right-to-left',
+        title, desc, meta, attribution: attribution || provider, license: /^https?:\/\//i.test(license) ? license : '',
+        links: iiifCollectLinks(m),
+        guess: iiifGuessFields(meta, title, desc, canvases.length),
+        tocRows: toc.rows, tocOutline: toc.outline
+    };
+}
+
+/* ---------- 詳細モーダルへの反映（図書DB・文書DB共通） ---------- */
+/* スプレッドシートの値があればそれを優先し、空欄のときだけマニフェストの値を補って表示する */
+function mfFieldHtml(sheetVal, key, fallback, siblingVal) {
+    const s = (sheetVal === null || sheetVal === undefined ? '' : String(sheetVal)).trim();
+    if (s && s !== '-') return escapeHtml(s);
+    const sib = (siblingVal === null || siblingVal === undefined ? '' : String(siblingVal)).trim();
+    const v = window._docViewer;
+    const g = v && v.mfGuess && !(sib && sib !== '-') ? v.mfGuess[key] : '';
+    if (g) return escapeHtml(g) + '<span class="mf-auto-tag">マニフェスト</span>';
+    return escapeHtml(fallback === undefined ? '－' : fallback);
+}
+
+/* 詳細タブの末尾：マニフェストが持つメタデータをそのまま一覧表示する */
+function manifestMetaBlockHTML() {
+    const v = window._docViewer;
+    const mf = v && v.manifest;
+    if (!mf) return '';
+    const link = (url, text) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text || url)}</a>`;
+    const rows = mf.meta.map(p => `<dt>${escapeHtml(p.label)}</dt><dd>${escapeHtml(p.value)}</dd>`);
+    if (mf.desc && !mf.meta.some(p => p.value === mf.desc)) rows.push(`<dt>説明</dt><dd>${escapeHtml(mf.desc)}</dd>`);
+    if (mf.attribution) rows.push(`<dt>提供・帰属</dt><dd>${escapeHtml(mf.attribution)}</dd>`);
+    if (mf.license) rows.push(`<dt>ライセンス</dt><dd>${link(mf.license)}</dd>`);
+    mf.links.forEach(l => rows.push(`<dt>関連ページ</dt><dd>${link(l.url, l.label)}</dd>`));
+    const murl = v.iiif && v.iiif.manifestUrl;
+    if (murl) rows.push(`<dt>Manifest</dt><dd>${link(murl)}</dd>`);
+    if (!rows.length) return '';
+    return `<h4 style="margin:20px 0 6px;">マニフェストのメタデータ</h4><dl class="meta-info-list mf-meta-list">${rows.join('')}</dl>`;
+}
+
+/* 目次の出典（スプレッドシート／マニフェスト）の切替バー */
+function tocSourceBarHTML() {
+    const v = window._docViewer;
+    if (!v || !v.manifest || !v.mfTocAvail) return '';
+    if (v.sheetTocAvail) {
+        const on = v.tocSource === 'manifest';
+        return `<div class="toc-source-bar"><span>目次の出典</span>`
+            + `<button type="button" class="${on ? '' : 'on'}" onclick="setTocSource('sheet')">スプレッドシート</button>`
+            + `<button type="button" class="${on ? 'on' : ''}" onclick="setTocSource('manifest')">マニフェスト</button></div>`;
+    }
+    return `<div class="toc-source-bar"><span>目次はマニフェストから自動生成しています</span></div>`;
+}
+function setTocSource(src) {
+    const v = window._docViewer;
+    if (!v) return;
+    v.tocSource = src;
+    if (v.source === 'book') renderBookOutlineTree();
+    else highlightCurrentSubjectLink();
+}
+function activeBookRows() {
+    const v = window._docViewer;
+    return (v.tocSource === 'manifest' && v.mfRows && v.mfRows.length) ? v.mfRows : v.book;
+}
+
+/* マニフェストの読込が終わった時点で呼ぶ：目次の出典を決め、いま開いているタブを描き直す */
+function iiifApplyManifestToModal(v, mf) {
+    v.manifest = mf;
+    v.mfGuess = mf.guess;
+    v.mfTocAvail = mf.tocRows.length > 0;
+    if (v.source === 'book') {
+        const rows = v.bookMeta.rows, title = v.bookMeta.title;
+        /* シートに目次（見出し付きの行や複数行）があるか。書名だけの1行なら「目次なし」とみなす */
+        v.sheetTocAvail = rows.length > 1 || rows.some(r => r.chain.length > 0 || (r.entryLabel && r.entryLabel !== title));
+        v.mfRows = mf.tocRows; v.mfOutline = mf.tocOutline;
+    } else {
+        v.sheetTocAvail = v.book.length > 1;
+        v.mfDocRows = mf.tocRows.map(r => ({ id: r.id, subject: r.entryLabel, startPage: String(r.startPage), _depth: r._depth }));
+    }
+    v.tocSource = (v.mfTocAvail && !v.sheetTocAvail) ? 'manifest' : 'sheet';
+    if (v.source === 'book') {
+        if (v.mode === 'toc') renderBookOutlineTree(); else if (v.mode === 'detail') updateBookDetailTabContent();
+    } else {
+        if (v.mode === 'page') highlightCurrentSubjectLink(); else if (v.mode === 'detail') updateDocDetailTabContent();
+    }
 }
 
 /* Manifestの共有キャッシュ（一覧サムネイルと詳細モーダルで共用） */
@@ -7763,6 +8027,7 @@ async function initDocIiif(row, manifestUrl) {
         const slider = document.getElementById('pdf-page-slider');
         if (slider) slider.max = v.totalPages;
 
+        iiifApplyManifestToModal(v, mf);
         iiifApplyDirection(mf.rtl);
         iiifCreateViewer();
         iiifSetupInteractions();
@@ -8505,11 +8770,14 @@ function switchDocPageSubtab(mode) {
 }
 
 function renderDocSubjectLinkList(container) {
-    const book = window._docViewer.book;
-    const owning = findOwningDocItem(book, window._docViewer.currentPage);
-    container.innerHTML = `<div class="doc-subject-link-list">${book.map(it => {
+    const v = window._docViewer;
+    const useMf = v.tocSource === 'manifest' && v.mfDocRows && v.mfDocRows.length;
+    const book = useMf ? v.mfDocRows : v.book;
+    const owning = findOwningDocItem(book, v.currentPage);
+    container.innerHTML = tocSourceBarHTML() + `<div class="doc-subject-link-list">${book.map(it => {
         const sp = parseStartPage(it.startPage);
-        return `<div class="doc-subject-link-item ${it === owning ? 'current' : ''}" onclick="goToDocPage(${sp}, true)"><span style="color:var(--accent-gold);font-weight:700;margin-right:8px;">${sp}</span>${escapeHtml(it.subject)}</div>`;
+        const pad = useMf ? ` style="padding-left:${8 + (it._depth || 0) * 18}px;"` : '';
+        return `<div class="doc-subject-link-item ${it === owning ? 'current' : ''}"${pad} onclick="goToDocPage(${sp}, true)"><span style="color:var(--accent-gold);font-weight:700;margin-right:8px;">${sp}</span>${escapeHtml(it.subject)}</div>`;
     }).join('')}</div>`;
 }
 
@@ -8570,15 +8838,15 @@ function updateDocDetailTabContent() {
             <dt>中分類</dt><dd>${escapeHtml(owning.mid) || '－'}</dd>
             <dt>小分類（簿冊）</dt><dd>${escapeHtml(owning.sub) || '－'}</dd>
             <dt>開始ページ</dt><dd>${escapeHtml(owning.startPage) || '－'}</dd>
-            <dt>作成者</dt><dd>${escapeHtml(owning.creator) || '－'}</dd>
+            <dt>作成者</dt><dd>${mfFieldHtml(owning.creator, 'creator')}</dd>
             <dt>宛先</dt><dd>${escapeHtml(owning.recipient) || '－'}</dd>
-            <dt>作成年（西暦）</dt><dd>${escapeHtml(owning.yearWest) || '不明'}</dd>
-            <dt>作成年（和暦）</dt><dd>${escapeHtml(owning.yearJpn) || '－'}</dd>
-            <dt>内容</dt><dd>${escapeHtml(owning.desc) || '（説明なし）'}</dd>
-            <dt>所蔵</dt><dd>${escapeHtml(owning.storage) || '－'}</dd>
+            <dt>作成年（西暦）</dt><dd>${mfFieldHtml(owning.yearWest, 'yearWest', '不明', owning.yearJpn)}</dd>
+            <dt>作成年（和暦）</dt><dd>${mfFieldHtml(owning.yearJpn, 'yearJpn', '－', owning.yearWest)}</dd>
+            <dt>内容</dt><dd>${mfFieldHtml(owning.desc, 'desc', '（説明なし）')}</dd>
+            <dt>所蔵</dt><dd>${mfFieldHtml(owning.storage, 'storage')}</dd>
             <dt>位置</dt><dd>${escapeHtml(owning.pos) || '－'}</dd>
-            <dt>請求記号</dt><dd>${escapeHtml(owning.callNum) || '－'}</dd>
-            <dt>形態</dt><dd>${escapeHtml(owning.form) || '－'}</dd>
+            <dt>請求記号</dt><dd>${mfFieldHtml(owning.callNum, 'callNum')}</dd>
+            <dt>形態</dt><dd>${mfFieldHtml(owning.form, 'form')}</dd>
             <dt>数量</dt><dd>${escapeHtml(owning.qty) || '－'}</dd>
             <dt>状態</dt><dd>${escapeHtml(owning.cond) || '－'}</dd>
             <dt>地番キー</dt><dd>${escapeHtml(owning.chibanKey) || '－'}</dd>
@@ -8589,6 +8857,7 @@ function updateDocDetailTabContent() {
         <button class="map-focus-btn" onclick="focusOnDocMap('${escapeJsAttr(owning.chibanKey)}', '${escapeJsAttr(owning.drawingTileUrl)}', '${escapeJsAttr(owning.id)}')"><i class="fa-solid fa-location-dot"></i> 地図上で確認</button>
         ${translitBtnHtml}
         ${relatedAssetsBlockHTML()}
+        ${manifestMetaBlockHTML()}
     `;
 
     setTimeout(() => {
