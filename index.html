@@ -812,6 +812,18 @@ details.doc-tile-group { margin-bottom: 2px; }
 details.doc-tile-group summary { cursor: pointer; font-family: var(--font-sans); font-size: 0.84rem; padding: 2px 0; list-style: revert; }
 label.doc-tile-leaf { display: flex; align-items: center; gap: 4px; font-family: var(--font-sans); font-size: 0.8rem; padding: 2px 0 2px 16px; cursor: pointer; }
 label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 史料の図面タイル専用パネル（地図タイル用のレイヤ選択とは別の独立コントロール） */
+.doc-tile-control { background: #fff; border-radius: 5px; box-shadow: 0 1px 5px rgba(0,0,0,0.65); display: none; }
+.doc-tile-control.has-items { display: block; }
+.doc-tile-toggle { display: block; width: 36px; height: 36px; line-height: 36px; text-align: center; background: #fff; border: none; border-radius: 5px; cursor: pointer; color: #555; font-size: 1rem; padding: 0; }
+.doc-tile-toggle:hover { color: var(--primary-brown); }
+.doc-tile-control.open .doc-tile-toggle { display: none; }
+.doc-tile-body { display: none; padding: 6px 10px 8px; min-width: 210px; max-width: min(300px, 70vw); }
+.doc-tile-control.open .doc-tile-body { display: block; }
+.doc-tile-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.doc-tile-close { border: none; background: transparent; cursor: pointer; font-size: 1.1rem; line-height: 1; color: #7a6952; padding: 0 2px; }
+.doc-tile-close:hover { color: var(--primary-brown); }
+.doc-tile-panel { max-height: min(260px, 50vh); }
 
 /* ===== 詳細モーダル内 画像/3Dローディングスピナー（共通） ===== */
 .media-loading-wrap { position: relative; width: 100%; height: 100%; }
@@ -2515,6 +2527,440 @@ const CullingGroup = L.LayerGroup.extend({
     }
 });
 
+/* ---------- (4) ピンを「1枚のCanvas」に描く（大量のピンでも軽く動かす） ----------
+   これまでのピンは、1個ごとに HTML 要素（DOM）として地図の上に置かれていた。
+   ピンが数千個になると、ズームやドラッグのたびに数千個の要素を動かすことになり、これが重さの主原因だった。
+   ここでは、ピンの絵を事前に1回だけ作っておき（スプライト）、画面サイズの1枚のCanvasに毎フレーム描き直す。
+   Googleマップのように、ピンの数が増えても操作の重さがほとんど変わらない。
+   ・近いピンは数字の丸（クラスタ）にまとめる（古写真・3Dのみ。従来と同じく拡大17以上でバラける）
+   ・クリック／ホバー／カーソルの手のマーク／拡大時のなめらかな移動 も従来どおり動く */
+const PIN_DPR = Math.min(window.devicePixelRatio || 1, 2);
+const PIN_CLUSTER_BELOW_ZOOM = 17;      /* この倍率より引いているとき、近いピンを数字の丸にまとめる */
+const PIN_CLUSTER_CELL_PX = 64;         /* まとめる範囲の目安（画面上のピクセル） */
+
+const PinSprites = {
+    _cache: {},
+    _glyphs: {},
+    clear: function () { this._cache = {}; },
+
+    _make: function (w, h, drawFn) {
+        const c = document.createElement('canvas');
+        c.width = Math.ceil(w * PIN_DPR);
+        c.height = Math.ceil(h * PIN_DPR);
+        const g = c.getContext('2d');
+        g.scale(PIN_DPR, PIN_DPR);
+        drawFn(g);
+        return c;
+    },
+
+    /* Font Awesome のアイコン名 → 文字（ブラウザに教えてもらう）。Canvasにはアイコンを文字として描く */
+    _glyph: function (name) {
+        if (this._glyphs[name]) return this._glyphs[name];
+        if (!document.body) return null;
+        const el = document.createElement('i');
+        el.className = 'fa-solid fa-' + name;
+        el.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;';
+        document.body.appendChild(el);
+        let content = '';
+        try { content = getComputedStyle(el, '::before').content; } catch (e) { content = ''; }
+        document.body.removeChild(el);
+        if (!content || content === 'none' || content === 'normal') return null;
+        content = content.replace(/^["']|["']$/g, '');
+        const m = content.match(/^\\([0-9a-fA-F]+)$/);
+        if (m) content = String.fromCodePoint(parseInt(m[1], 16));
+        if (!content) return null;
+        this._glyphs[name] = content;
+        return content;
+    },
+    _drawGlyph: function (g, name, cx, cy, px, color) {
+        g.fillStyle = color;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        if (name === 'manji') {
+            g.font = '700 ' + (px + 2) + 'px "Noto Sans JP", sans-serif';
+            g.fillText('卍', cx, cy + 1);
+            return;
+        }
+        const ch = name ? this._glyph(name) : null;
+        if (!ch) {   /* アイコン指定なし／まだ読み込み前：小さな丸で代用（読み込み後に自動で描き直す） */
+            g.beginPath(); g.arc(cx, cy, 3.5, 0, Math.PI * 2); g.fill();
+            return;
+        }
+        g.font = '900 ' + px + 'px "Font Awesome 6 Free"';
+        g.fillText(ch, cx, cy + 0.5);
+    },
+
+    /* 種別ピン（しずく型）：自然・古道・建物・図書 */
+    _tear: function (color, glyph) {
+        const W = 40, H = 46, cx = 20, cy = 17, r = 13, tipY = 38;
+        const self = this;
+        const c = this._make(W, H, function (g) {
+            const a = Math.acos(r / (tipY - cy));
+            g.shadowColor = 'rgba(0,0,0,0.38)'; g.shadowBlur = 6; g.shadowOffsetY = 3;
+            g.beginPath();
+            g.moveTo(cx, tipY);
+            g.lineTo(cx + r * Math.sin(a), cy + r * Math.cos(a));
+            g.arc(cx, cy, r, Math.PI / 2 - a, Math.PI / 2 + a, true);
+            g.closePath();
+            g.fillStyle = color; g.fill();
+            g.shadowColor = 'transparent';
+            g.lineWidth = 2; g.lineJoin = 'round'; g.strokeStyle = '#fffdf7'; g.stroke();
+            self._drawGlyph(g, glyph, cx, cy, 13, '#fffdf7');
+        });
+        return { c: c, w: W, h: H, ax: cx, ay: tipY, hx: 0, hy: -(tipY - cy), hr: 17, hoverScale: 1.2 };
+    },
+
+    /* 古写真ピン：撮影方向があれば、その向きにとがったしずく型。なければ丸 */
+    _photo: function (color, angle) {
+        const S = 56, c0 = S / 2;
+        const isDir = angle !== null && angle !== undefined;
+        const self = this;
+        const c = this._make(S, S, function (g) {
+            g.translate(c0, c0);
+            const shape = function (h) {
+                g.beginPath();
+                if (isDir) { g.moveTo(-h, -h); g.lineTo(0, -h); g.arc(0, 0, h, -Math.PI / 2, Math.PI, false); g.closePath(); }
+                else { g.arc(0, 0, h, 0, Math.PI * 2); }
+            };
+            g.save();
+            if (isDir) { g.rotate(angle * Math.PI / 180); g.rotate(Math.PI / 4); }
+            g.shadowColor = 'rgba(0,0,0,0.4)'; g.shadowBlur = 8; g.shadowOffsetY = 2;
+            shape(16); g.fillStyle = '#fffdf7'; g.fill();
+            g.shadowColor = 'transparent';
+            shape(14.5); g.lineWidth = 3; g.lineJoin = 'round'; g.strokeStyle = color; g.stroke();
+            g.restore();
+            self._drawGlyph(g, 'camera', 0, 0, 14, color);
+        });
+        return { c: c, w: S, h: S, ax: c0, ay: c0, hx: 0, hy: 0, hr: 18, hoverScale: 1.2 };
+    },
+
+    /* 3Dピン：丸。強調時は大きく＋外側に薄い輪 */
+    _cube: function (color, emph) {
+        const d = emph ? 46 : 34, S = d + 24, c0 = S / 2;
+        const self = this;
+        const c = this._make(S, S, function (g) {
+            g.translate(c0, c0);
+            if (emph) { g.beginPath(); g.arc(0, 0, d / 2 + 6, 0, Math.PI * 2); g.fillStyle = 'rgba(0,0,0,0.15)'; g.fill(); }
+            g.shadowColor = 'rgba(0,0,0,0.4)'; g.shadowBlur = emph ? 12 : 7; g.shadowOffsetY = emph ? 4 : 2;
+            g.beginPath(); g.arc(0, 0, d / 2, 0, Math.PI * 2); g.fillStyle = '#fffdf7'; g.fill();
+            g.shadowColor = 'transparent';
+            g.beginPath(); g.arc(0, 0, d / 2 - 3, 0, Math.PI * 2); g.fillStyle = color; g.fill();
+            self._drawGlyph(g, 'cube', 0, 0, 14.5, '#fffdf7');
+        });
+        return { c: c, w: S, h: S, ax: c0, ay: c0, hx: 0, hy: 0, hr: d / 2 + 2, hoverScale: 1 };
+    },
+
+    /* 数字の丸（クラスタ） */
+    _cluster: function (kind, n) {
+        const S = 48, c0 = 24;
+        const col = kind === 'model'
+            ? ['#ffb347', '#e07b00', 'rgba(255,140,0,0.16)']
+            : ['#2f9be0', '#1e5fb8', 'rgba(30,100,220,0.16)'];
+        const label = String(n);
+        const px = label.length <= 2 ? 14 : (label.length === 3 ? 12 : 10);
+        const c = this._make(S, S, function (g) {
+            g.translate(c0, c0);
+            g.beginPath(); g.arc(0, 0, 20, 0, Math.PI * 2); g.fillStyle = col[2]; g.fill();
+            const grad = g.createLinearGradient(-14, -14, 14, 14);
+            grad.addColorStop(0, col[0]); grad.addColorStop(1, col[1]);
+            g.shadowColor = 'rgba(0,0,0,0.3)'; g.shadowBlur = 8; g.shadowOffsetY = 3;
+            g.beginPath(); g.arc(0, 0, 14, 0, Math.PI * 2); g.fillStyle = grad; g.fill();
+            g.shadowColor = 'transparent';
+            g.beginPath(); g.arc(0, 0, 13, 0, Math.PI * 2); g.lineWidth = 2; g.strokeStyle = 'rgba(255,253,247,0.55)'; g.stroke();
+            g.fillStyle = '#fffdf7'; g.textAlign = 'center'; g.textBaseline = 'middle';
+            g.font = '600 ' + px + 'px "Noto Sans JP", Inter, sans-serif';
+            g.fillText(label, 0, 1);
+        });
+        return { c: c, w: S, h: S, ax: c0, ay: c0, hx: 0, hy: 0, hr: 20, hoverScale: 1.12 };
+    },
+
+    get: function (spec) {
+        let key;
+        if (spec.k === 'tear') key = 't|' + spec.color + '|' + (spec.glyph || '');
+        else if (spec.k === 'photo') key = 'p|' + spec.color + '|' + (spec.angle == null ? 'n' : spec.angle);
+        else key = 'q|' + spec.color + '|' + (spec.emph ? 1 : 0);
+        let s = this._cache[key];
+        if (!s) {
+            if (spec.k === 'tear') s = this._tear(spec.color, spec.glyph);
+            else if (spec.k === 'photo') s = this._photo(spec.color, spec.angle);
+            else s = this._cube(spec.color, !!spec.emph);
+            this._cache[key] = s;
+        }
+        return s;
+    },
+    cluster: function (kind, n) {
+        const key = 'c|' + kind + '|' + n;
+        return this._cache[key] || (this._cache[key] = this._cluster(kind, n));
+    }
+};
+
+/* ピン1個ぶんのデータ。L.marker と同じ感覚で .on('click', …) / .addTo(グループ) が使える */
+function CanvasPin(latlng, spec) {
+    this._ll = L.latLng(latlng);
+    this.spec = spec;
+    this._h = {};
+    this._isPin = true;
+    const lat = Math.max(-85.0511, Math.min(85.0511, this._ll.lat));
+    this._wx = (this._ll.lng + 180) / 360;
+    this._wy = 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI);
+}
+CanvasPin.prototype = {
+    getLatLng: function () { return this._ll; },
+    on: function (type, fn) { (this._h[type] || (this._h[type] = [])).push(fn); return this; },
+    fire: function (type) {
+        const hs = this._h[type];
+        if (hs) hs.slice().forEach((fn) => fn.call(this, { type: type, target: this }));
+        return this;
+    },
+    addTo: function (group) { group.addLayer(this); return this; },
+    setIcon: function (spec) { this.spec = spec; PinHub.invalidate(); return this; },
+    isPopupOpen: function () { return false; },
+    openPopup: function () { return this; }
+};
+function makePin(latlng, spec) { return new CanvasPin(latlng, spec); }
+function stySpec(color, glyph) { return { k: 'tear', color: color, glyph: glyph }; }
+function make3DSpec(color, emph) { return { k: 'cube', color: color, emph: !!emph }; }
+
+/* ピンを入れるグループ。ポリゴン（地番の面）は今までどおり Leaflet のレイヤとして扱い、ピンだけCanvasに描く */
+const PinGroup = L.LayerGroup.extend({
+    initialize: function (options) {
+        L.LayerGroup.prototype.initialize.call(this, []);
+        this._pinOpts = options || {};
+        this._pins = [];
+        this._levels = {};
+    },
+    onAdd: function (map) {
+        L.LayerGroup.prototype.onAdd.call(this, map);
+        PinHub.add(this);
+    },
+    onRemove: function (map) {
+        PinHub.remove(this);
+        L.LayerGroup.prototype.onRemove.call(this, map);
+    },
+    addLayer: function (layer) {
+        if (layer && layer._isPin) { this._pins.push(layer); this._dirty(); return this; }
+        return L.LayerGroup.prototype.addLayer.call(this, layer);
+    },
+    addLayers: function (arr) {
+        for (let i = 0; i < arr.length; i++) { if (arr[i] && arr[i]._isPin) this._pins.push(arr[i]); else L.LayerGroup.prototype.addLayer.call(this, arr[i]); }
+        this._dirty();
+        return this;
+    },
+    removeLayer: function (layer) {
+        if (layer && layer._isPin) {
+            const i = this._pins.indexOf(layer);
+            if (i >= 0) this._pins.splice(i, 1);
+            this._dirty();
+            return this;
+        }
+        return L.LayerGroup.prototype.removeLayer.call(this, layer);
+    },
+    clearLayers: function () {
+        this._pins = [];
+        this._dirty();
+        return L.LayerGroup.prototype.clearLayers.call(this);
+    },
+    _dirty: function () { this._levels = {}; PinHub.invalidate(); },
+
+    /* 今のズームで描くべきもの（クラスタ化するグループは、引いているとき数字の丸にまとめた一覧） */
+    _visibleItems: function (zoom) {
+        if (!this._pinOpts.cluster || zoom >= PIN_CLUSTER_BELOW_ZOOM) return this._pins;
+        const z = Math.max(0, Math.min(PIN_CLUSTER_BELOW_ZOOM - 1, Math.floor(zoom)));
+        return this._levels[z] || (this._levels[z] = this._buildLevel(z));
+    },
+    _buildLevel: function (z) {
+        const cell = PIN_CLUSTER_CELL_PX / (256 * Math.pow(2, z));
+        const cells = new Map();
+        const pins = this._pins;
+        for (let i = 0; i < pins.length; i++) {
+            const p = pins[i];
+            const key = Math.floor(p._wx / cell) * 4194304 + Math.floor(p._wy / cell);
+            const c = cells.get(key);
+            if (!c) cells.set(key, { n: 1, sx: p._wx, sy: p._wy, first: p, members: null });
+            else { if (!c.members) c.members = [c.first]; c.members.push(p); c.n++; c.sx += p._wx; c.sy += p._wy; }
+        }
+        const out = [];
+        const kind = this._pinOpts.kind;
+        cells.forEach(function (c) {
+            if (c.n === 1) out.push(c.first);
+            else out.push({ _cluster: true, n: c.n, members: c.members, _wx: c.sx / c.n, _wy: c.sy / c.n, kind: kind });
+        });
+        return out;
+    }
+});
+
+/* 全グループのピンを、画面サイズの1枚のCanvasに描く係 */
+const PinHub = {
+    map: null, canvas: null, ctx: null, groups: [],
+    _raf: 0, _mvRaf: 0, _mv: null, _hover: null, _anim: null,
+    _hx: [], _hy: [], _hr: [], _hit: [], _n: 0,
+
+    init: function (map) {
+        if (this.map) return;
+        this.map = map;
+        const c = this.canvas = document.createElement('canvas');
+        c.className = 'pin-canvas';
+        c.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;';
+        map.getPane('markerPane').appendChild(c);
+        this.ctx = c.getContext('2d');
+
+        map.on('zoomend viewreset', () => { this._anim = null; });
+        map.on('move zoom viewreset moveend zoomend resize', () => this.invalidate());
+        map.on('zoomanim', this._onZoomAnim, this);
+
+        const cont = map.getContainer();
+        cont.addEventListener('click', (e) => this._onClick(e), true);
+        cont.addEventListener('dblclick', (e) => { if (this._pinAt(e)) { e.stopPropagation(); e.preventDefault(); } }, true);
+        cont.addEventListener('mousemove', (e) => this._onMove(e), { passive: true });
+        cont.addEventListener('mouseleave', () => this._setHover(null));
+
+        /* アイコン用フォントの読み込みが終わったら、ピンの絵を作り直す */
+        if (document.fonts) {
+            const redo = () => { PinSprites.clear(); this.invalidate(); };
+            if (document.fonts.ready) document.fonts.ready.then(redo);
+            if (document.fonts.load) document.fonts.load('900 14px "Font Awesome 6 Free"').then(redo).catch(function () {});
+        }
+    },
+
+    add: function (g) { if (this.groups.indexOf(g) < 0) this.groups.push(g); this.invalidate(); },
+    remove: function (g) {
+        const i = this.groups.indexOf(g);
+        if (i >= 0) this.groups.splice(i, 1);
+        this._setHover(null);
+        this.invalidate();
+    },
+    invalidate: function () {
+        if (this._raf || !this.map) return;
+        this._raf = requestAnimationFrame(() => { this._raf = 0; this._draw(); });
+    },
+
+    /* ボタン等のズームアニメーション中：ピンを今の位置から新しい位置へ滑らかに動かす */
+    _onZoomAnim: function (e) {
+        this._anim = { t0: performance.now(), dur: 250, zoom: e.zoom, center: e.center };
+        this.invalidate();
+    },
+
+    _draw: function () {
+        const map = this.map, c = this.canvas;
+        if (!map || !c) return;
+        const size = map.getSize(), W = size.x, H = size.y;
+        if (c._w !== W || c._h !== H) {
+            c._w = W; c._h = H;
+            c.width = Math.max(1, Math.round(W * PIN_DPR));
+            c.height = Math.max(1, Math.round(H * PIN_DPR));
+            c.style.width = W + 'px'; c.style.height = H + 'px';
+        }
+        L.DomUtil.setPosition(c, map.containerPointToLayerPoint([0, 0]));
+        const g = this.ctx;
+        g.setTransform(PIN_DPR, 0, 0, PIN_DPR, 0, 0);
+        g.clearRect(0, 0, W, H);
+        this._n = 0;
+        if (!this.groups.length || !W || !H) return;
+
+        const zoom = map.getZoom();
+        const scale = 256 * Math.pow(2, zoom);
+        const cp = map.project(map.getCenter(), zoom);
+        const hw = W / 2, hh = H / 2;
+        let A = this._anim, k = 1, escale = 0, ex = 0, ey = 0;
+        if (A) {
+            const el = performance.now() - A.t0;
+            if (el > 900) { this._anim = A = null; }
+            else {
+                const t = Math.min(1, el / A.dur);
+                k = 1 - Math.pow(1 - t, 3);
+                escale = 256 * Math.pow(2, A.zoom);
+                const ecp = map.project(A.center, A.zoom);
+                ex = ecp.x; ey = ecp.y;
+                if (t < 1) this.invalidate();
+            }
+        }
+        const extra = L.Browser.touch ? 6 : 0;
+        const hover = this._hover;
+        let hoverRec = null, n = 0;
+        const hxA = this._hx, hyA = this._hy, hrA = this._hr, hitA = this._hit;
+
+        for (let gi = 0; gi < this.groups.length; gi++) {
+            const grp = this.groups[gi];
+            const items = grp._visibleItems(zoom);
+            for (let i = 0; i < items.length; i++) {
+                const it = items[i];
+                let x = it._wx * scale - cp.x + hw;
+                let y = it._wy * scale - cp.y + hh;
+                if (A) {
+                    x += (it._wx * escale - ex + hw - x) * k;
+                    y += (it._wy * escale - ey + hh - y) * k;
+                }
+                if (x < -60 || x > W + 60 || y < -70 || y > H + 60) continue;
+                x = Math.round(x * PIN_DPR) / PIN_DPR;
+                y = Math.round(y * PIN_DPR) / PIN_DPR;
+                const sp = it._cluster ? PinSprites.cluster(it.kind, it.n) : PinSprites.get(it.spec);
+                hxA[n] = x + sp.hx; hyA[n] = y + sp.hy; hrA[n] = sp.hr + extra; hitA[n] = it; n++;
+                if (it === hover) { hoverRec = [sp, x, y]; continue; }
+                g.drawImage(sp.c, x - sp.ax, y - sp.ay, sp.w, sp.h);
+            }
+        }
+        this._n = n;
+        if (hoverRec) {   /* ホバー中のピンは最前面に、少し大きく */
+            const sp = hoverRec[0], s = sp.hoverScale || 1;
+            g.drawImage(sp.c, hoverRec[1] - sp.ax * s, hoverRec[2] - sp.ay * s, sp.w * s, sp.h * s);
+        }
+    },
+
+    /* 画面上の位置(px,py)にあるピン（いちばん手前）を探す */
+    _find: function (px, py) {
+        for (let i = this._n - 1; i >= 0; i--) {
+            const dx = px - this._hx[i], dy = py - this._hy[i], r = this._hr[i];
+            if (dx * dx + dy * dy <= r * r) return this._hit[i];
+        }
+        return null;
+    },
+    _eventOnMapSurface: function (e) {
+        const t = e.target, cont = this.map.getContainer();
+        if (t === cont) return true;
+        return !!(t && t.closest && t.closest('.leaflet-pane') && !t.closest('.leaflet-popup') && !t.closest('.leaflet-marker-icon'));
+    },
+    _pinAt: function (e) {
+        if (!this._n || !this._eventOnMapSurface(e)) return null;
+        const p = this.map.mouseEventToContainerPoint(e);
+        return this._find(p.x, p.y);
+    },
+    _onClick: function (e) {
+        const map = this.map;
+        if (map.dragging && map.dragging.moved && map.dragging.moved()) return;   /* ドラッグ直後のクリックは無視 */
+        const it = this._pinAt(e);
+        if (!it) return;
+        e.stopPropagation(); e.preventDefault();   /* ピンのクリックは、下の地図・ポリゴンには伝えない（従来のピンと同じ） */
+        if (it._cluster) this._zoomToCluster(it); else it.fire('click');
+    },
+    _zoomToCluster: function (it) {
+        const map = this.map;
+        const b = L.latLngBounds(it.members.map(function (p) { return p._ll; }));
+        let z = map.getBoundsZoom(b, false, L.point(80, 80));
+        z = Math.max(Math.min(z, 19), Math.floor(map.getZoom()) + 1);
+        map.flyTo(b.getCenter(), Math.min(z, map.getMaxZoom()), { duration: 0.6 });
+    },
+    _onMove: function (e) {
+        this._mv = e;
+        if (this._mvRaf) return;
+        this._mvRaf = requestAnimationFrame(() => {
+            this._mvRaf = 0;
+            const ev = this._mv;
+            if (!ev || ev.buttons || !this._n || !this._eventOnMapSurface(ev)) { this._setHover(null); return; }
+            const p = this.map.mouseEventToContainerPoint(ev);
+            this._setHover(this._find(p.x, p.y));
+        });
+    },
+    _setHover: function (it) {
+        if (it === this._hover) return;
+        const old = this._hover;
+        this._hover = it;
+        if (old && !old._cluster) old.fire('mouseout');
+        if (it && !it._cluster) it.fire('mouseover');
+        if (this.map) this.map.getContainer().style.cursor = it ? 'pointer' : '';
+        this.invalidate();
+    }
+};
+
 /* スプレッドシートの「地図タイルURL」列が .pmtiles で終わる（またはpmtiles://で始まる）
    単一ファイルURLの場合は、通常のXYZタイルURL（{z}/{x}/{y}形式）ではなく
    pmtilesアーカイブなので、L.tileLayerではなくpmtilesライブラリの
@@ -2596,11 +3042,14 @@ function initMap() {
         smoothWheelZoom: true,
         smoothSensitivity: 1.5,      /* 大きいほど少ない回転で大きくズームする */
         bounceAtZoomLimits: false,
+        preferCanvas: true,          /* ポリゴン等の図形もCanvasで描く（SVGの要素を大量に作らない） */
         zoomAnimation: true,
         fadeAnimation: true,
         inertia: true,
         inertiaDeceleration: 3000
     }).setView([34.992, 135.813], 15);
+
+    PinHub.init(map);   /* ピンを1枚のCanvasに描く仕組みを開始（■(4)参照） */
 
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
@@ -2609,6 +3058,10 @@ function initMap() {
        図面タイルレイヤを表示した際、古地図データの読み込みが遅い/まだでも、
        レイヤ選択ボタンをすぐ登録できる（buildEraLayers側は、この既存のコントロールに古地図レイヤを追加するだけになる）。 */
     window._eraLayerControl = L.control.layers(null, {}, { collapsed: true, position: 'topright' }).addTo(map);
+
+    /* 史料の図面タイル専用のパネルは、上の地図タイル用コントロールとは完全に別のコントロールとして、
+       その直下（右上）に追加する。地図タイル側の追加・削除で中身が再描画されて壊れることがない。 */
+    createDocTileControl().addTo(map);
 
     /* 以前、HiDPI環境向けにzoomOffset/tileSizeを使った疑似高解像度化を試みたが、
        最大ズーム付近でタイルが表示されなくなる不具合が発生したため撤回。
@@ -2636,6 +3089,7 @@ function initMap() {
         if (activeOverlays.length >= 3) {
             const old = activeOverlays.shift();
             map.removeLayer(old);
+            syncDocDrawingCheckboxes();
         }
         activeOverlays.forEach(l => { if (l.bringToFront) l.bringToFront(); });
         updateOpacityUI();
@@ -2667,26 +3121,14 @@ function initMap() {
         iconSize: L.point(40, 40)
     });
     /* animate:false … ズームのたびにピンが飛び散る／集まるアニメーションを止めて、操作の引っかかりを減らす */
-    photoClusterGroup = L.markerClusterGroup({
-        disableClusteringAtZoom: 17, maxClusterRadius: 50, maxZoom: 22,
-        animate: false, animateAddingMarkers: false,
-        iconCreateFunction: clusterIconFn
-    });
-    modelClusterGroup = L.markerClusterGroup({
-        disableClusteringAtZoom: 17, maxClusterRadius: 50, maxZoom: 22,
-        animate: false, animateAddingMarkers: false,
-        iconCreateFunction: (cluster) => L.divIcon({
-            html: '<div>' + cluster.getChildCount() + '</div>',
-            className: 'marker-cluster marker-cluster-model',
-            iconSize: L.point(40, 40)
-        })
-    });
-    /* 画面の範囲外にあるピンは地図に載せない（ピンが多いほど操作が重くなるのを防ぐ）。範囲に入ると自動で表示される */
-    natureLayerGroup = new CullingGroup();
-    oldRoadLayerGroup = new CullingGroup();
-    buildingLayerGroup = new CullingGroup();
+    /* ピンはDOM要素ではなくCanvasに描く（PinGroup）。古写真・3Dは近いものを数字の丸にまとめる */
+    photoClusterGroup = new PinGroup({ kind: 'photo', cluster: true });
+    modelClusterGroup = new PinGroup({ kind: 'model', cluster: true });
+    natureLayerGroup = new PinGroup({ kind: 'nature' });
+    oldRoadLayerGroup = new PinGroup({ kind: 'oldroad' });
+    buildingLayerGroup = new PinGroup({ kind: 'building' });
     docLayerGroup = new CullingGroup();
-    bookLayerGroup = new CullingGroup();
+    bookLayerGroup = new PinGroup({ kind: 'book' });
     chibanSearchLayerGroup = L.layerGroup();
 
     [photoClusterGroup, modelClusterGroup, natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup, bookLayerGroup, chibanSearchLayerGroup]
@@ -2735,7 +3177,6 @@ function buildEraLayers() {
         const labelHtml = `<span>${escapeHtml(era.name)}（${escapeHtml(era.year) || '年代不明'}）</span><button class="layer-detail-btn" onclick="event.preventDefault();event.stopPropagation();openMapDetailModalByName('${safeName}')" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>`;
         layerControl.addOverlay(tl, labelHtml);
     });
-    registerAllPendingDocDrawingLayers();
 
     const eraSlider = document.getElementById('era-slider');
     eraSlider.max = Math.max(eras.length - 1, 0);
@@ -3100,11 +3541,7 @@ function addPhotoMarkersToMainMap(data) {
             rotateStyle = `transform: rotate(${angle}deg);`;
             counterRotateStyle = `transform: rotate(${-angle - 45}deg);`;
         }
-        const icon = L.divIcon({
-            html: `<div class="marker-wrapper ${angle !== null ? '' : 'no-direction'}" style="${rotateStyle}"><div class="marker-photo-pin" style="border-color:${color}; color:${color};"><i class="fa-solid fa-camera" style="${counterRotateStyle}"></i></div></div>`,
-            className: '', iconSize: [44, 44], iconAnchor: [22, 22]
-        });
-        const marker = L.marker([p.lat, p.lng], { icon });
+        const marker = makePin([p.lat, p.lng], { k: 'photo', color: color, angle: angle });
         marker.on('click', () => openPhotoDetailPanel(p, angle, color));
         markers.push(marker);
     });
@@ -3197,7 +3634,7 @@ function make3DIcon(color, emphasized) {
 
 function setMarkerEmphasis(marker, on) {
     if (!marker || !marker._pinColor) return;
-    marker.setIcon(make3DIcon(marker._pinColor, on));
+    marker.setIcon(make3DSpec(marker._pinColor, on));
 }
 
 /* ホバー／クリックで自分自身（＋ペアがあればペアも）を強調表示する */
@@ -3216,7 +3653,7 @@ function add3DMarkersToMap(filteredModels) {
     filteredModels.filter(m => !hFilter || hFilter.has(String(m.id))).forEach(m => {
         if (m.coords && m.coords[0] && m.coords[1]) {
             const color = get3DPinColor(m.condition, false);
-            const marker = L.marker(m.coords, { icon: make3DIcon(color, false) });
+            const marker = makePin(m.coords, make3DSpec(color, false));
             marker._pinColor = color;
             marker._recordId = m.id;
             marker.on('click', () => openDataDetailPanel(m, 'td'));
@@ -3225,7 +3662,7 @@ function add3DMarkersToMap(filteredModels) {
             let originMarker = null;
             if (m.originLatlng && m.originLatlng[0] && m.originLatlng[1]) {
                 const originColor = get3DPinColor(null, true);
-                originMarker = L.marker(m.originLatlng, { icon: make3DIcon(originColor, false) });
+                originMarker = makePin(m.originLatlng, make3DSpec(originColor, false));
                 originMarker._pinColor = originColor;
                 originMarker._recordId = m.id;
                 originMarker.on('click', () => openDataDetailPanel(m, 'td', true));
@@ -3445,7 +3882,7 @@ function renderNatureMapLayers(searchQuery) {
             }
         }
         if (!drawn && row.coords && row.coords[0]) {
-            const marker = L.marker(row.coords, { icon: styledDivIcon(style.color, style.icon) });
+            const marker = makePin(row.coords, stySpec(style.color, style.icon));
             marker.on('click', () => openDataDetailPanel(row, 'nature'));
             marker.addTo(natureLayerGroup);
         }
@@ -3486,7 +3923,7 @@ function renderOldRoadMapLayers(searchQuery) {
             }
         }
         if (!drawn && row.coords && row.coords[0]) {
-            const marker = L.marker(row.coords, { icon: styledDivIcon(style.color, style.icon) });
+            const marker = makePin(row.coords, stySpec(style.color, style.icon));
             marker.on('click', () => openDataDetailPanel(row, 'oldroad'));
             marker.addTo(oldRoadLayerGroup);
         }
@@ -3528,7 +3965,7 @@ function renderBuildingMapLayers(searchQuery) {
             }
         }
         if (!drawn && row.coords && row.coords[0]) {
-            const marker = L.marker(row.coords, { icon: styledDivIcon(style.color, style.icon) });
+            const marker = makePin(row.coords, stySpec(style.color, style.icon));
             marker.on('click', () => openDataDetailPanel(row, 'building'));
             marker.addTo(buildingLayerGroup);
         }
@@ -3578,7 +4015,7 @@ function renderBookMapLayers(searchQuery) {
                 }
             }
             if (!drawn && row.coords && row.coords[0]) {
-                const marker = L.marker(row.coords, { icon: styledDivIcon(TYPE_COLORS.book, 'book') });
+                const marker = makePin(row.coords, stySpec(TYPE_COLORS.book, 'book'));
                 marker.on('click', () => openDataDetailPanel(mergedRow, 'book'));
                 marker.addTo(bookLayerGroup);
             }
@@ -6825,24 +7262,46 @@ function focusDataOnMapWithPanel(type, id) {
     }, 300);
 }
 
-/* 文書・史料の図面タイル一覧を、メインマップのレイヤ選択コントロール内に
-   「史料の図面タイル」という1エントリとしてまとめて登録する。
+/* 文書・史料の図面タイル一覧を、メインマップ右上の専用パネル（地図タイル用レイヤ選択とは別コントロール）に表示する。
    ・和暦（yearJpn）ごとに<details>で折りたためるグループを作り、その中に史料ごとのチェックボックスを並べる
-   ・チェックボックスはLeaflet自体のレイヤ管理を使わず、toggleDocDrawingLayer()で自前にレイヤの表示/非表示を行う
-     （Leafletのレイヤ選択は1行=1レイヤ=1チェックボックスの構造で、階層化・折りたたみができないため）
+   ・チェックボックスはtoggleDocDrawingLayer()で自前にレイヤの表示/非表示を行う
    ・実際のタイルレイヤ（PMTiles/XYZ）は、チェックを入れた史料だけ、その時点で初めて作成する（遅延生成）。
      図面タイルを持つ史料が大量にあっても、ページを開いた時点で全件のタイルにアクセスしにいくことはない */
+function createDocTileControl() {
+    const Ctl = L.Control.extend({
+        options: { position: 'topright' },
+        onAdd: function () {
+            const c = L.DomUtil.create('div', 'leaflet-control doc-tile-control');
+            c.innerHTML = '<button type="button" class="doc-tile-toggle" title="史料の図面タイル" aria-label="史料の図面タイル"><i class="fa-solid fa-scroll"></i></button>'
+                + '<div class="doc-tile-body"><div class="doc-tile-head"><div class="doc-tile-panel-title">史料の図面タイル</div>'
+                + '<button type="button" class="doc-tile-close" title="閉じる" aria-label="閉じる">×</button></div>'
+                + '<div class="doc-tile-panel"></div></div>';
+            L.DomEvent.disableClickPropagation(c);
+            L.DomEvent.disableScrollPropagation(c);
+            c.querySelector('.doc-tile-toggle').addEventListener('click', () => c.classList.add('open'));
+            c.querySelector('.doc-tile-close').addEventListener('click', () => c.classList.remove('open'));
+            return c;
+        }
+    });
+    const ctl = new Ctl();
+    window._docTileControl = ctl;
+    return ctl;
+}
+
+function getDocTileContainer() {
+    return window._docTileControl && window._docTileControl.getContainer ? window._docTileControl.getContainer() : null;
+}
+
 function buildDocDrawingTree() {
-    if (!window._eraLayerControl) return;
+    const container = getDocTileContainer();
+    if (!container) return;
     const items = docData.filter(d => d.drawingTileUrl && d.drawingTileUrl.trim() !== '' && d.drawingTileUrl.trim() !== '-');
     window._docDrawingUrlById = {};
-    items.forEach(d => { window._docDrawingUrlById[d.id] = d.drawingTileUrl; });
+    items.forEach(d => { window._docDrawingUrlById[d.id] = d.drawingTileUrl.trim(); });
 
-    /* 既存のグループ登録があれば一旦外す（loadDocDataが再実行された場合の重複防止） */
-    if (window._docDrawingTreeOverlay) {
-        try { window._eraLayerControl.removeLayer(window._docDrawingTreeOverlay); } catch (e) {}
-    }
-    if (items.length === 0) { window._docDrawingTreeOverlay = null; return; }
+    const panel = container.querySelector('.doc-tile-panel');
+    const title = container.querySelector('.doc-tile-panel-title');
+    if (items.length === 0) { container.classList.remove('has-items', 'open'); panel.innerHTML = ''; return; }
 
     /* 和暦ごとにグループ化。グループの並び順はスプレッドシート上の登場順をそのまま使う（年代の自動判定はしない） */
     const groups = []; const groupIndex = {};
@@ -6852,9 +7311,8 @@ function buildDocDrawingTree() {
         groups[groupIndex[label]].docs.push(d);
     });
 
-    const treeHtml = `<div class="doc-tile-panel">
-        <div class="doc-tile-panel-title">史料の図面タイル（${items.length}件）</div>
-        ${groups.map(g => `
+    title.textContent = `史料の図面タイル（${items.length}件）`;
+    panel.innerHTML = groups.map(g => `
         <details class="doc-tile-group">
             <summary>${escapeHtml(g.label)}（${g.docs.length}）</summary>
             ${g.docs.map(d => `
@@ -6863,18 +7321,21 @@ function buildDocDrawingTree() {
                 <span>${escapeHtml(d.subject)}</span>
                 <button type="button" class="layer-detail-btn" onclick="event.preventDefault();event.stopPropagation();openDocDetailModalById('${escapeJsAttr(d.id)}')" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>
             </label>`).join('')}
-        </details>`).join('')}
-    </div>`;
+        </details>`).join('');
+    container.classList.add('has-items');
+    syncDocDrawingCheckboxes();
+}
 
-    const dummy = L.layerGroup();
-    window._docDrawingTreeOverlay = dummy;
-    window._eraLayerControl.addOverlay(dummy, treeHtml);
-    /* このエントリ自体の先頭チェックボックスは使わない（個々の史料は中のチェックボックスで操作するため）ので隠す */
-    const list = window._eraLayerControl._container && window._eraLayerControl._container.querySelector('.leaflet-control-layers-overlays');
-    if (list && list.lastElementChild) {
-        const cb = list.lastElementChild.querySelector('input.leaflet-control-layers-selector');
-        if (cb && cb.parentElement) cb.parentElement.style.display = 'none';
-    }
+/* 一覧内のチェックボックスを、実際に地図上へ表示されているレイヤの状態に合わせる */
+function syncDocDrawingCheckboxes() {
+    const container = getDocTileContainer();
+    if (!container || !window._docDrawingLayers) return;
+    Object.keys(window._docDrawingLayers).forEach(id => {
+        const tl = window._docDrawingLayers[id];
+        const leaf = container.querySelector(`.doc-tile-leaf[data-doc-id="${CSS.escape(String(id))}"]`);
+        const cb = leaf && leaf.querySelector('input[type="checkbox"]');
+        if (cb) cb.checked = !!(tl && map && map.hasLayer(tl));
+    });
 }
 
 /* 図面タイル一覧のチェックボックス（またはfocusOnDocMap）から呼ばれ、指定史料のタイルレイヤの表示/非表示を切り替える */
@@ -6891,6 +7352,7 @@ function toggleDocDrawingLayer(docId, show) {
             } catch (e) {
                 console.error('史料の図面タイルレイヤの作成に失敗しました:', docId, url, e);
                 showNotification('図面タイルの読み込みに失敗しました。URLをご確認ください。');
+                setDocDrawingCheckbox(docId, false);
                 return null;
             }
         }
@@ -6908,12 +7370,16 @@ function toggleDocDrawingLayer(docId, show) {
 
 /* 一覧内の該当チェックボックスの見た目を、実際の表示状態に合わせる（「地図上で確認」から呼ばれた場合など） */
 function setDocDrawingCheckbox(docId, checked) {
-    if (!window._eraLayerControl || !window._eraLayerControl._container) return;
-    const leaf = window._eraLayerControl._container.querySelector(`.doc-tile-leaf[data-doc-id="${CSS.escape(String(docId))}"]`);
+    const container = getDocTileContainer();
+    if (!container) return;
+    const leaf = container.querySelector(`.doc-tile-leaf[data-doc-id="${CSS.escape(String(docId))}"]`);
     if (!leaf) return;
     const cb = leaf.querySelector('input[type="checkbox"]');
     if (cb) cb.checked = checked;
-    if (checked) { const details = leaf.closest('details'); if (details) details.open = true; }
+    if (checked) {
+        const details = leaf.closest('details'); if (details) details.open = true;
+        container.classList.add('open');
+    }
 }
 
 function focusOnDocMap(chibanKey, drawingTileUrl, docId) {
@@ -8439,13 +8905,24 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
             const c = document.getElementById('pdf-page-counter');
             const m = c ? (c.textContent || '').match(/(\d+)\s*\/\s*(\d+)/) : null;
             const jump = document.getElementById('pdf-page-jump');
-            if (jump && m) { jump.max = m[2]; if (document.activeElement !== jump) jump.value = m[1]; }
+            if (jump && m) {
+                if (jump.max !== m[2]) jump.max = m[2];
+                if (document.activeElement !== jump && jump.value !== m[1]) jump.value = m[1];
+            }
+            /* 値が同じなら書き込まない。textContentへの書き込みは同じ値でもDOM変更として検知され、
+               下の監視（MutationObserver）が再び呼ばれて無限ループになり、画面がフリーズしていた */
             const total = document.getElementById('pdf-page-total');
-            if (total && m) total.textContent = m[2];
+            if (total && m && total.textContent !== m[2]) total.textContent = m[2];
             const slider = document.getElementById('pdf-page-slider');
             if (slider) fillSlider(slider);
         }
-        new MutationObserver(syncPager).observe(document.body, { subtree: true, childList: true, characterData: true });
+        /* 連続した変更はまとめて1フレームに1回だけ処理する（ページ全体の変更を監視しているため） */
+        let pagerQueued = false;
+        new MutationObserver(function () {
+            if (pagerQueued) return;
+            pagerQueued = true;
+            requestAnimationFrame(function () { pagerQueued = false; syncPager(); });
+        }).observe(document.body, { subtree: true, childList: true, characterData: true });
         document.addEventListener('input', e => { if (e.target && e.target.id === 'pdf-page-slider') fillSlider(e.target); });
 
         window.docPageJumpKey = function (e) {
