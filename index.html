@@ -131,6 +131,37 @@ a { color: inherit; text-decoration: none; }
 .dropdown-item:last-child { border-bottom: none; }
 .dropdown-item:hover { background: rgba(168,135,76,0.14); color: #fffdf7; padding-left: 28px; }
 
+/* ===== 土地利用の変遷バー ===== */
+#trans-bar {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 2400;
+    width: min(680px, calc(100vw - 24px)); display: none; flex-direction: column; gap: 4px;
+    background: rgba(27,17,11,0.92); border: 1px solid rgba(168,135,76,0.6); border-radius: 14px;
+    padding: 8px 12px 8px; color: #e8ddc4; box-shadow: 0 4px 18px rgba(0,0,0,0.45); font-family: var(--font-sans);
+}
+#trans-bar.open { display: flex; }
+.trans-row { display: flex; align-items: center; gap: 8px; }
+.trans-btn {
+    width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%; background: rgba(60,45,30,0.9);
+    border: 1px solid rgba(168,135,76,0.6); color: #e8ddc4; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.trans-btn:hover, .trans-btn.on { background: var(--accent-gold); color: #1b110b; border-color: var(--accent-gold); }
+#trans-slider { flex: 1 1 auto; min-width: 0; accent-color: var(--accent-gold); cursor: pointer; }
+.trans-title { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.05em; color: #fffdf7; text-align: center; }
+.trans-sub { font-size: 0.72rem; text-align: center; color: #cdbf9f; }
+.trans-opts { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: center; font-size: 0.72rem; }
+.trans-opts label { cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.trans-legend { display: none; max-height: 42vh; overflow-y: auto; border-top: 1px solid rgba(168,135,76,0.4); padding-top: 6px; font-size: 0.76rem; }
+.trans-legend.open { display: block; }
+.trans-leg-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
+.trans-leg-row.sub { padding-left: 22px; }
+.trans-leg-row .sw { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.5); flex: 0 0 16px; }
+.trans-leg-row .cnt { margin-left: auto; color: #cdbf9f; font-variant-numeric: tabular-nums; }
+.trans-leg-row.zero { opacity: 0.45; }
+@media (max-width: 768px) {
+    #trans-bar { bottom: auto; top: calc(var(--header-height) + var(--sub-header-height) + 4px); padding: 6px 10px; }
+    .trans-legend { max-height: 34vh; }
+}
+
 /* ===== サブヘッダー(マップ用) ===== */
 #map-ui {
     position: fixed; top: var(--header-height); left: 0; right: 0; height: auto;
@@ -1289,6 +1320,9 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
         <button class="sub-nav-btn" id="m-btn-spot" onclick="toggleSpotSettingsMode()">
             <i class="fa-solid fa-location-dot"></i><span>スポット設定</span>
         </button>
+        <button class="sub-nav-btn" id="m-btn-trans" onclick="toggleTransitionMode()" title="土地利用の変遷（中世〜1945年）">
+            <i class="fa-solid fa-clock-rotate-left"></i><span>変遷</span>
+        </button>
         <div class="map-ui-slot" id="map-ui-slot-tile"></div>
         <div class="map-ui-slot" id="map-ui-slot-doc"></div>
     </div>
@@ -1297,6 +1331,24 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
         <input type="range" id="era-slider" min="0" max="13" step="1" value="0">
         <button class="slider-arrow-btn" onclick="stepEra(1)"><i class="fa-solid fa-chevron-right"></i></button>
     </div>
+</div>
+<!-- ================= 土地利用の変遷バー（変遷モード中だけ表示。地図タイル用の時代スライダーとは別） ================= -->
+<div id="trans-bar">
+    <div class="trans-row">
+        <button type="button" class="trans-btn" id="trans-play" onclick="transTogglePlay()" title="再生／停止"><i class="fa-solid fa-play"></i></button>
+        <button type="button" class="trans-btn" onclick="transStep(-1)" title="前の時代へ"><i class="fa-solid fa-chevron-left"></i></button>
+        <input type="range" id="trans-slider" min="0" max="0" step="1" value="0">
+        <button type="button" class="trans-btn" onclick="transStep(1)" title="次の時代へ"><i class="fa-solid fa-chevron-right"></i></button>
+        <button type="button" class="trans-btn" id="trans-legend-btn" onclick="transToggleLegend()" title="凡例・表示切替"><i class="fa-solid fa-list-ul"></i></button>
+        <button type="button" class="trans-btn" onclick="toggleTransitionMode()" title="変遷モードを終了"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="trans-title" id="trans-title"></div>
+    <div class="trans-sub" id="trans-sub"></div>
+    <div class="trans-opts">
+        <label><input type="checkbox" id="trans-chk-possible" checked onchange="transRefresh()"> 年代に幅があるものも薄く表示</label>
+        <label><input type="checkbox" id="trans-chk-unknown" onchange="transRefresh()"> 年代不明も極薄く表示</label>
+    </div>
+    <div class="trans-legend" id="trans-legend"></div>
 </div>
 <!-- ================= コンテンツラッパー ================= -->
 <div id="content-wrapper">
@@ -1388,10 +1440,10 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
                     <div class="legend-item"><span class="legend-swatch" style="background:#ff8c00;"></span>石造物：現存</div>
                     <div class="legend-item"><span class="legend-swatch" style="background:#d32f2f;"></span>石造物：消滅・行方不明</div>
                     <div class="legend-item"><span class="legend-swatch" style="background:#00695c;"></span>石造物：移転前座標</div>
-                    <div class="legend-item"><i class="fa-solid fa-tree" style="color:#2e7d32;width:16px;"></i>自然系：樹木・山林</div>
-                    <div class="legend-item"><i class="fa-solid fa-water" style="color:#0277bd;width:16px;"></i>自然系：川・水路</div>
+                    <div class="legend-item"><i class="fa-solid fa-tree" style="color:#2e7d32;width:16px;"></i>自然系：樹木・森林／<i class="fa-solid fa-wheat-awn" style="color:#9ccc65;width:16px;"></i>田・<i class="fa-solid fa-carrot" style="color:#c0ca33;width:16px;"></i>畑・<i class="fa-solid fa-seedling" style="color:#7cb342;width:16px;"></i>農園</div>
+                    <div class="legend-item"><i class="fa-solid fa-water" style="color:#0277bd;width:16px;"></i>自然系：川・池／<i class="fa-solid fa-droplet" style="color:#00838f;width:16px;"></i>建造物：水路・運河・開渠</div>
                     <div class="legend-item"><i class="fa-solid fa-torii-gate" style="color:#c62828;width:16px;"></i>古道：参道／<i class="fa-solid fa-road" style="color:#a1887f;width:16px;"></i>街道・国道</div>
-                    <div class="legend-item"><i class="fa-solid fa-torii-gate" style="color:#ff8c00;width:16px;"></i>建造物：神社／<i class="fa-solid fa-building-columns" style="color:#c9a227;width:16px;"></i>洋風建築</div>
+                    <div class="legend-item"><i class="fa-solid fa-torii-gate" style="color:#ff8c00;width:16px;"></i>建造物：神社／<i class="fa-solid fa-building-columns" style="color:#c9a227;width:16px;"></i>洋風建築／<i class="fa-solid fa-train" style="color:#455a64;width:16px;"></i>鉄道／<i class="fa-solid fa-bridge" style="color:#78909c;width:16px;"></i>橋梁</div>
                     <div class="legend-item"><span class="legend-swatch" style="background:#1a2a4a;"></span>文書・史料</div>
                     <div class="legend-item"><span class="legend-swatch" style="background:#ffd600;"></span>地番ポリゴン：大字／<span class="legend-swatch" style="background:#ff6d00;"></span>小字／<span class="legend-swatch" style="background:#00e5ff;"></span>地番</div>
                     <div class="legend-item"><span class="legend-swatch" style="background:#424242;"></span>クリックして選択中の地番（グレーアウト）</div>
@@ -1727,7 +1779,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
                 <div class="search-row">
                     <div class="search-field"><label>整理番号</label><input id="nature-search-id"></div>
                     <div class="search-field"><label>名称</label><input id="nature-search-name"></div>
-                    <div class="search-field"><label>種別</label><input id="nature-search-type" placeholder="樹木・巨樹 等"></div>
+                    <div class="search-field"><label>種別</label><input id="nature-search-type" placeholder="樹木・森林・田・畑・草地 等"></div>
                     <div class="search-field"><label>発生年</label><input id="nature-search-year-start"></div>
                     <div class="search-field"><label>消失年</label><input id="nature-search-year-end"></div>
                     <div class="search-field"><label>現存状況</label><input id="nature-search-status"></div>
@@ -2268,6 +2320,7 @@ function resetSpotSettingsFilters() {
     const searchBox = document.getElementById('spot-search-input'); if (searchBox) searchBox.value = '';
     clearSpatialTarget();
     window._spotHierarchyFilterIds = { nature: null, oldroad: null, building: null, td: null, doc: null };
+    window._oldVisible = { nature: new Set(), oldroad: new Set(), building: new Set() };
     if (map) {
         [photoClusterGroup, modelClusterGroup, natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup, bookLayerGroup].forEach(g => {
             if (g && !map.hasLayer(g)) map.addLayer(g);
@@ -3167,7 +3220,8 @@ function initMap() {
     });
 
     map.on('click', (e) => {
-        if (isSpatialFilterSelectMode) setSpatialTarget(e.latlng);
+        if (isSpatialFilterSelectMode) { setSpatialTarget(e.latlng); return; }
+        handleChibanMapClick(e);
     });
 
     map.on('zoomend', () => {
@@ -3800,11 +3854,16 @@ function getNatureStyle(row) {
     const status = row.status || '';
     if (status === '消失') return { color: '#3a2e2b', fillColor: '#3a2e2b', icon: 'circle-xmark' };
     const type = row.type || '';
+    /* 種別：樹木、森林、山、川、田、農園、池、岩、畑 */
     if (type.includes('樹木')) return { color: '#2e7d32', fillColor: '#2e7d32', icon: 'tree' };
-    if (type.includes('山林')) return { color: '#1b5e20', fillColor: '#1b5e20', icon: 'tree' };
+    if (type.includes('森林') || type.includes('山林')) return { color: '#1b5e20', fillColor: '#1b5e20', icon: 'tree' };
     if (type.includes('山')) return { color: '#827717', fillColor: '#827717', icon: 'mountain' };
     if (type.includes('川')) return { color: '#0277bd', fillColor: '#0277bd', icon: 'water' };
-    if (type.includes('水路')) return { color: '#00838f', fillColor: '#00838f', icon: 'droplet' };
+    if (type.includes('池')) return { color: '#0097a7', fillColor: '#0097a7', icon: 'droplet' };
+    if (type.includes('農園')) return { color: '#7cb342', fillColor: '#7cb342', icon: 'seedling' };
+    if (type.includes('田')) return { color: '#9ccc65', fillColor: '#9ccc65', icon: 'wheat-awn' };
+    if (type.includes('畑')) return { color: '#c0ca33', fillColor: '#c0ca33', icon: 'carrot' };
+    if (type.includes('草地')) return { color: '#aed581', fillColor: '#aed581', icon: 'leaf' };
     if (type.includes('岩')) return { color: '#757575', fillColor: '#757575', icon: 'mound' };
     return { color: '#2e8b57', fillColor: '#2e8b57', icon: 'leaf' };
 }
@@ -3947,12 +4006,401 @@ function findFamilyRowsForRow(tree, rowId) {
     return collectSubtreeRows(rootNode);
 }
 
+/* =====================================================================
+   消失年が1880年未満のデータの扱い
+   ・メインマップには色付きで描かない（ポリゴンもピンも）
+   ・地番ポリゴン詳細パネルの「紐づくデータ」には、これまでどおり表示される
+   ・次の場合だけ、メインマップ上に描く（＝ window._oldVisible に登録する）
+       1) データベース詳細モーダルの「地図上で確認」
+       2) スポット設定の階層ツリーの「表示」ボタン
+   ・別のデータの詳細パネルを開いたら、登録を消してメインマップから外す
+   ===================================================================== */
+const LOST_BEFORE_YEAR = 1880;
+window._oldVisible = { nature: new Set(), oldroad: new Set(), building: new Set() };
+
+/* 消失年の文字列を西暦の数値にする。読み取れなければnull（＝通常どおり表示する）。 */
+function parseLossYear(raw) {
+    if (raw === null || raw === undefined) return null;
+    const t = String(raw).trim().replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 0xFEE0));
+    if (t === '' || isUnknownValue(t)) return null;
+    const m4 = t.match(/(\d{4})/);
+    if (m4) return parseInt(m4[1]);
+    const eras = [['明治', 1867], ['大正', 1911], ['昭和', 1925], ['平成', 1988], ['令和', 2018]];
+    for (const [name, base] of eras) {
+        const i = t.indexOf(name);
+        if (i < 0) continue;
+        const rest = t.slice(i + name.length);
+        if (/^元/.test(rest)) return base + 1;
+        const mn = rest.match(/^(\d{1,2})/);
+        if (mn) return base + parseInt(mn[1]);
+        if (name === '明治' && /初期|前期|初年/.test(rest)) return 1875;
+        return null;
+    }
+    if (/江戸|室町|戦国|鎌倉|安土|桃山|平安|奈良|古代|中世|近世/.test(t)) return 1867;
+    const m3 = t.match(/(\d{3})/);
+    if (m3) return parseInt(m3[1]);
+    return null;
+}
+function getRowLossYear(row, type) {
+    return parseLossYear(type === 'nature' ? row.yearEnd : row.yearLoss);
+}
+function isOldLostRow(row, type) {
+    const y = getRowLossYear(row, type);
+    return y !== null && y < LOST_BEFORE_YEAR;
+}
+function isOldVisible(type, id) {
+    const set = window._oldVisible[type];
+    return !!(set && set.has(String(id)));
+}
+/* メインマップに描いてよい行か：消失年1880年以上／不明のものは常に可。1880年未満は登録されたものだけ可。 */
+function isRowVisibleOnMainMap(row, type) {
+    return !isOldLostRow(row, type) || isOldVisible(type, row.id);
+}
+function rerenderOldCapableLayers() {
+    const box = document.getElementById('spot-search-input');
+    const q = ((box && box.value) || '').trim().toLowerCase();
+    renderNatureMapLayers(q);
+    renderOldRoadMapLayers(q);
+    renderBuildingMapLayers(q);
+}
+/* 登録を丸ごと置き換える。entriesは {nature:[id..], oldroad:[id..], building:[id..]} 形式 */
+function setOldVisible(entries) {
+    const before = ['nature', 'oldroad', 'building'].reduce((n, k) => n + window._oldVisible[k].size, 0);
+    window._oldVisible = {
+        nature: new Set(((entries && entries.nature) || []).map(String)),
+        oldroad: new Set(((entries && entries.oldroad) || []).map(String)),
+        building: new Set(((entries && entries.building) || []).map(String))
+    };
+    const after = ['nature', 'oldroad', 'building'].reduce((n, k) => n + window._oldVisible[k].size, 0);
+    if (before > 0 || after > 0) rerenderOldCapableLayers();
+}
+function clearOldVisible() {
+    const has = ['nature', 'oldroad', 'building'].some(k => window._oldVisible[k].size > 0);
+    if (has) setOldVisible(null);
+}
+
+/* =====================================================================
+   土地利用の変遷モード（中世〜1945年）
+   ・自然系／古道／建造物データベースのうち、下の区分に当てはまるものを、紐づく地番のポリゴンで表示する
+   ・専用スライダーは地図タイル用の時代スライダーとは別。時代は新しいほど細かい刻み
+   ・年代の扱い
+       ①発生年＝消失年（測量図などの「ある年時点」のデータ）：その年が含まれる時代の区切りだけで表示（濃い）
+       ②年代が確実な期間：濃く表示／年代に幅がある期間（明治初期・15世紀など）：薄く表示
+       ③発生年・消失年がどちらも不明：「年代不明も表示」をオンにしたときだけ極薄く表示
+   ===================================================================== */
+const TRANS_STEPS = [1185, 1300, 1400, 1500, 1600, 1650, 1700, 1750, 1800, 1850, 1868, 1880, 1890, 1900, 1910, 1920, 1930, 1940, 1945];
+const TRANS_END_YEAR = 1945;
+
+/* 区分：z は重なり順（小さいほど下に描く） */
+const TRANS_CATS = [
+    { key: 'forest',      label: '森林',       color: '#2e7d32', z: 1 },
+    { key: 'grass',       label: '草地',       color: '#c5e1a5', z: 1 },
+    { key: 'paddy',       label: '田',         color: '#c6d84a', z: 2 },
+    { key: 'field',       label: '畑',         color: '#d9a441', z: 2 },
+    { key: 'orchard',     label: '農園',       color: '#f06292', z: 2 },
+    { key: 'pond',        label: '池',         color: '#26c6da', z: 3 },
+    { key: 'cemetery',    label: '墓地',       color: '#616161', z: 3 },
+    { key: 'residential', label: '宅地',       color: '#9a8aa8', z: 4 },
+    { key: 'water',       label: '水路・川',   color: '#1565c0', z: 5 },
+    { key: 'satodo',      label: '里道',       color: '#bcaaa4', z: 6 },
+    { key: 'mainroad',    label: '主要道',     color: '#5d4037', z: 7 },
+    { key: 'civil',       label: '土木構造物', color: '#78909c', z: 8 },
+    { key: 'temple',      label: '寺院',       color: '#7b1fa2', z: 9 },
+    { key: 'shrine',      label: '神社',       color: '#d32f2f', z: 9 }
+];
+/* 名称に含まれる語による固有色（上から順に最初に当てはまったものを採用） */
+const TRANS_SUBS = {
+    forest: [
+        { key: 'forest_conifer', label: '針葉樹',   kw: ['針葉樹'],              color: '#0b3d20' },
+        { key: 'forest_broad',   label: '広葉樹',   kw: ['広葉樹'],              color: '#66bb6a' },
+        { key: 'forest_matsu',   label: '松',       kw: ['松'],                  color: '#00796b' },
+        { key: 'forest_sugi',    label: '杉',       kw: ['杉'],                  color: '#6b8e23' },
+        { key: 'forest_hinoki',  label: '桧',       kw: ['桧', '檜', 'ヒノキ'],  color: '#b5a642' },
+        { key: 'forest_shii',    label: 'シイ',     kw: ['シイ', '椎'],          color: '#4db6ac' },
+        { key: 'forest_kashi',   label: 'カシ',     kw: ['カシ', '樫'],          color: '#7a5c3a' },
+        { key: 'forest_kunugi',  label: 'クヌギ',   kw: ['クヌギ', '椚', '櫟'],  color: '#d08c3f' },
+        { key: 'forest_bamboo',  label: '竹林',     kw: ['竹林'],                color: '#8bc34a' }
+    ],
+    paddy: [
+        { key: 'paddy_wet', label: '水田', kw: ['水田'], color: '#7fcdbb' },
+        { key: 'paddy_dry', label: '陸田', kw: ['陸田'], color: '#e6c84f' }
+    ],
+    field: [
+        { key: 'field_tea',   label: '茶畑', kw: ['茶畑'], color: '#00a86b' },
+        { key: 'field_mulb',  label: '桑畑', kw: ['桑畑'], color: '#9c5bb5' }
+    ]
+};
+const TRANS_CAT_BY_KEY = {};
+TRANS_CATS.forEach(c => { TRANS_CAT_BY_KEY[c.key] = c; });
+const TRANS_SUB_BY_KEY = {};
+Object.keys(TRANS_SUBS).forEach(k => TRANS_SUBS[k].forEach(sb => { TRANS_SUB_BY_KEY[sb.key] = Object.assign({ parent: k, z: TRANS_CAT_BY_KEY[k].z }, sb); }));
+
+window._transActive = false;
+window._transItems = null;
+window._transHidden = new Set();
+window._transGroup = null;
+window._transTimer = null;
+
+/* 年代の文字列 → {min,max}（西暦の幅）。読み取れなければnull（不明扱い） */
+function parseYearRange(raw) {
+    if (raw === null || raw === undefined) return null;
+    const t = String(raw).trim().replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 0xFEE0));
+    if (t === '' || isUnknownValue(t)) return null;
+    const part = (a, b) => {
+        const len = b - a;
+        if (/初期|前期|初年|初頭|前半/.test(t)) return { min: a, max: a + Math.round(len / 3) };
+        if (/中期|中頃|半ば/.test(t)) return { min: a + Math.round(len / 3), max: a + Math.round(len * 2 / 3) };
+        if (/後期|末期|晩期|末年|後半|末/.test(t)) return { min: a + Math.round(len * 2 / 3), max: b };
+        return { min: a, max: b };
+    };
+    let m = t.match(/(\d{4})\s*年?\s*代/);
+    if (m) { const a = parseInt(m[1]); return { min: a, max: a + 9 }; }
+    m = t.match(/(\d{4})\s*年?\s*[-〜～~－–—]\s*(\d{4})/);
+    if (m) return { min: Math.min(+m[1], +m[2]), max: Math.max(+m[1], +m[2]) };
+    m = t.match(/(\d{4})/);
+    if (m) { const y = parseInt(m[1]); return { min: y, max: y }; }
+    m = t.match(/(\d{1,2})\s*世紀/);
+    if (m) {
+        const c = parseInt(m[1]), lo = (c - 1) * 100 + 1, hi = c * 100;
+        if (/前半|初頭|前期|初期/.test(t)) return { min: lo, max: lo + 49 };
+        if (/後半|末|後期/.test(t)) return { min: lo + 50, max: hi };
+        return { min: lo, max: hi };
+    }
+    const ERAS = [['明治', 1868, 1912], ['大正', 1912, 1926], ['昭和', 1926, 1989], ['平成', 1989, 2019], ['令和', 2019, 2030]];
+    for (const [name, a, b] of ERAS) {
+        const i = t.indexOf(name);
+        if (i < 0) continue;
+        const rest = t.slice(i + name.length);
+        if (/^元/.test(rest)) return { min: a, max: a };
+        const mn = rest.match(/^(\d{1,2})/);
+        if (mn) { const y = a - 1 + parseInt(mn[1]); return { min: y, max: y }; }
+        return part(a, b);
+    }
+    const PERIODS = [['安土桃山', 1573, 1603], ['安土', 1573, 1603], ['桃山', 1573, 1603], ['江戸', 1603, 1868], ['南北朝', 1336, 1392], ['室町', 1336, 1573],
+        ['戦国', 1467, 1573], ['鎌倉', 1185, 1333], ['平安', 794, 1185], ['近世', 1573, 1868], ['中世', 1185, 1573], ['古代', 500, 1185]];
+    for (const [name, a, b] of PERIODS) { if (t.includes(name)) return part(a, b); }
+    return null;
+}
+
+/* データ1件 → 変遷の区分。当てはまらない種別（山・岩・樹木・高速道路など）は null（変遷モードでは使わない） */
+function classifyTransition(row, db) {
+    const t = String(row.type || ''), name = String(row.name || '');
+    let cat = null;
+    if (db === 'building') {
+        if (/戦前洋風|近代和風|町家|農家/.test(t)) cat = 'residential';
+        else if (t.includes('寺院')) cat = 'temple';
+        else if (t.includes('神社')) cat = 'shrine';
+        else if (t.includes('墓地')) cat = 'cemetery';
+        else if (/暗渠|開渠|鉄道|隧道|橋梁|土木構造物/.test(t)) cat = 'civil';
+        else if (/水路|運河/.test(t)) cat = 'water';
+    } else if (db === 'nature') {
+        if (t.includes('森林') || t.includes('山林')) cat = 'forest';
+        else if (t.includes('草地')) cat = 'grass';
+        else if (t.includes('農園')) cat = 'orchard';
+        else if (t.includes('池')) cat = 'pond';
+        else if (t.includes('田')) cat = 'paddy';
+        else if (t.includes('畑')) cat = 'field';
+        else if (t.includes('川')) cat = 'water';
+    } else if (db === 'oldroad') {
+        if (t.includes('里道')) cat = 'satodo';
+        else if (/参道|街道|国道/.test(t)) cat = 'mainroad';
+    }
+    if (!cat) return null;
+    let key = cat;
+    (TRANS_SUBS[cat] || []).some(sb => { if (sb.kw.some(w => name.includes(w))) { key = sb.key; return true; } return false; });
+    return { cat, key };
+}
+function transColorOf(key) {
+    return (TRANS_SUB_BY_KEY[key] || TRANS_CAT_BY_KEY[key] || {}).color || '#999';
+}
+
+function buildTransitionItems() {
+    if (window._transItems) return window._transItems;
+    if (!chibanGeoJSON) return null;
+    const items = [];
+    const stats = { noGeom: 0 };
+    const add = (arr, db, sf, ef) => arr.forEach(row => {
+        const c = classifyTransition(row, db);
+        if (!c) return;
+        const feats = findChibanFeatures(row.chibanKey);
+        if (feats.length === 0) { stats.noGeom++; return; }
+        const sR = parseYearRange(row[sf]), eR = parseYearRange(row[ef]);
+        const snap = !!(sR && eR && sR.min === sR.max && eR.min === eR.max && sR.min === eR.min);
+        items.push({ row, db, cat: c.cat, key: c.key, z: (TRANS_SUB_BY_KEY[c.key] || TRANS_CAT_BY_KEY[c.key]).z,
+            feats, sR, eR, snap, lost: String(row.status || '').includes('消失'), layer: null });
+    });
+    add(natureData, 'nature', 'yearStart', 'yearEnd');
+    add(oldRoadData, 'oldroad', 'yearBuild', 'yearLoss');
+    add(buildingData, 'building', 'yearBuild', 'yearLoss');
+    items.sort((a, b) => a.z - b.z);
+    window._transStats = stats;
+    window._transItems = items;
+    return items;
+}
+
+/* 時代の区切り [T, Tn) に対する存在状態：2=確実／1=年代に幅あり／0=なし／-1=年代不明 */
+function transEval(it, T, Tn) {
+    if (it.snap) return (it.sR.min >= T && it.sR.min < Tn) ? 2 : 0;
+    if (!it.sR && !it.eR) return -1;
+    let st, en;
+    if (!it.sR) st = 1;
+    else if (it.sR.max <= T) st = 2;
+    else if (it.sR.min <= T) st = 1;
+    else st = 0;
+    if (!it.eR) en = it.lost ? 1 : 2;
+    else if (T < it.eR.min) en = 2;
+    else if (T <= it.eR.max) en = 1;
+    else en = 0;
+    if (st === 0 || en === 0) return 0;
+    return Math.min(st, en);
+}
+
+function transStyleFor(it, st) {
+    const color = transColorOf(it.key);
+    if (st === 2) return { color, weight: 1, fillColor: color, fillOpacity: 0.62, dashArray: null, opacity: 0.9 };
+    if (st === 1) return { color, weight: 1.5, fillColor: color, fillOpacity: 0.25, dashArray: '4,3', opacity: 0.9 };
+    return { color, weight: 1, fillColor: color, fillOpacity: 0.1, dashArray: '2,4', opacity: 0.6 };
+}
+
+function transRangeLabel(idx) {
+    const T = TRANS_STEPS[idx];
+    if (idx >= TRANS_STEPS.length - 1) return TRANS_END_YEAR + '年';
+    return T + '〜' + (TRANS_STEPS[idx + 1] - 1) + '年';
+}
+
+let _transRaf = 0;
+function transRefresh() {
+    if (_transRaf) return;
+    _transRaf = requestAnimationFrame(() => { _transRaf = 0; transRender(); });
+}
+
+function transRender() {
+    if (!window._transActive || !map) return;
+    const items = buildTransitionItems();
+    if (!items) return;
+    const slider = document.getElementById('trans-slider');
+    const idx = Math.max(0, Math.min(TRANS_STEPS.length - 1, parseInt(slider.value) || 0));
+    const T = TRANS_STEPS[idx];
+    const Tn = idx + 1 < TRANS_STEPS.length ? TRANS_STEPS[idx + 1] : TRANS_END_YEAR + 1;
+    const showPossible = document.getElementById('trans-chk-possible').checked;
+    const showUnknown = document.getElementById('trans-chk-unknown').checked;
+    window._transGroup.clearLayers();
+    const counts = {};
+    let nCertain = 0, nPossible = 0, nUnknown = 0, nShown = 0;
+    items.forEach(it => {
+        const st = transEval(it, T, Tn);
+        if (st === 0) return;
+        counts[it.key] = (counts[it.key] || 0) + 1;
+        if (st === 2) nCertain++; else if (st === 1) nPossible++; else nUnknown++;
+        if (window._transHidden.has(it.key)) return;
+        if (st === -1 && !showUnknown) return;
+        if (st === 1 && !showPossible) return;
+        if (!it.layer) {
+            it.layer = L.geoJSON({ type: 'FeatureCollection', features: it.feats });
+            it.layer.on('click', () => openDataDetailPanel(it.row, it.db));
+        }
+        it.layer.setStyle(transStyleFor(it, st));
+        window._transGroup.addLayer(it.layer);
+        nShown++;
+    });
+    document.getElementById('trans-title').textContent = transRangeLabel(idx);
+    const st0 = window._transStats || { noGeom: 0 };
+    document.getElementById('trans-sub').textContent =
+        `表示 ${nShown}件（確実 ${nCertain}／年代に幅あり ${nPossible}）｜年代不明 ${nUnknown}件` + (st0.noGeom ? `｜地番の紐づけなし ${st0.noGeom}件は対象外` : '');
+    transRenderLegend(counts, items);
+}
+
+function transRenderLegend(counts, items) {
+    const box = document.getElementById('trans-legend');
+    if (!box) return;
+    const used = {};
+    items.forEach(it => { used[it.key] = true; });
+    const row = (key, label, sub) => {
+        const n = counts[key] || 0;
+        return `<label class="trans-leg-row${sub ? ' sub' : ''}${n === 0 ? ' zero' : ''}"><input type="checkbox" ${window._transHidden.has(key) ? '' : 'checked'} onchange="transToggleCat('${key}')"><span class="sw" style="background:${transColorOf(key)}"></span><span>${escapeHtml(label)}</span><span class="cnt">${n}</span></label>`;
+    };
+    const top = box.scrollTop;
+    let html = '';
+    TRANS_CATS.forEach(c => {
+        html += row(c.key, c.label, false);
+        (TRANS_SUBS[c.key] || []).forEach(sb => { if (used[sb.key]) html += row(sb.key, sb.label + '（' + c.label + '）', true); });
+    });
+    box.innerHTML = html;
+    box.scrollTop = top;
+}
+function transToggleCat(key) {
+    if (window._transHidden.has(key)) window._transHidden.delete(key); else window._transHidden.add(key);
+    transRefresh();
+}
+function transToggleLegend() {
+    const box = document.getElementById('trans-legend');
+    const btn = document.getElementById('trans-legend-btn');
+    const open = !box.classList.contains('open');
+    box.classList.toggle('open', open);
+    btn.classList.toggle('on', open);
+}
+function transStep(d) {
+    const slider = document.getElementById('trans-slider');
+    const v = Math.max(0, Math.min(TRANS_STEPS.length - 1, (parseInt(slider.value) || 0) + d));
+    slider.value = v;
+    transRefresh();
+}
+function transStopPlay() {
+    if (window._transTimer) { clearInterval(window._transTimer); window._transTimer = null; }
+    const b = document.getElementById('trans-play');
+    if (b) b.innerHTML = '<i class="fa-solid fa-play"></i>';
+}
+function transTogglePlay() {
+    if (window._transTimer) { transStopPlay(); return; }
+    const slider = document.getElementById('trans-slider');
+    if ((parseInt(slider.value) || 0) >= TRANS_STEPS.length - 1) slider.value = 0;
+    document.getElementById('trans-play').innerHTML = '<i class="fa-solid fa-pause"></i>';
+    transRefresh();
+    window._transTimer = setInterval(() => {
+        const cur = parseInt(slider.value) || 0;
+        if (cur >= TRANS_STEPS.length - 1) { transStopPlay(); return; }
+        slider.value = cur + 1;
+        transRender();
+    }, 1600);
+}
+
+function toggleTransitionMode() {
+    const bar = document.getElementById('trans-bar');
+    const btn = document.getElementById('m-btn-trans');
+    if (!window._transActive) {
+        if (!chibanGeoJSON) { showNotification('地番ポリゴンのデータを読み込み中です。少し待ってからもう一度押してください。'); return; }
+        window._transActive = true;
+        const slider = document.getElementById('trans-slider');
+        slider.max = TRANS_STEPS.length - 1;
+        if (!slider._transBound) { slider.addEventListener('input', transRefresh); slider._transBound = true; }
+        if (!window._transGroup) window._transGroup = L.layerGroup();
+        /* 通常の自然系・古道・建造物の表示は一時的に外し、変遷用のポリゴンだけを表示する */
+        [natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup].forEach(g => { if (g && map.hasLayer(g)) map.removeLayer(g); });
+        map.addLayer(window._transGroup);
+        bar.classList.add('open');
+        btn.classList.add('active');
+        transRender();
+    } else {
+        window._transActive = false;
+        transStopPlay();
+        if (window._transGroup) { window._transGroup.clearLayers(); map.removeLayer(window._transGroup); }
+        bar.classList.remove('open');
+        btn.classList.remove('active');
+        toggleMapPins('nature'); toggleMapPins('oldroad'); toggleMapPins('building');
+    }
+}
+/* 地番ポリゴンのデータセットを切り替えたら、ポリゴンの紐づけを作り直す */
+function transOnChibanChanged() {
+    window._transItems = null;
+    if (window._transActive) transRender();
+}
+
 function renderNatureMapLayers(searchQuery) {
     natureLayerGroup.clearLayers();
     const q = (searchQuery || '').trim().toLowerCase();
     const hFilter = window._spotHierarchyFilterIds.nature;
     const displayMode = document.getElementById('chk-nature-mode-polygon').checked ? 'polygon' : 'point';
-    natureData.filter(row => (!q || [row.id, row.name, row.type, row.info, row.status, row.condition].join(' ').toLowerCase().includes(q)) && (!hFilter || hFilter.has(String(row.id)))).forEach(row => {
+    natureData.filter(row => (!q || [row.id, row.name, row.type, row.info, row.status, row.condition].join(' ').toLowerCase().includes(q)) && (!hFilter || hFilter.has(String(row.id))) && isRowVisibleOnMainMap(row, 'nature')).forEach(row => {
         const style = getNatureStyle(row);
         let drawn = false;
         if (row.chibanKey && displayMode === 'polygon') {
@@ -3993,7 +4441,7 @@ function renderOldRoadMapLayers(searchQuery) {
     const hFilter = window._spotHierarchyFilterIds.oldroad;
     const modeChk = document.getElementById('chk-oldroad-mode-polygon');
     const displayMode = (!modeChk || modeChk.checked) ? 'polygon' : 'point';
-    oldRoadData.filter(row => (!q || [row.id, row.name, row.type, row.info, row.status, row.condition, row.builder].join(' ').toLowerCase().includes(q)) && (!hFilter || hFilter.has(String(row.id)))).forEach(row => {
+    oldRoadData.filter(row => (!q || [row.id, row.name, row.type, row.info, row.status, row.condition, row.builder].join(' ').toLowerCase().includes(q)) && (!hFilter || hFilter.has(String(row.id))) && isRowVisibleOnMainMap(row, 'oldroad')).forEach(row => {
         const style = getOldRoadStyle(row);
         let drawn = false;
         if (row.chibanKey && displayMode === 'polygon') {
@@ -4026,6 +4474,14 @@ function getBuildingStyle(row) {
     if (type.includes('農家')) return { color: '#8b4513', fillColor: '#8b4513', icon: 'wheat-awn' };
     if (type.includes('寺院')) return { color: '#b71c1c', fillColor: '#b71c1c', icon: 'manji' };
     if (type.includes('神社')) return { color: '#ff8c00', fillColor: '#ff8c00', icon: 'torii-gate' };
+    /* 種別：戦前洋風建築、近代和風建築、町家建築、農家建築、寺院、神社、水路・運河、鉄道、暗渠、隧道、橋梁、開渠、土木構造物（非分類）、墓地 */
+    if (type.includes('暗渠')) return { color: '#37474f', fillColor: '#37474f', icon: 'water' };
+    if (type.includes('開渠')) return { color: '#0288d1', fillColor: '#0288d1', icon: 'droplet' };
+    if (type.includes('水路') || type.includes('運河')) return { color: '#00838f', fillColor: '#00838f', icon: 'droplet' };
+    if (type.includes('鉄道')) return { color: '#455a64', fillColor: '#455a64', icon: 'train' };
+    if (type.includes('隧道')) return { color: '#6d4c41', fillColor: '#6d4c41', icon: 'archway' };
+    if (type.includes('橋梁')) return { color: '#78909c', fillColor: '#78909c', icon: 'bridge' };
+    if (type.includes('墓地')) return { color: '#546e7a', fillColor: '#546e7a', icon: 'monument' };
     if (type.includes('土木構造物')) return { color: '#616161', fillColor: '#616161', icon: 'bridge' };
     return { color: '#ff8c00', fillColor: '#ff8c00', icon: 'house' };
 }
@@ -4035,7 +4491,7 @@ function renderBuildingMapLayers(searchQuery) {
     const q = (searchQuery || '').trim().toLowerCase();
     const hFilter = window._spotHierarchyFilterIds.building;
     const displayMode = document.getElementById('chk-building-mode-polygon').checked ? 'polygon' : 'point';
-    buildingData.filter(row => (!q || [row.id, row.name, row.type, row.info, row.status, row.builder, row.owner, row.heritage, row.condition].join(' ').toLowerCase().includes(q)) && (!hFilter || hFilter.has(String(row.id)))).forEach(row => {
+    buildingData.filter(row => (!q || [row.id, row.name, row.type, row.info, row.status, row.builder, row.owner, row.heritage, row.condition].join(' ').toLowerCase().includes(q)) && (!hFilter || hFilter.has(String(row.id))) && isRowVisibleOnMainMap(row, 'building')).forEach(row => {
         const style = getBuildingStyle(row);
         let drawn = false;
         if (row.chibanKey && displayMode === 'polygon') {
@@ -4238,6 +4694,7 @@ function activateChibanDataset(id) {
        該当する筆が存在しない地番キーは、従来どおり無視される。 */
     try { applyMapFilters(); }
     catch (e) { renderNatureMapLayers(); renderOldRoadMapLayers(); renderBuildingMapLayers(); renderDocMapLayers(); }
+    if (typeof transOnChibanChanged === 'function') transOnChibanChanged();
 }
 
 function syncChibanDatasetRadios() {
@@ -4743,6 +5200,29 @@ function getChibanRenderer() {
     return _chibanRenderer;
 }
 
+/* 地番ポリゴンのクリック選択。
+   地番ポリゴンは専用Canvas（chibanPane・重なり順390）に描いているが、他のポリゴン（検索結果表示・
+   史料の範囲など）が使うデフォルトのCanvas（overlayPane・重なり順400）が画面全体を覆っているため、
+   Leaflet標準のクリック判定では地番側のCanvasにクリックが届かない。
+   そこで、地図全体のclickを受けてから、地番レイヤに対して自前で当たり判定を行う。 */
+function chibanHitTest(renderer, layerPoint) {
+    if (!renderer) return null;
+    let hit = null;
+    for (let o = renderer._drawFirst; o; o = o.next) {   /* 描画順＝後ろほど手前なので、最後に当たったものを採用 */
+        const l = o.layer;
+        if (l && l.options && l.options.interactive && l._containsPoint && l._containsPoint(layerPoint)) hit = l;
+    }
+    return hit;
+}
+function handleChibanMapClick(e) {
+    if (!map || !chibanLayer || !_chibanRenderer || !map.hasLayer(chibanLayer)) return;
+    const pt = map.latLngToLayerPoint(e.latlng);
+    /* 手前にある他のポリゴン（検索結果表示・史料の範囲など）がクリックされた場合は、そちらを優先する */
+    if (map._renderer && map._renderer !== _chibanRenderer && chibanHitTest(map._renderer, pt)) return;
+    const hit = chibanHitTest(_chibanRenderer, pt);
+    if (hit) hit.fire('click', { latlng: e.latlng, layerPoint: pt, containerPoint: e.containerPoint, originalEvent: e.originalEvent });
+}
+
 function clearChibanLayers() {
     if (chibanLayer) { map.removeLayer(chibanLayer); chibanLayer = null; }
     if (chibanLabelLayer) { map.removeLayer(chibanLabelLayer); chibanLabelLayer = null; }
@@ -4967,7 +5447,9 @@ function resetActiveChibanLayerStyle() {
 /* =====================================================================
    地図クリック詳細パネル（モードレス）の開閉
    ===================================================================== */
-function openMapDetailPanel(bodyHtml) {
+function openMapDetailPanel(bodyHtml, opts) {
+    /* 別のデータを開いたら、1880年未満の消失データのメインマップ表示を外す（自然系・古道・建造物の詳細パネルは自分で判断する） */
+    if (!(opts && opts.keepOld)) clearOldVisible();
     document.getElementById('map-detail-panel-body').innerHTML = bodyHtml;
     document.getElementById('map-detail-panel').classList.add('open');
     const rz = document.getElementById('map-detail-resizer'); if (rz) rz.classList.add('open');
@@ -5135,6 +5617,12 @@ function selectHierarchyNode(type, rowId) {
     const familyRows = findFamilyRowsForRow(tree, rowId);
     if (!familyRows) return;
     window._spotHierarchyFilterIds[type] = new Set(familyRows.map(r => String(r.id)));
+    /* 1880年未満に消失したデータは、この「表示」ボタンで選んだグループの分だけ、メインマップに描く */
+    if (type === 'nature' || type === 'oldroad' || type === 'building') {
+        setOldVisible({ [type]: familyRows.filter(r => isOldLostRow(r, type)).map(r => r.id) });
+    } else {
+        setOldVisible(null);
+    }
     applyMapFilters();
     let features = [];
     familyRows.forEach(r => { features = features.concat(findChibanFeatures(r.chibanKey)); });
@@ -5145,6 +5633,7 @@ function selectHierarchyNode(type, rowId) {
 
 function clearHierarchyFilter(type) {
     window._spotHierarchyFilterIds[type] = null;
+    if (window._oldVisible[type]) setOldVisible(Object.assign({}, { nature: [...window._oldVisible.nature], oldroad: [...window._oldVisible.oldroad], building: [...window._oldVisible.building] }, { [type]: [] }));
     applyMapFilters();
 }
 
@@ -5181,6 +5670,7 @@ function renderSpotDocTree(containerId) {
 
 function selectDocHierarchyGroup(ids) {
     window._spotHierarchyFilterIds.doc = new Set(ids);
+    setOldVisible(null);
     applyMapFilters();
     let features = [];
     ids.forEach(id => {
@@ -7408,6 +7898,7 @@ function focusChibanTypeOnMap(chibanKey, color) {
    画面左（スマホ下部）のモードレスパネルにデータ詳細を表示する。
    ===================================================================== */
 function openDataDetailPanel(row, type, isOrigin) {
+    if (!isOldVisible(type, row.id)) clearOldVisible();
     /* この行が親子階層に属している場合は、家族（ルート祖先とその全子孫）をまとめて画面に収める */
     const tree = window._spotHierarchyTrees[type];
     const familyRows = tree ? findFamilyRowsForRow(tree, row.id) : null;
@@ -7513,7 +8004,7 @@ function openDataDetailPanel(row, type, isOrigin) {
         <button class="mdp-db-btn" onclick="openDataDetailModalFromPanel(${JSON.stringify(type)}, ${JSON.stringify(String(row.id))})"><i class="fa-solid fa-database"></i> データベースで確認</button>
         ${familyHtml}
     `;
-    openMapDetailPanel(panelHtml);
+    openMapDetailPanel(panelHtml, { keepOld: true });
 }
 
 function openDataDetailModalFromPanel(type, id) {
@@ -7538,6 +8029,12 @@ function focusDataOnMapWithPanel(type, id) {
         const features = findChibanFeatures(row.chibanKey);
         if (features.length > 0) renderChibanSearchResultsOnMap(features, color);
         openDataDetailPanel(row, type);
+        /* 消失年1880年未満のデータは、ここで初めてメインマップ上に色付きで描く（他のデータを開くと消える） */
+        if (type === 'nature' || type === 'oldroad' || type === 'building') {
+            const chk = document.getElementById('chk-' + type + '-pins');
+            if (chk && !chk.checked) { chk.checked = true; toggleMapPins(type); }
+            if (isOldLostRow(row, type)) setOldVisible({ [type]: [row.id] });
+        }
     }, 300);
 }
 
