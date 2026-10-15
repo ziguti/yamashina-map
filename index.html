@@ -10,12 +10,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=Noto+Serif+JP:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Sawarabi+Mincho&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
 <script src="https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js"></script>
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
@@ -240,6 +243,13 @@ a { color: inherit; text-decoration: none; }
 
 /* ===== マップページ ===== */
 #map { width: 100%; height: 100%; background: #2a2118; }
+/* MapLibre駆動モード：地図の操作と背景（地理院タイル）はMapLibre、ピン・古地図などの重ね表示はLeafletが追従して描く */
+#map.gl-driven { background: transparent; pointer-events: none; cursor: grab; }
+#map.gl-driven:active { cursor: grabbing; }
+#map.gl-driven > #map-gl { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; pointer-events: auto; background: #2a2118; }
+#map.gl-driven #map-gl, #map.gl-driven #map-gl canvas, #map.gl-driven #map-gl .maplibregl-canvas-container { cursor: inherit !important; }
+#map.gl-driven .leaflet-popup, #map.gl-driven .leaflet-tooltip { pointer-events: auto; }
+#map.gl-driven.gl-hover-layer { cursor: pointer; }
 .map-overlay-panel {
     position: absolute; z-index: 1000; background: rgba(26,17,11,0.88); backdrop-filter: blur(12px);
     border: 1px solid rgba(168,135,76,0.45); border-radius: 2px; box-shadow: var(--shadow-lift); padding: 18px;
@@ -1913,15 +1923,28 @@ const CSV_BOOK_URL     = "https://docs.google.com/spreadsheets/d/17yhWrenGAJiMZS
 /* 古地図データスプレッドシート */
 const CSV_MAP_URL = "https://docs.google.com/spreadsheets/d/1pth9Pg-pR1Z5nJBn3-SfLYvsMJNNdwtxI2ZAzEp_J80/gviz/tq?tqx=out:csv";
 /* 地番ポリゴンのデータセット（「地番ポリゴン検索」パネルのトグルで切り替える）
-   ・どちらも配信前にWGS84（緯度経度）へ変換済みのGeoJSONを置く（読み込み時の座標変換は行わない）
-   ・url は、GeoJSONをアップロードした実際の場所に合わせて書き換えてください */
+   ・地図の描画      … PMTiles（ベクトルタイル。表示範囲のタイルだけを取得する）
+   ・検索・ツリー    … 索引JSON（大字・小字・地番の名前と範囲だけを持つ軽いファイル）
+   ・個々の地番の形  … 「小字ごとのジオメトリ束(.bin)」から、必要な小字の分だけ読み込む
+   ・ファイルはすべて CHIBAN_DATA_BASE の直下に置く（ファイル名に空白があっても可） */
 const CHIBAN_DATA_BASE = "https://frogsfamily.sakura.ne.jp/shin/chiban_porigon_data/";
 const CHIBAN_DATASETS = {
-    yamashina: { label: '従来の地番ポリゴン',       url: CHIBAN_DATA_BASE + "yamashinaku_chibandata_optimized.geojson" },
-    kyoto:     { label: '京都市地番図（高精度）',   url: CHIBAN_DATA_BASE + "kyoto_chibanzu_optimized.geojson", azaNames: null /* 下のKYOTO_AZACD_NAMESを起動時に設定 */ }
+    yamashina: {
+        label: '従来の地番ポリゴン',
+        index: 'chiban_idx_yamashina.json', geom: 'chiban_geom_yamashina.bin',
+        tiles: { banchi: 'yamasinaku chibandata.pmtiles', koaza: 'koaza.pmtiles', oaza: 'oaza.pmtiles' },
+        layerFallback: { banchi: 'chiban', koaza: 'koaza', oaza: 'oaza' }   /* PMTilesのメタデータから取れない場合に使うレイヤ名 */
+    },
+    kyoto: {
+        label: '京都市地番図（高精度）',
+        index: 'chiban_idx_kyoto.json', geom: 'chiban_geom_kyoto.bin',
+        tiles: { banchi: 'kyotoshi chibanzu.pmtiles', koaza: 'chibanzu koaza.pmtiles', oaza: 'kyotoshi chibanzu ooaza.pmtiles' },
+        layerFallback: { banchi: 'chiban', koaza: 'koaza', oaza: 'oaza' },
+        azaNames: null /* 下のKYOTO_AZACD_NAMESを起動時に設定（索引JSONには名称が入っているため、今は表示には使わない） */
+    }
 };
 let currentChibanDatasetId = 'yamashina';
-const chibanDatasetCache = {};   /* データセットID → { geojson, hierarchy, keyIndex, treeData, groupsBuilt, oazaGroups, koazaGroups } */
+const chibanDatasetCache = {};   /* データセットID → { store, treeData } */
 
 /* 京都市地番図のGeoJSONには大字名・小字名がなく、大字小字コード（AZACD）と地番（TIBAN）だけが入っている。
    そのため、従来の地番ポリゴンとの空間的な重なりから推定した「コード→[大字名, 小字名]」の対応表をここに持つ。
@@ -2032,7 +2055,9 @@ window._spotHierarchyFilterIds = { nature: null, oldroad: null, building: null, 
 window._spotHierarchyTrees = { nature: null, oldroad: null, building: null, td: null };
 let chibanLayer = null;
 let chibanLabelLayer = null;
-let chibanGeoJSON = null;
+let chibanGeoJSON = null;      /* 実体は持たない（ジオメトリは小字単位で遅延読み込み）。「読み込み済みか」の判定用 */
+let chibanStore = null;        /* 現在のデータセットの索引＋ジオメトリ束（ChibanStore） */
+let chibanActiveGroup = null;  /* クリックした地番を強調表示する一時レイヤ */
 window.chibanMap = {};
 
 let archiveData = [];   // 古写真
@@ -3029,6 +3054,7 @@ const PinHub = {
     _eventOnMapSurface: function (e) {
         const t = e.target, cont = this.map.getContainer();
         if (t === cont) return true;
+        if (t && t.closest && t.closest('#map-gl')) return true;   /* MapLibre駆動モード：操作面はMapLibreのCanvas */
         return !!(t && t.closest && t.closest('.leaflet-pane') && !t.closest('.leaflet-popup') && !t.closest('.leaflet-marker-icon'));
     },
     _pinAt: function (e) {
@@ -3070,6 +3096,134 @@ const PinHub = {
         if (it && !it._cluster) it.fire('mouseover');
         if (this.map) this.map.getContainer().style.cursor = it ? 'pointer' : '';
         this.invalidate();
+    }
+};
+
+/* =====================================================================
+   ピンを MapLibre GL のレイヤで描く（MapLibre駆動モード用。PinHub の描画・当たり判定を差し替える）
+   ・ピンは、グループごとの GeoJSON ソース＋シンボルレイヤ（WebGL）で描く。
+   ・クラスタ（数字の丸）は MapLibre 標準のクラスタ機能。絵は従来の PinSprites をそのまま画像として登録する。
+   ・クリック・ホバーの判定は queryRenderedFeatures。ピンのクリック処理（PinHub._onClick）は従来のまま。 */
+const PinHubGL = {
+    _gid: 0, _timer: 0, _bySrc: {}, _imgs: new Set(),
+    init: function (map) {
+        if (this.map) return;
+        this.map = map; this.gl = GLMaster.gl;
+        const cont = map.getContainer();
+        cont.addEventListener('click', (e) => this._onClick(e), true);
+        cont.addEventListener('dblclick', (e) => { if (this._pinAt(e)) { e.stopPropagation(); e.preventDefault(); } }, true);
+        cont.addEventListener('mousemove', (e) => this._onMove(e), { passive: true });
+        cont.addEventListener('mouseleave', () => this._setHover(null));
+        this.gl.on('styleimagemissing', (e) => { try { this._ensure(e.id); } catch (err) {} });
+        if (document.fonts) {   /* アイコン用フォントの読み込み後に、ピンの絵を作り直す */
+            const redo = () => { PinSprites.clear(); this._imgs.forEach(id => { if (this.gl.hasImage(id)) this.gl.removeImage(id); }); this._imgs.clear(); this.invalidate(); };
+            if (document.fonts.ready) document.fonts.ready.then(redo);
+            if (document.fonts.load) document.fonts.load('900 14px "Font Awesome 6 Free"').then(redo).catch(function () {});
+        }
+    },
+    add: function (g) { if (this.groups.indexOf(g) < 0) this.groups.push(g); this.invalidate(); },
+    remove: function (g) {
+        const i = this.groups.indexOf(g);
+        if (i >= 0) this.groups.splice(i, 1);
+        this._setHover(null);
+        this._drop(g);
+    },
+    firstGLId: function () {   /* 古地図タイルなどは、ピンより下に置く */
+        for (let i = 0; i < this.groups.length; i++) { const ids = this.groups[i]._glIds; if (ids && this.gl.getLayer(ids[0])) return ids[0]; }
+        return undefined;
+    },
+    invalidate: function () {
+        if (this._timer || !this.map) return;
+        this._timer = setTimeout(() => { this._timer = 0; this._sync(); }, 30);
+    },
+    _drop: function (g) {
+        const gl = this.gl;
+        if (!gl || !g._glIds) return;
+        g._glIds.forEach(id => { if (gl.getLayer(id)) gl.removeLayer(id); });
+        if (gl.getSource(g._src)) gl.removeSource(g._src);
+        delete this._bySrc[g._src];
+        g._glIds = null;
+    },
+    _padded: function (sp) {   /* 基準点が画像の真ん中になるよう、余白をつけた画像にする */
+        const r = sp.c.width / sp.w, hw = Math.max(sp.ax, sp.w - sp.ax), hh = Math.max(sp.ay, sp.h - sp.ay);
+        const W = Math.ceil(hw * 2 * r), H = Math.ceil(hh * 2 * r);
+        const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+        const g = cv.getContext('2d');
+        g.drawImage(sp.c, W / 2 - sp.ax * r, H / 2 - sp.ay * r);
+        return { data: g.getImageData(0, 0, W, H), ratio: r };
+    },
+    _ensure: function (id) {
+        const gl = this.gl;
+        if (gl.hasImage(id)) return;
+        let sp;
+        if (id.indexOf('cl|') === 0) { const a = id.split('|'); sp = PinSprites.cluster(a[1], +a[2]); }
+        else if (id.indexOf('pin|') === 0) sp = PinSprites.get(JSON.parse(id.slice(4)));
+        else return;
+        const im = this._padded(sp);
+        gl.addImage(id, im.data, { pixelRatio: im.ratio });
+        this._imgs.add(id);
+    },
+    _sync: function () {
+        const gl = this.gl;
+        if (!gl) return;
+        const go = () => this.groups.forEach(g => this._syncGroup(g));
+        try { go(); } catch (e) { gl.once('load', go); }
+    },
+    _syncGroup: function (g) {
+        const gl = this.gl, o = g._pinOpts || {};
+        if (!g._glIds) {
+            const k = ++this._gid, src = 'pins-s' + k;
+            g._src = src; this._bySrc[src] = g;
+            gl.addSource(src, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, cluster: !!o.cluster, clusterRadius: PIN_CLUSTER_CELL_PX, clusterMaxZoom: PIN_CLUSTER_BELOW_ZOOM - 2 });
+            const common = { 'icon-allow-overlap': true, 'icon-ignore-placement': true };
+            if (o.cluster) gl.addLayer({ id: 'pins-c' + k, type: 'symbol', source: src, filter: ['has', 'point_count'], layout: Object.assign({ 'icon-image': ['concat', 'cl|', String(o.kind), '|', ['to-string', ['get', 'point_count']]] }, common) });
+            gl.addLayer({ id: 'pins-p' + k, type: 'symbol', source: src, filter: ['!', ['has', 'point_count']], layout: Object.assign({ 'icon-image': ['get', 'img'], 'icon-size': ['case', ['boolean', ['feature-state', 'hover'], false], 1.15, 1] }, common) });
+            g._glIds = o.cluster ? ['pins-c' + k, 'pins-p' + k] : ['pins-p' + k];
+        }
+        const snap = g._snap = g._pins.slice(), feats = new Array(snap.length);
+        for (let i = 0; i < snap.length; i++) {
+            const p = snap[i], img = 'pin|' + JSON.stringify(p.spec);
+            this._ensure(img);
+            p._src = g._src; p._idx = i;
+            feats[i] = { type: 'Feature', id: i, properties: { i: i, img: img }, geometry: { type: 'Point', coordinates: [p._ll.lng, p._ll.lat] } };
+        }
+        gl.getSource(g._src).setData({ type: 'FeatureCollection', features: feats });
+    },
+    _find: function (px, py) {
+        const gl = this.gl, ids = [];
+        this.groups.forEach(g => { if (g._glIds) g._glIds.forEach(id => { if (gl.getLayer(id)) ids.push(id); }); });
+        if (!ids.length) return null;
+        const r = 26, extra = L.Browser.touch ? 6 : 0;
+        const fs = gl.queryRenderedFeatures([[px - r, py - r], [px + r, py + r]], { layers: ids });
+        let best = null, bd = 1e9;
+        for (let i = 0; i < fs.length; i++) {
+            const f = fs[i], pr = f.properties, g = this._bySrc[f.source];
+            if (!g) continue;
+            const c = f.geometry.coordinates, pt = gl.project(c);
+            let sp, item;
+            if (pr.point_count) { item = { _cluster: true, n: pr.point_count, kind: g._pinOpts.kind, cid: pr.cluster_id, src: f.source, ll: c }; sp = PinSprites.cluster(item.kind, item.n); }
+            else { item = g._snap && g._snap[pr.i]; if (!item) continue; sp = PinSprites.get(item.spec); }
+            const d = Math.hypot(px - (pt.x + sp.hx), py - (pt.y + sp.hy));
+            if (d <= sp.hr + extra && d < bd) { bd = d; best = item; }
+        }
+        return best;
+    },
+    _setHover: function (it) {
+        if (it === this._hover) return;
+        const old = this._hover, gl = this.gl;
+        this._hover = it;
+        try {
+            if (old && !old._cluster && old._src) gl.setFeatureState({ source: old._src, id: old._idx }, { hover: false });
+            if (it && !it._cluster && it._src) gl.setFeatureState({ source: it._src, id: it._idx }, { hover: true });
+        } catch (e) {}
+        if (old && !old._cluster) old.fire('mouseout');
+        if (it && !it._cluster) it.fire('mouseover');
+        if (this.map) this.map.getContainer().style.cursor = it ? 'pointer' : '';
+    },
+    _zoomToCluster: function (it) {
+        const gl = this.gl, src = gl.getSource(it.src);
+        if (!src) return;
+        src.getClusterExpansionZoom(it.cid).then(z => gl.easeTo({ center: it.ll, zoom: Math.min(z + 0.3, 20), duration: 600 }));
     }
 };
 
@@ -3120,10 +3274,140 @@ function jumpToTileLayerBounds(tl) {
     });
 }
 
+/* =====================================================================
+   古地図・図面タイルを MapLibre GL のラスタレイヤで描く（Leafletのタイルレイヤの代わり）
+   -------------------------------------------------------------------
+   ・XYZタイルもpmtilesも、自前のプロトコル「oldtile://」経由でMapLibreに渡す。
+   ・タイルが無い所は、上位ズームのタイルを切り出して拡大して補う（従来のFallbackTileLayerと同じ挙動）。
+   ・pmtilesは実在する最大ズームをヘッダーから取得し、それ以上はMapLibreが引き伸ばして表示する。
+   ・Leafletのレイヤ選択パネルなど既存の部品はそのまま使えるよう、L.Layer を継承し
+     addTo / removeLayer / setOpacity / bringToFront を同じ名前で用意している。 */
+const OldTile = {
+    _seq: 0, _res: {}, _registered: false,
+    _blank: null,
+    register(resolver) {
+        if (!this._registered) {
+            maplibregl.addProtocol('oldtile', (params, ac) => this._load(params.url, ac && ac.signal));
+            this._registered = true;
+        }
+        const id = 't' + (++this._seq);
+        this._res[id] = resolver;
+        return id;
+    },
+    _canvas(w, h) { return (typeof OffscreenCanvas !== 'undefined') ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h }); },
+    async _png(cv) {
+        const blob = cv.convertToBlob ? await cv.convertToBlob({ type: 'image/png' }) : await new Promise(r => cv.toBlob(r, 'image/png'));
+        return blob.arrayBuffer();
+    },
+    async _load(url, signal) {
+        const m = /^oldtile:\/\/(t\d+)\/(\d+)\/(\d+)\/(\d+)/.exec(url);
+        const r = m && this._res[m[1]];
+        const z = +m[2], x = +m[3], y = +m[4];
+        if (!r) return { data: await this._png(this._canvas(256, 256)) };
+        for (let d = 0; d <= 6 && z - d >= 0; d++) {
+            const tz = z - d, tx = x >> d, ty = y >> d;
+            if (d > 0 && r.skip(tz, tx, ty)) continue;
+            const buf = await r.get(tz, tx, ty, signal);
+            if (!buf) continue;
+            if (d === 0) return { data: buf };
+            const bmp = await createImageBitmap(new Blob([buf]));
+            const cv = this._canvas(256, 256), cx = cv.getContext('2d'), n = 1 << d, s = bmp.width / n, sh = bmp.height / n;
+            cx.imageSmoothingQuality = 'high';
+            cx.drawImage(bmp, (x & (n - 1)) * s, (y & (n - 1)) * sh, s, sh, 0, 0, 256, 256);
+            return { data: await this._png(cv) };
+        }
+        return { data: await this._png(this._canvas(256, 256)) };   /* どのズームにも無い：透明タイル */
+    }
+};
+
+const GLRasterLayer = L.Layer.extend({
+    initialize: function (url, options) {
+        L.setOptions(this, options);
+        this._url = url;
+        this._opacity = 1;
+        this._gid = 'oldtile-' + L.stamp(this);
+        this._isPmtiles = isPmtilesUrl(url);
+        const self = this, miss = new Set(), zs = {};
+        const stat = z => zs[z] || (zs[z] = { ok: 0, fail: 0 });
+        let get;
+        if (this._isPmtiles) {
+            const archive = this._archive = new pmtiles.PMTiles(String(url).trim().replace(/^pmtiles:\/\//i, ''));
+            this._pmtilesReady = archive.getHeader().then(h => {
+                self._pmtilesHeader = h;
+                if (h.minLon < h.maxLon && h.minLat < h.maxLat) self._pmtilesBounds = L.latLngBounds([h.minLat, h.minLon], [h.maxLat, h.maxLon]);
+                return h;
+            }, err => { console.error('pmtilesアーカイブのヘッダー読み取りに失敗しました:', url, err); return null; });
+            get = async (z, x, y, sig) => { const r = await archive.getZxy(z, x, y, sig); return r && r.data ? r.data : null; };
+        } else {
+            this._pmtilesReady = null;
+            const n0 = String(url).trim(), subs = (this.options.subdomains || 'abc').split('');
+            get = async (z, x, y, sig) => {
+                const n = Math.pow(2, z);
+                const u = n0.replace('{s}', subs[(x + y) % subs.length]).replace('{z}', z).replace('{x}', x)
+                    .replace('{-y}', n - 1 - y).replace('{y}', this.options.tms ? (n - 1 - y) : y).replace('{r}', '');
+                const res = await fetch(u, { signal: sig });
+                if (!res.ok) throw new Error(res.status);
+                return res.arrayBuffer();
+            };
+        }
+        this._resolverId = OldTile.register({
+            skip: (z, x, y) => { const st = zs[z]; return (!!st && st.ok === 0 && st.fail >= 8 && ((x + y) % 10 !== 0)) || miss.has(z + '/' + x + '/' + y); },
+            get: async (z, x, y, sig) => {
+                try { const b = await get(z, x, y, sig); if (b && b.byteLength) { stat(z).ok++; return b; } }
+                catch (e) { if (e && e.name === 'AbortError') throw e; }
+                stat(z).fail++; miss.add(z + '/' + x + '/' + y);
+                if (miss.size > 30000) miss.clear();
+                return null;
+            }
+        });
+    },
+    onAdd: function (map) {
+        this._added = true;
+        this._addToGL();
+    },
+    onRemove: function () {
+        this._added = false;
+        const gl = GLMaster.gl;
+        if (gl.getLayer(this._gid)) gl.removeLayer(this._gid);
+        if (gl.getSource(this._gid)) gl.removeSource(this._gid);
+    },
+    _addToGL: async function () {
+        const gl = GLMaster.gl;
+        if (gl.getLayer(this._gid)) return;
+        let maxzoom = 22;
+        if (this._pmtilesReady) { const h = await this._pmtilesReady; if (h) maxzoom = h.maxZoom; }
+        if (!this._added || gl.getSource(this._gid)) return;
+        try { this._doAdd(gl, maxzoom); } catch (e) { gl.once('load', () => { if (this._added && !gl.getSource(this._gid)) this._doAdd(gl, maxzoom); }); }
+    },
+    _doAdd: function (gl, maxzoom) {
+        gl.addSource(this._gid, { type: 'raster', tiles: ['oldtile://' + this._resolverId + '/{z}/{x}/{y}'], tileSize: 256, minzoom: 0, maxzoom: Math.min(maxzoom, 22) });
+        gl.addLayer({ id: this._gid, type: 'raster', source: this._gid, paint: { 'raster-opacity': this._opacity, 'raster-fade-duration': 150 } }, PinHub.firstGLId && PinHub.firstGLId());
+    },
+    setOpacity: function (o) {
+        this._opacity = o;
+        const gl = GLMaster.gl;
+        if (gl.getLayer(this._gid)) gl.setPaintProperty(this._gid, 'raster-opacity', o);
+        return this;
+    },
+    bringToFront: function () {
+        const gl = GLMaster.gl;
+        if (gl.getLayer(this._gid)) gl.moveLayer(this._gid, PinHub.firstGLId && PinHub.firstGLId());
+        return this;
+    },
+    bringToBack: function () {
+        const gl = GLMaster.gl;
+        if (gl.getLayer(this._gid)) gl.moveLayer(this._gid, 'gsi');   /* 背景の地理院タイルの1つ上 */
+        return this;
+    }
+});
+
 function createHistoricalTileLayer(url, options) {
     /* keepBuffer：画面外に残しておくタイルの量（多いほどメモリを使う）。updateWhenIdle=false：移動中も順次タイルを読み込む */
     const opts = Object.assign({ keepBuffer: 2, updateInterval: 120, updateWhenIdle: false }, options);
     const trimmedUrl = (url || '').trim();
+
+    /* MapLibre駆動モード：タイルはMapLibreのラスタレイヤで描く（WebGLが使えない時だけ従来のLeafletタイルレイヤ） */
+    if (typeof GLMaster !== 'undefined' && GLMaster.gl) return new GLRasterLayer(trimmedUrl, opts);
 
     if (isPmtilesUrl(trimmedUrl)) {
         try {
@@ -3144,8 +3428,239 @@ function createHistoricalTileLayer(url, options) {
 /* =====================================================================
    ■13 メインマップ初期化
    ===================================================================== */
+/* =====================================================================
+   地図エンジン：MapLibre GL が「親」、Leaflet が「子」
+   -------------------------------------------------------------------
+   ・指やマウスの操作（ドラッグ・ホイール・ピンチ・ダブルクリック）と、背景の地図（地理院タイル）は MapLibre GL（WebGL）が担当する。
+     慣性・なめらかなズームはMapLibreの標準の動き（Googleマップに近い操作感）。
+   ・ピン・古地図タイル・ポリゴン・ラベルなど、従来のLeafletの部品は、そのまま「子」として重ねて表示する。
+   ・操作中は、Leaflet側の重ね表示をCSSの拡大縮小・移動だけで追従させ（再描画しない）、操作が終わったときに1回だけ描き直す。
+     そのため、ピンが多くても操作中の負荷は増えない（拡大中はピンの絵が一瞬だけ拡大され、止まるとくっきり描き直される）。
+   ・MapLibreのズーム値 = Leafletのズーム値 − 1（Leafletは256px、MapLibreは512pxのタイル基準のため）。
+   ・WebGLが使えない場合、または URL に ?engine=leaflet を付けた場合は、従来のLeaflet単独の動作にもどる。
+   ===================================================================== */
+const GLMaster = {
+    gl: null, map: null, host: null, pane: null, orig: {},
+    committing: false, _started: false, _z0: 0, _moveT0: 0, _lastCommit: 0, _down: null, _pending: null,
+
+    available() {
+        if (/[?&]engine=leaflet\b/.test(location.search)) return false;
+        if (!window.maplibregl) return false;
+        try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); }
+        catch (e) { return false; }
+    },
+
+    /* Leaflet側は「見た目の重ね表示」だけを担当するので、操作・アニメーションはすべて切る */
+    leafletOptions() {
+        return {
+            zoomControl: false, maxZoom: 22, zoomSnap: 0, zoomDelta: 1,
+            dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false,
+            bounceAtZoomLimits: false, preferCanvas: true,
+            zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false, inertia: false
+        };
+    },
+
+    _hidden() { return !this.host || !this.host.clientWidth || !this.host.clientHeight; },
+    _ll(c) { const l = L.latLng(c); return [l.lng, l.lat]; },
+
+    attach(map) {
+        const self = this;
+        this.map = map;
+        const host = this.host = map.getContainer();
+        host.classList.add('gl-driven');
+        const el = document.createElement('div');
+        el.id = 'map-gl';
+        host.insertBefore(el, host.firstChild);
+
+        const c = map.getCenter(), z = map.getZoom();
+        const gl = this.gl = new maplibregl.Map({
+            container: el,
+            style: {
+                version: 8,
+                sources: { gsi: { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 18, attribution: '地理院タイル' } },
+                layers: [{ id: 'gsi', type: 'raster', source: 'gsi' }]
+            },
+            center: [c.lng, c.lat], zoom: z - 1, minZoom: 1, maxZoom: 21,
+            attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0,
+            renderWorldCopies: false, pixelRatio: Math.min(window.devicePixelRatio || 1, 2), fadeDuration: 200
+        });
+        gl.touchZoomRotate.disableRotation();
+        this.pane = map.getPane('mapPane');
+        this.pane.style.transformOrigin = '0 0';
+
+        gl.on('movestart', () => { this._moveT0 = performance.now(); });
+        gl.on('move', () => this._onMove());
+        gl.on('moveend', () => this._commit(true));
+
+        this._hook(map);
+        this._installInput(host, el);
+
+        /* 地図の枠の大きさが変わったとき（パネルの開閉など）：MapLibre・Leaflet の両方のサイズを合わせ直す */
+        if (window.ResizeObserver) {
+            let t = null;
+            new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => { if (!self._hidden()) map.invalidateSize(); }, 60); }).observe(host);
+        }
+    },
+
+    /* ---- Leaflet側のメソッドを、MapLibreを動かす形に差し替える（呼び出し側のコードは変更不要） ---- */
+    _hook(map) {
+        const self = this, gl = this.gl;
+        const o = this.orig = { panBy: map.panBy, invalidateSize: map.invalidateSize };
+        map.setView = function (c, z, opts) { return self.moveTo(c, z, opts); };
+        map.panTo = function (c, opts) { return self.moveTo(c, null, opts); };
+        map.setZoom = function (z, opts) { return self.moveTo(null, z, opts); };
+        map.zoomIn = function (d, opts) { return self.moveTo(null, gl.getZoom() + 1 + (d || 1), opts); };
+        map.zoomOut = function (d, opts) { return self.moveTo(null, gl.getZoom() + 1 - (d || 1), opts); };
+        map.flyTo = function (c, z, opts) { return self.flyTo(c, z, opts); };
+        map.fitBounds = function (b, opts) { return self.fitBounds(b, opts, false); };
+        map.flyToBounds = function (b, opts) { return self.fitBounds(b, opts, true); };
+        map.panBy = function (off, opts) {
+            if (self.committing) return o.panBy.call(this, off, opts);
+            const p = L.point(off);
+            gl.panBy([p.x, p.y], { duration: (opts && opts.animate === false) ? 0 : 250, essential: true });
+            return this;
+        };
+        map.setZoomAround = function (ll, z, opts) {
+            const p = map.latLngToContainerPoint(ll);
+            gl.easeTo({ zoom: z - 1, around: self._ll(ll), duration: (opts && opts.animate === false) ? 0 : 250, essential: true });
+            return this;
+        };
+        map.stop = function () { gl.stop(); return this; };
+        map.invalidateSize = function (opts) {
+            if (self.committing) return o.invalidateSize.call(this, opts);
+            gl.resize();
+            const r = o.invalidateSize.call(this, { pan: false, animate: false });
+            if (!self._hidden()) { self._flushPending(); self._commit(true); }
+            return r;
+        };
+        /* 「地図をドラッグさせない」場面（範囲指定など）のための窓口。従来の map.dragging.disable() / enable() がそのまま使える */
+        map.dragging = {
+            enable() { gl.dragPan.enable(); return this; },
+            disable() { gl.dragPan.disable(); return this; },
+            enabled() { return gl.dragPan.isEnabled(); },
+            moved() { return false; }
+        };
+    },
+
+    moveTo(center, zoom, opts) {
+        opts = opts || {};
+        if (this._hidden()) { this._pending = ['moveTo', [center, zoom, Object.assign({}, opts, { animate: false })]]; return this.map; }
+        const o = {};
+        if (center) o.center = this._ll(center);
+        if (zoom != null) o.zoom = zoom - 1;
+        if (opts.animate === false) { this.gl.stop(); this.gl.jumpTo(o); }   /* jumpTo は同期で moveend まで発火 → Leaflet側もその場で更新される */
+        else this.gl.easeTo(Object.assign(o, { duration: opts.duration ? opts.duration * 1000 : 300, essential: true }));
+        return this.map;
+    },
+
+    flyTo(center, zoom, opts) {
+        opts = opts || {};
+        if (this._hidden()) { this._pending = ['moveTo', [center, zoom, Object.assign({}, opts, { animate: false })]]; return this.map; }
+        const o = { center: this._ll(center), essential: true };
+        if (zoom != null) o.zoom = zoom - 1;
+        if (opts.animate === false) { this.gl.stop(); this.gl.jumpTo(o); return this.map; }
+        if (opts.duration) o.duration = opts.duration * 1000;
+        this.gl.flyTo(o);
+        return this.map;
+    },
+
+    fitBounds(bounds, opts, fly) {
+        opts = opts || {};
+        const b = L.latLngBounds(bounds);
+        if (!b.isValid()) return this.map;
+        if (this._hidden()) { this._pending = ['fitBounds', [bounds, Object.assign({}, opts, { animate: false }), fly]]; return this.map; }
+        const tl = L.point(opts.paddingTopLeft || opts.padding || [0, 0]), br = L.point(opts.paddingBottomRight || opts.padding || [0, 0]);
+        const sw = b.getSouthWest(), ne = b.getNorthEast();
+        const bb = [[sw.lng, sw.lat], [ne.lng, ne.lat]];
+        let cam = null;
+        try { cam = this.gl.cameraForBounds(bb, { padding: { top: tl.y, left: tl.x, bottom: br.y, right: br.x } }); } catch (e) {}
+        if (!cam) { try { cam = this.gl.cameraForBounds(bb); } catch (e) {} }
+        if (!cam) return this.map;
+        let z = cam.zoom + 1;
+        if (opts.maxZoom != null) z = Math.min(z, opts.maxZoom);
+        z = Math.min(z, 22);
+        const ctr = [cam.center.lat, cam.center.lng];
+        return fly ? this.flyTo(ctr, z, opts) : this.moveTo(ctr, z, opts);
+    },
+
+    _flushPending() {
+        const p = this._pending;
+        if (!p || this._hidden()) return;
+        this._pending = null;
+        this[p[0]].apply(this, p[1]);
+    },
+
+    /* ---- 操作中：Leaflet側の重ね表示を、CSSの拡大縮小・移動で追従させる（再描画なし） ---- */
+    _onMove() {
+        if (this.committing || this._hidden()) return;
+        const m = this.map, gl = this.gl, pane = this.pane;
+        const z0 = m.getZoom(), c1 = gl.getCenter(), z1 = gl.getZoom() + 1;
+        const s = Math.pow(2, z1 - z0);
+        const d = m.project(L.latLng(c1.lat, c1.lng), z0).subtract(m.project(m.getCenter(), z0));
+        const sz = m.getSize(), P = L.DomUtil.getPosition(pane) || L.point(0, 0);
+        const tx = s * P.x + sz.x / 2 * (1 - s) - s * d.x;
+        const ty = s * P.y + sz.y / 2 * (1 - s) - s * d.y;
+        pane.style.transform = 'translate3d(' + tx + 'px,' + ty + 'px,0) scale(' + s + ')';
+        /* 動かし続けている間も、ときどき（0.3秒ごと）タイル・ピンを新しい範囲に更新する（moveend / zoomend は終了時まで発火しない） */
+        if (performance.now() - Math.max(this._lastCommit, this._moveT0) > 300) this._commit(false);
+    },
+
+    /* ---- Leaflet側の位置・ズームをMapLibreに合わせる ----
+       final=false：操作の途中経過。move / zoom だけ発火する（Leaflet標準のドラッグ・ホイールズームと同じ流れ）
+       final=true ：操作の終了。moveend（ズームが変わっていれば zoomend も）を発火し、ピン・古地図・ラベルを描き直す */
+    _commit(final) {
+        if (final === undefined) final = true;
+        if (this.committing) return;
+        const m = this.map, gl = this.gl, pane = this.pane;
+        if (!m || !gl || this._hidden()) return;
+        const g = gl.getCenter(), c = L.latLng(g.lat, g.lng), z = gl.getZoom() + 1;
+        this.committing = true;
+        try {
+            if (!this._started) { this._started = true; this._z0 = m.getZoom(); m._moveStart(false, false); }
+            const P = L.DomUtil.getPosition(pane) || L.point(0, 0);
+            L.DomUtil.setPosition(pane, P);        /* 操作中に付けた拡大縮小・移動を外し、Leaflet本来の位置指定に戻す */
+            if (Math.abs(m.getZoom() - z) > 1e-9) {
+                m._move(c, z, { pinch: true, round: false });     /* 従来のなめらかなホイールズームと同じ手順 */
+            } else {
+                const off = m.project(c, z).subtract(m.project(m.getCenter(), z)).round();
+                if (off.x || off.y) { m._rawPanBy(off); m.fire('move'); }   /* パンは、Leaflet標準のドラッグと同じく「全体を平行移動」するだけ */
+            }
+            if (final) {
+                m._moveEnd(Math.abs(this._z0 - m.getZoom()) > 1e-9);
+                this._started = false;
+            }
+        } finally { this.committing = false; }
+        this._lastCommit = performance.now();
+    },
+
+    /* ---- 入力まわり ---- */
+    _installInput(host, el) {
+        const self = this;
+        /* ドラッグの直後に出るクリックは、ピンや地番の選択として扱わない（ピンのクリック処理より先に登録する） */
+        const down = (e) => { const t = (e.touches && e.touches[0]) || e; self._down = { x: t.clientX, y: t.clientY }; };
+        host.addEventListener('mousedown', down, true);
+        host.addEventListener('touchstart', down, { capture: true, passive: true });
+        host.addEventListener('click', (e) => {
+            const d = self._down;
+            if (d && (Math.abs(e.clientX - d.x) > 5 || Math.abs(e.clientY - d.y) > 5)) { e.stopImmediatePropagation(); e.preventDefault(); }
+        }, true);
+
+        /* Leafletの「図形（Canvas）」は、自分のCanvasでマウスを受け取る前提なので、MapLibre側で受けたマウス操作を転送する */
+        const fwd = (type, fn) => el.addEventListener(type, (e) => {
+            const r = self.map._renderer;
+            if (r && r[fn]) { try { r[fn](e); } catch (err) {} }
+            if (type === 'mousemove' || type === 'mouseout') host.classList.toggle('gl-hover-layer', !!(r && r._hoveredLayer));
+        });
+        ['click', 'dblclick', 'mousedown', 'mouseup', 'contextmenu'].forEach(t => fwd(t, '_onClick'));
+        fwd('mousemove', '_onMouseMove');
+        fwd('mouseout', '_handleMouseOut');
+    }
+};
+
 function initMap() {
-    map = L.map('map', {
+    const glMode = GLMaster.available();
+    window.__mapEngine = glMode ? 'maplibre' : 'leaflet';
+    map = L.map('map', glMode ? GLMaster.leafletOptions() : {
         zoomControl: false,
         maxZoom: 22,
         zoomSnap: 0,                 /* ズームを整数に固定しない（小数ズーム＝Googleマップのような連続的な拡大縮小） */
@@ -3160,8 +3675,11 @@ function initMap() {
         inertia: true,
         inertiaDeceleration: 3000
     }).setView([34.992, 135.813], 15);
+    /* PinHub.init より前に呼ぶ（ドラッグ直後のクリックを無視する処理を、ピンのクリック処理より先に登録するため） */
+    if (glMode) GLMaster.attach(map);
 
-    PinHub.init(map);   /* ピンを1枚のCanvasに描く仕組みを開始（■(4)参照） */
+    if (glMode) Object.assign(PinHub, PinHubGL);   /* MapLibre駆動モード：ピンはMapLibreのレイヤで描く */
+    PinHub.init(map);   /* ピンの仕組みを開始（■(4)参照） */
 
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
@@ -3187,7 +3705,8 @@ function initMap() {
        最大ズーム付近でタイルが表示されなくなる不具合が発生したため撤回。
        Leafletの標準的な「maxNativeZoomを超えたら直前のタイルを引き伸ばす」挙動に
        任せる、シンプルで実績のある設定に戻している。 */
-    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+    if (glMode) map.attributionControl.addAttribution('地理院タイル');   /* 背景の地理院タイルはMapLibre側が描く */
+    else L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
         minZoom: 2,
         maxNativeZoom: 18,
         maxZoom: 22,
@@ -3874,9 +4393,14 @@ function styledDivIcon(color, iconType) {
 }
 
 function findChibanFeature(key) {
-    if (!chibanGeoJSON || !key) return null;
-    if (!window._chibanKeyIndex) buildChibanKeyIndex();
-    return window._chibanKeyIndex[key] || null;
+    const st = chibanStore;
+    if (!st || !key) return null;
+    const u = st.keyMap().get(key);
+    if (u === undefined) return null;
+    const f = st.featureOf(u);
+    /* まだ読み込んでいない小字のポリゴンは、背景で読み込み、終わったら地図側を描き直す */
+    if (!f) st.requestKoaza(st.banchi[u][0]);
+    return f;
 }
 
 /* 各データシートの「地番キー」列はカンマ区切りで複数記載されている場合がある。
@@ -3890,13 +4414,8 @@ function findChibanFeatures(rawKeys) {
 }
 
 function buildChibanKeyIndex() {
-    window._chibanKeyIndex = {};
-    if (!chibanGeoJSON) return;
-    chibanGeoJSON.features.forEach(f => {
-        computeChibanLookupKeys(f.properties).forEach(key => {
-            if (!(key in window._chibanKeyIndex)) window._chibanKeyIndex[key] = f;
-        });
-    });
+    /* 以前は全ポリゴンから索引を作っていたが、現在は ChibanStore.keyMap() が索引JSONから遅延作成する */
+    if (chibanStore) chibanStore._keyMap = null;
 }
 
 /* 他シート（自然系/古道/建造物/文書史料）の「地番キー」列がどの表記で入力されていても
@@ -4587,72 +5106,376 @@ function chibanLooksLikeLonLat(features) {
     return true;
 }
 
-/* 指定データセットのGeoJSONを取得して、状態を初期化する。成功でtrue、失敗でfalseを返す。 */
+/* =====================================================================
+   地番データストア：索引JSON ＋ 小字ごとのジオメトリ束
+   -------------------------------------------------------------------
+   索引JSON（v2）
+     banchi : [ [小字番号, 地番, 筆ID, minLng, minLat, maxLng, maxLat], ... ]   ← 配列の位置が地番の通し番号(u)
+     koaza  : [ { o:大字, k:小字, n:筆数, b:範囲, g:[開始バイト,長さ], r:[先頭u,件数] }, ... ]
+     oaza   : [ { o:大字, n:筆数, b:範囲, ks:[小字番号...] }, ... ]
+   ジオメトリ束(.bin)：小字ごとにgzip圧縮したGeoJSON Feature配列を連結したもの。
+     索引の g=[開始バイト,長さ] を Range リクエストで取得し、解凍して使う。
+   ===================================================================== */
+/*__CHIBAN_STORE_BEGIN__*/
+function chibanUrl(name) { return CHIBAN_DATA_BASE + encodeURI(name); }
+
+async function chibanRunLimited(items, limit, fn) {
+    let i = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (i < items.length) { const it = items[i++]; await fn(it); }
+    });
+    await Promise.all(workers);
+}
+
+class ChibanStore {
+    constructor(id, idx) {
+        this.id = id;
+        this.idx = idx;
+        this.banchi = idx.banchi;
+        this.koaza = idx.koaza;
+        this.oaza = idx.oaza;
+        this.chunks = new Map();     /* 小字番号 → Promise（読み込み中／読み込み済み） */
+        this.loaded = new Map();     /* 小字番号 → Feature配列（読み込み済みのみ） */
+        this._keyMap = null;
+        this._dkMap = null;
+        this._pending = new Set();
+        this._failed = new Set();
+        this._timer = null;
+    }
+    entryDk(u) {
+        const e = this.banchi[u], k = this.koaza[e[0]];
+        return k.o ? (k.o + k.k + e[1]) : '';
+    }
+    chibanKeyOf(u) {
+        const e = this.banchi[u];
+        return e[2] || this.entryDk(u) || null;
+    }
+    /* 他シートの「地番キー」表記（大字+小字+地番、筆ID など）→ 通し番号u。重複は先に出たものを採用 */
+    keyMap() {
+        if (this._keyMap) return this._keyMap;
+        const m = new Map();
+        for (let u = 0; u < this.banchi.length; u++) {
+            const e = this.banchi[u], k = this.koaza[e[0]];
+            const keys = computeChibanLookupKeys({ '大字名': k.o, '小字名': k.k, '地番': e[1], '筆ID': e[2] });
+            for (let i = 0; i < keys.length; i++) if (!m.has(keys[i])) m.set(keys[i], u);
+        }
+        return (this._keyMap = m);
+    }
+    /* 「大字+小字+地番」→ 通し番号の配列（同じ表記の地番が複数ある場合に備えて配列） */
+    dkMap() {
+        if (this._dkMap) return this._dkMap;
+        const m = new Map();
+        for (let u = 0; u < this.banchi.length; u++) {
+            const dk = this.entryDk(u);
+            if (!dk) continue;
+            const a = m.get(dk);
+            if (a) a.push(u); else m.set(dk, [u]);
+        }
+        return (this._dkMap = m);
+    }
+    featureOf(u) {
+        const e = this.banchi[u];
+        if (!e) return null;
+        const arr = this.loaded.get(e[0]);
+        if (!arr) return null;
+        return arr[u - this.koaza[e[0]].r[0]] || null;
+    }
+    async featureOfAsync(u) {
+        const e = this.banchi[u];
+        if (!e) return null;
+        await this.loadKoaza(e[0]);
+        return this.featureOf(u);
+    }
+    loadKoaza(ki) {
+        if (this.chunks.has(ki)) return this.chunks.get(ki);
+        const kz = this.koaza[ki];
+        const p = (async () => {
+            const off = kz.g[0], len = kz.g[1];
+            const res = await fetch(chibanUrl(CHIBAN_DATASETS[this.id].geom), { headers: { Range: 'bytes=' + off + '-' + (off + len - 1) } });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            let buf = await res.arrayBuffer();
+            if (res.status === 200 && buf.byteLength > len) buf = buf.slice(off, off + len);   /* Range非対応のサーバー対策 */
+            const text = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+            const feats = JSON.parse(text);
+            this.loaded.set(ki, feats);
+            return feats;
+        })();
+        p.catch(() => { this.chunks.delete(ki); });
+        this.chunks.set(ki, p);
+        return p;
+    }
+    /* 描画側が「まだ無いポリゴン」を求めたときに呼ぶ。まとめて読み込み、終わったら1回だけ描き直す */
+    requestKoaza(ki) {
+        if (this.loaded.has(ki) || this._failed.has(ki)) return;
+        this._pending.add(ki);
+        if (!this._timer) this._timer = setTimeout(() => this._flush(), 30);
+    }
+    async _flush() {
+        this._timer = null;
+        const ks = Array.from(this._pending);
+        this._pending.clear();
+        await chibanRunLimited(ks, 6, async (ki) => {
+            try { await this.loadKoaza(ki); }
+            catch (e) { this._failed.add(ki); console.warn('地番ポリゴン（小字）の読み込みに失敗:', this.koaza[ki].o, this.koaza[ki].k, e); }
+        });
+        if (chibanStore === this) chibanAfterGeometryLoaded();
+    }
+}
+
+let _chibanAfterTimer = null;
+function chibanAfterGeometryLoaded() {
+    clearTimeout(_chibanAfterTimer);
+    _chibanAfterTimer = setTimeout(() => {
+        window._spotHierarchyTrees = { nature: null, oldroad: null, building: null, td: null };
+        try { applyMapFilters(); }
+        catch (e) { try { renderNatureMapLayers(); renderOldRoadMapLayers(); renderBuildingMapLayers(); renderDocMapLayers(); } catch (e2) {} }
+        if (typeof transOnChibanChanged === 'function') transOnChibanChanged();
+    }, 50);
+}
+
+function chibanFeatureByKeyAsync(key) {
+    const st = chibanStore;
+    if (!st || !key) return Promise.resolve(null);
+    const u = st.keyMap().get(key);
+    if (u === undefined) return Promise.resolve(null);
+    return st.featureOfAsync(u).catch(() => null);
+}
+
+/* 地図タイルのポリゴン（属性だけ持つ）から、索引の通し番号uを特定する */
+function chibanResolveEntry(props, latlng) {
+    const st = chibanStore;
+    if (!st) return null;
+    const oaza = props['大字名'] == null ? '' : String(props['大字名']);
+    const koaza = props['小字名'] == null ? '' : String(props['小字名']);
+    const no0 = props['地番'] != null ? props['地番'] : props['TIBAN'];
+    const no = no0 == null ? '' : String(no0);
+    const dk = oaza ? (oaza + koaza + no) : '';
+    let cands = dk ? (st.dkMap().get(dk) || []) : [];
+    if (cands.length > 1 && props['筆ID']) {
+        const f = cands.filter(u => st.banchi[u][2] === String(props['筆ID']));
+        if (f.length) cands = f;
+    }
+    if (cands.length > 1 && latlng) {
+        const f = cands.filter(u => { const e = st.banchi[u]; return latlng.lng >= e[3] && latlng.lng <= e[5] && latlng.lat >= e[4] && latlng.lat <= e[6]; });
+        if (f.length) cands = f;
+    }
+    return cands.length ? cands[0] : null;
+}
+
+function chibanBBoxGeometry(b) {
+    return { type: 'MultiPolygon', coordinates: [[[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]]] };
+}
+
+/* 大字・小字（統合ポリゴン）には、実際の形ではなく地図タイルの描画片を持たせている。
+   正確な内外判定は、小字は構成する地番ポリゴン（_members）で行い、大字はキー照合だけにする（_noGeom）。 */
+function chibanFeatureContainsPoint(feature, pt) {
+    try {
+        if (feature._members) return feature._members.some(m => turf.booleanPointInPolygon(pt, m));
+        if (feature._noGeom) return false;
+        return turf.booleanPointInPolygon(pt, feature);
+    } catch (e) { return false; }
+}
+function chibanFeatureIntersects(feature, poly) {
+    try {
+        if (feature._noGeom) return false;
+        if (feature._bbox) {
+            const bb = turf.bbox(poly);
+            const b = feature._bbox;
+            if (bb[2] < b[0] || bb[0] > b[2] || bb[3] < b[1] || bb[1] > b[3]) return false;
+        }
+        if (feature._members) return feature._members.some(m => turf.booleanIntersects(poly, m));
+        return turf.booleanIntersects(poly, feature);
+    } catch (e) { return false; }
+}
+
+/* 扇（古写真の撮影範囲など）と重なる地番を返す。
+   索引の範囲(bbox)で絞り込み → 読み込み済みなら正確に判定、未読み込みなら範囲で近似して背景で読み込む */
+function chibanSectorEntries(sectorPolygon) {
+    const st = chibanStore, out = [];
+    if (!st) return out;
+    let bb;
+    try { bb = turf.bbox(sectorPolygon); } catch (e) { return out; }
+    for (let u = 0; u < st.banchi.length; u++) {
+        const e = st.banchi[u];
+        if (e[5] < bb[0] || e[3] > bb[2] || e[6] < bb[1] || e[4] > bb[3]) continue;
+        let hit = false;
+        try {
+            const f = st.featureOf(u);
+            if (f) hit = turf.booleanIntersects(sectorPolygon, f);
+            else { st.requestKoaza(e[0]); hit = turf.booleanIntersects(sectorPolygon, turf.bboxPolygon([e[3], e[4], e[5], e[6]])); }
+        } catch (err) {}
+        if (hit) out.push({ id: st.chibanKeyOf(u), title: st.entryDk(u) || '地番' });
+    }
+    return out;
+}
+/*__CHIBAN_STORE_END__*/
+
+/* =====================================================================
+   MapLibre GL（WebGL）で、PMTilesの大字・小字・地番の境界を描く
+   -------------------------------------------------------------------
+   Leafletの地図の中に、MapLibre GLの地図を1枚のレイヤとして重ねる（maplibre-gl-leaflet）。
+   ・地図の動きはLeafletに追従する（ピンや古地図は従来のまま動く）
+   ・プラグインはLeafletのズームから1を引いた値をMapLibreのズームとして使う（Leafletは256px、MapLibreは512pxタイル基準のため）。
+     そのため、表示を切り替えるズームも「Leafletのズーム − 1」で指定する。
+   ===================================================================== */
+const ChibanGL = {
+    layer: null, gl: null, ready: null, protocol: null, current: null,
+    datasets: {}, _dsPromises: {},
+    NONE: ['==', ['get', '__none__'], 1],
+
+    init() {
+        if (this.ready) return this.ready;
+        this.ready = new Promise((resolve, reject) => {
+            try {
+                if (!window.maplibregl || !L.maplibreGL) throw new Error('MapLibre GLの読み込みに失敗しました');
+                if (!this.protocol) {
+                    this.protocol = new pmtiles.Protocol();
+                    maplibregl.addProtocol('pmtiles', this.protocol.tile);
+                }
+                if (!map.getPane('chibanPane')) map.createPane('chibanPane').style.zIndex = 390;
+                this.layer = L.maplibreGL({
+                    style: { version: 8, sources: {}, layers: [] },
+                    pane: 'chibanPane', padding: 0.15, fadeDuration: 0, interactive: false
+                }).addTo(map);
+                this.gl = this.layer.getMaplibreMap();
+                this.gl.once('load', () => resolve());
+            } catch (e) { reject(e); }
+        });
+        return this.ready;
+    },
+
+    async _layerName(archive, fallback) {
+        try {
+            const meta = await archive.getMetadata();
+            const vl = meta && meta.vector_layers;
+            if (vl && vl.length && vl[0].id) return vl[0].id;
+        } catch (e) { console.warn('PMTilesのメタデータを読めませんでした（既定のレイヤ名を使います）:', e); }
+        return fallback;
+    },
+
+    ensureDataset(id) {
+        if (!this._dsPromises[id]) this._dsPromises[id] = this._buildDataset(id);
+        return this._dsPromises[id];
+    },
+
+    async _buildDataset(id) {
+        await this.init();
+        const cfg = CHIBAN_DATASETS[id];
+        const gl = this.gl;
+        const info = { fill: {}, line: {}, hl: {}, ids: [] };
+        const zoomRange = {      /* [表示を始めるLeafletズーム, 表示を終えるLeafletズーム]（nullは制限なし） */
+            oaza:   [null, CHIBAN_ZOOM_KOAZA],
+            koaza:  [CHIBAN_ZOOM_KOAZA, CHIBAN_ZOOM_BANCHI],
+            banchi: [CHIBAN_ZOOM_BANCHI, null]
+        };
+        for (const level of ['oaza', 'koaza', 'banchi']) {
+            const url = chibanUrl(cfg.tiles[level]);
+            const archive = new pmtiles.PMTiles(url);
+            this.protocol.add(archive);
+            const srcLayer = await this._layerName(archive, cfg.layerFallback[level]);
+            const sid = 'chb-' + id + '-' + level;
+            gl.addSource(sid, { type: 'vector', url: 'pmtiles://' + url });
+            const st = CHIBAN_LEVEL_STYLE[level];
+            const zr = zoomRange[level];
+            const zf = {};
+            if (zr[0] != null) zf.minzoom = zr[0] - 1;
+            if (zr[1] != null) zf.maxzoom = zr[1] - 1;
+            const add = (def) => { gl.addLayer(Object.assign({ source: sid, 'source-layer': srcLayer, layout: { visibility: 'none' } }, zf, def)); info.ids.push(def.id); };
+            info.fill[level] = sid + '-fill';
+            info.line[level] = sid + '-line';
+            add({ id: sid + '-fill', type: 'fill', paint: { 'fill-color': st.fillColor, 'fill-opacity': st.fillOpacity } });
+            add({ id: sid + '-line', type: 'line', paint: { 'line-color': st.color, 'line-width': st.weight, 'line-opacity': 0.9 } });
+            if (level !== 'banchi') {
+                info.hl[level] = [sid + '-hlfill', sid + '-hlline'];
+                add({ id: sid + '-hlfill', type: 'fill', filter: this.NONE, paint: { 'fill-color': CHIBAN_ACTIVE_STYLE.fillColor, 'fill-opacity': 0.4 } });
+                add({ id: sid + '-hlline', type: 'line', filter: this.NONE, paint: { 'line-color': CHIBAN_ACTIVE_STYLE.color, 'line-width': CHIBAN_ACTIVE_STYLE.weight } });
+            }
+        }
+        this.datasets[id] = info;
+        return info;
+    },
+
+    async activate(id) {
+        try { await this.ensureDataset(id); }
+        catch (e) {
+            console.error('地番の地図タイル（PMTiles）の準備に失敗:', e);
+            showNotification('地番の地図タイル（PMTiles）を読み込めませんでした。ファイルの場所とCORS設定をご確認ください。');
+            return;
+        }
+        if (id !== currentChibanDatasetId) return;      /* 準備中に別のデータへ切り替えられた */
+        this.current = id;
+        this.apply();
+    },
+
+    apply() {
+        if (!this.gl) return;
+        const chk = document.getElementById('chk-chiban-layer-visible');
+        const show = !chk || chk.checked;
+        for (const did in this.datasets) {
+            const vis = (show && did === this.current) ? 'visible' : 'none';
+            this.datasets[did].ids.forEach(lid => this.gl.setLayoutProperty(lid, 'visibility', vis));
+        }
+    },
+
+    isShowing() {
+        return !!(this.gl && this.datasets[this.current]);
+    },
+
+    queryAt(latlng, level) {
+        if (!this.isShowing()) return [];
+        const pt = this.gl.project([latlng.lng, latlng.lat]);
+        return this.gl.queryRenderedFeatures(pt, { layers: [this.datasets[this.current].fill[level]] });
+    },
+
+    queryPieces(level, filter) {
+        if (!this.isShowing()) return [];
+        return this.gl.queryRenderedFeatures({ layers: [this.datasets[this.current].fill[level]], filter });
+    },
+
+    setHighlight(level, oaza, koaza) {
+        if (!this.isShowing()) return;
+        this.clearHighlight();
+        const d = this.datasets[this.current];
+        if (!d.hl[level]) return;
+        const o = ['==', ['coalesce', ['get', '大字名'], ''], oaza];
+        const flt = level === 'oaza' ? o : ['all', o, ['==', ['coalesce', ['get', '小字名'], ''], koaza]];
+        d.hl[level].forEach(lid => this.gl.setFilter(lid, flt));
+    },
+
+    clearHighlight() {
+        if (!this.gl) return;
+        for (const did in this.datasets) {
+            for (const lvl in this.datasets[did].hl) {
+                this.datasets[did].hl[lvl].forEach(lid => this.gl.setFilter(lid, this.NONE));
+            }
+        }
+    }
+};
+
 async function fetchChibanGeoJSON(datasetId) {
     const id = datasetId || currentChibanDatasetId;
     const ds = CHIBAN_DATASETS[id];
     if (!ds) return false;
     try {
-        const res = await fetch(ds.url);
+        const res = await fetch(chibanUrl(ds.index));
         if (!res.ok) {
-            console.error(`地番ポリゴンGeoJSONの取得に失敗: HTTPステータス ${res.status} ${res.statusText}（URL: ${ds.url}）`);
+            console.error(`地番の索引JSONの取得に失敗: HTTPステータス ${res.status}（URL: ${chibanUrl(ds.index)}）`);
             showNotification(`地番データ（${ds.label}）の読み込みに失敗しました（HTTP ${res.status}）。ファイルパスをご確認ください。`);
             return false;
         }
-        let data;
-        try {
-            data = await res.json();
-        } catch (parseErr) {
-            console.error("地番ポリゴンGeoJSONのJSON解析に失敗しました。サーバーがJSON以外（404ページやHTMLなど）を返している可能性があります:", ds.url, parseErr);
-            showNotification("地番データの形式が不正です。ファイルパス・拡張子をご確認ください。");
+        const idx = await res.json();
+        if (!idx || idx.v !== 2 || !Array.isArray(idx.banchi) || !Array.isArray(idx.koaza)) {
+            console.error('地番の索引JSONの形式が想定と異なります（v2形式のchiban_idx_*.jsonを置いてください）:', ds.index);
+            showNotification('地番データの形式が想定と異なります。索引JSON（chiban_idx_*.json）をご確認ください。');
             return false;
         }
-        if (!data || !Array.isArray(data.features)) {
-            console.error("地番ポリゴンGeoJSONは取得できましたが、featuresを含む有効なGeoJSON FeatureCollectionではありません:", data);
-            showNotification("地番データの構造が想定と異なります。GeoJSONの内容をご確認ください。");
-            return false;
-        }
-        /* 座標系変換は廃止：配信用GeoJSONは事前にWGS84へ変換済みであることを前提とする */
-        if (!chibanLooksLikeLonLat(data.features)) {
-            console.error("地番ポリゴンの座標が緯度経度の範囲を超えています（投影座標のままの可能性）:", ds.url);
-            showNotification("地番データの座標が緯度経度（WGS84）ではありません。変換済みのGeoJSONをご使用ください。");
-            return false;
-        }
-
-        /* 属性の正規化
-           ・京都市地番図：AZACD（大字小字コード）→大字名・小字名、TIBAN→地番 に変換して従来と同じ属性名にそろえる
-           ・_uid：フィーチャ固有の連番（筆IDは重複があるため、ツリーからの選択にはこちらを使う）
-           ・_dk ：「大字名＋小字名＋地番」表記の地番キー（他シートの地番キー列と共通の表記）
-           ・chiban_key：従来どおり筆ID優先。筆IDが無いデータは _dk を使う */
-        const nameTable = ds.azaNames || null;
-        data.features.forEach((f, i) => {
-            const p = f.properties || (f.properties = {});
-            if (nameTable) {
-                const nm = nameTable[p.AZACD];
-                p['大字名'] = nm ? nm[0] : null;
-                p['小字名'] = nm ? nm[1] : null;
-                p['地番'] = (p.TIBAN !== null && p.TIBAN !== undefined) ? String(p.TIBAN) : null;
-            }
-            p._uid = i;
-            p._dk = p['大字名'] ? buildChibanDisplayKey(p) : '';
-            p.chiban_key = p['筆ID'] || p._dk || null;
-        });
-
-        chibanDatasetCache[id] = {
-            geojson: data,
-            hierarchy: { oaza: [], koaza: [], banchi: [] },
-            keyIndex: null, treeData: null,
-            groupsBuilt: false, oazaGroups: null, koazaGroups: null
-        };
-        console.info(`地番ポリゴン読込完了（${ds.label}）: ${data.features.length}件`);
+        chibanDatasetCache[id] = { store: new ChibanStore(id, idx), treeData: null };
+        console.info(`地番の索引を読み込みました（${ds.label}）: ${idx.banchi.length}件`);
         if (id === currentChibanDatasetId) activateChibanDataset(id);
         return true;
     } catch (e) {
-        /* fetch自体が例外を投げるのは主に「ネットワークに到達できない」「CORSでブロックされた」
-           「SSL証明書エラー」のいずれか。詳細な原因は開発者ツールのコンソール／ネットワークタブの
-           表示（例: "blocked by CORS policy" / "ERR_SSL..." / "Failed to fetch"）で判別できる。 */
-        console.error("地番ポリゴンGeoJSONの取得に失敗（ネットワーク到達不可・CORSブロック・SSLエラーのいずれかが濃厚）:", e);
-        showNotification("地番データの読み込みに失敗しました（CORS設定またはサーバー接続の問題の可能性）");
+        console.error('地番の索引JSONの取得に失敗（ネットワーク到達不可・CORSブロック・SSLエラーのいずれかが濃厚）:', e);
+        showNotification('地番データの読み込みに失敗しました（CORS設定またはサーバー接続の問題の可能性）');
         return false;
     }
 }
@@ -4661,37 +5484,35 @@ async function fetchChibanGeoJSON(datasetId) {
 function saveActiveChibanState() {
     const st = chibanDatasetCache[currentChibanDatasetId];
     if (!st) return;
-    st.keyIndex = window._chibanKeyIndex || null;
     st.treeData = window._chibanTreeData || null;
-    st.groupsBuilt = !!window._chibanGroupsBuilt;
-    st.oazaGroups = window._chibanOazaGroups || null;
-    st.koazaGroups = window._chibanKoazaGroups || null;
 }
 
 /* キャッシュ済みのデータセットを「現在の地番ポリゴン」として有効化し、地図・検索ツリー・各データの紐づけを再構築する */
 function activateChibanDataset(id) {
     const st = chibanDatasetCache[id];
     if (!st) return;
-    chibanGeoJSON = st.geojson;
-    chibanHierarchy = st.hierarchy;
-    window._chibanKeyIndex = st.keyIndex;
+    chibanStore = st.store;
+    chibanGeoJSON = { type: 'FeatureCollection', features: [], _lazy: true };
+    chibanHierarchy = { oaza: [], koaza: [], banchi: [] };
+    window._chibanKeyIndex = null;
     window._chibanTreeData = st.treeData;
-    window._chibanGroupsBuilt = st.groupsBuilt;
-    window._chibanOazaGroups = st.oazaGroups;
-    window._chibanKoazaGroups = st.koazaGroups;
+    window._spotHierarchyTrees = { nature: null, oldroad: null, building: null, td: null };
 
-    if (!window._chibanKeyIndex) buildChibanKeyIndex();
     buildChibanMap();
     buildChibanTreeData();
+    st.treeData = window._chibanTreeData;
     window._lastChibanLevel = currentChibanLevel();
     if (typeof clearChibanSearchResults === 'function') clearChibanSearchResults();
+    resetActiveChibanLayerStyle();
     const statusEl = document.getElementById('chiban-panel-status');
     if (statusEl) statusEl.textContent = `${CHIBAN_DATASETS[id].label}を使用中です。大字・小字・地番をたどって選択するか、キーワードで検索すると、該当する地番ポリゴンがメインマップ上に表示されます。`;
     const qEl = document.getElementById('chiban-search-input');
     renderChibanTree(qEl ? qEl.value.trim() : '');
+    /* 地図タイル（PMTiles）の準備ができたら、境界線とラベルを描く */
+    ChibanGL.activate(id).then(() => renderChibanLayer());
     renderChibanLayer();
     /* 各データ（自然系・古道・建造物・文書史料・図書・石造物）のポリゴン表示は、地番キー→ポリゴンの解決を新データで行い直す。
-       該当する筆が存在しない地番キーは、従来どおり無視される。 */
+       必要な小字のポリゴンは、このとき背景で読み込まれ、読み込み完了後に自動で描き直される。 */
     try { applyMapFilters(); }
     catch (e) { renderNatureMapLayers(); renderOldRoadMapLayers(); renderBuildingMapLayers(); renderDocMapLayers(); }
     if (typeof transOnChibanChanged === 'function') transOnChibanChanged();
@@ -5190,21 +6011,9 @@ function buildChibanLabelLayer(features, level) {
     return group;
 }
 
-/* 地番ポリゴンは数が多いため、Leaflet標準のSVG（1件=1個のHTML要素）ではなく
-   Canvas（1枚の画像に描画）で描く。これだけでメモリ・描画負荷が大幅に下がる。
-   他の強調表示ポリゴン（SVG）より下に表示して、そちらのクリックを妨げないよう専用paneに置く。 */
-let _chibanRenderer = null;
-function getChibanRenderer() {
-    if (!map.getPane('chibanPane')) { map.createPane('chibanPane').style.zIndex = 390; }
-    if (!_chibanRenderer) _chibanRenderer = L.canvas({ pane: 'chibanPane', padding: 0.5, tolerance: 2 });
-    return _chibanRenderer;
-}
+/* 地番・小字・大字の境界は MapLibre GL（ChibanGL）で描く。ここにはクリック判定とラベルを置く。 */
 
-/* 地番ポリゴンのクリック選択。
-   地番ポリゴンは専用Canvas（chibanPane・重なり順390）に描いているが、他のポリゴン（検索結果表示・
-   史料の範囲など）が使うデフォルトのCanvas（overlayPane・重なり順400）が画面全体を覆っているため、
-   Leaflet標準のクリック判定では地番側のCanvasにクリックが届かない。
-   そこで、地図全体のclickを受けてから、地番レイヤに対して自前で当たり判定を行う。 */
+/* 他のポリゴン（検索結果・史料の範囲など）がクリックされたかの判定に使う（Leaflet標準のCanvas用） */
 function chibanHitTest(renderer, layerPoint) {
     if (!renderer) return null;
     let hit = null;
@@ -5214,82 +6023,145 @@ function chibanHitTest(renderer, layerPoint) {
     }
     return hit;
 }
-function handleChibanMapClick(e) {
-    if (!map || !chibanLayer || !_chibanRenderer || !map.hasLayer(chibanLayer)) return;
-    const pt = map.latLngToLayerPoint(e.latlng);
-    /* 手前にある他のポリゴン（検索結果表示・史料の範囲など）がクリックされた場合は、そちらを優先する */
-    if (map._renderer && map._renderer !== _chibanRenderer && chibanHitTest(map._renderer, pt)) return;
-    const hit = chibanHitTest(_chibanRenderer, pt);
-    if (hit) hit.fire('click', { latlng: e.latlng, layerPoint: pt, containerPoint: e.containerPoint, originalEvent: e.originalEvent });
+
+/* 地番（1筆）をクリックしたとき：形を読み込み、強調表示して詳細パネルを開く */
+function chibanOnGLFeatureClick(feature, level) {
+    resetActiveChibanLayerStyle();
+    if (level === 'banchi') {
+        if (!chibanActiveGroup) chibanActiveGroup = L.layerGroup().addTo(map);
+        const lyr = L.geoJSON(feature, { style: CHIBAN_ACTIVE_STYLE, interactive: false });
+        lyr._chibanTemp = true;
+        lyr._chibanActive = true;
+        lyr.addTo(chibanActiveGroup);
+        window._activeChibanLayer = lyr;
+    } else {
+        ChibanGL.setHighlight(level, feature.properties.oazaName, feature.properties.koazaName);
+        window._activeChibanLayer = { _chibanGL: true };
+    }
+    openChibanDetailModal(feature, level);
+}
+
+async function handleChibanMapClick(e) {
+    const st = chibanStore;
+    if (!map || !st || !ChibanGL.isShowing()) return;
+    const chk = document.getElementById('chk-chiban-layer-visible');
+    if (chk && !chk.checked) return;
+    /* 手前にある他のポリゴン（検索結果・史料の範囲など）がクリックされた場合は、そちらを優先する */
+    try {
+        const pt = map.latLngToLayerPoint(e.latlng);
+        if (map._renderer && chibanHitTest(map._renderer, pt)) return;
+    } catch (err) {}
+
+    const level = currentChibanLevel();
+    const hits = ChibanGL.queryAt(e.latlng, level);
+    if (!hits.length) return;
+    const p = hits[0].properties || {};
+
+    if (level === 'banchi') {
+        const u = chibanResolveEntry(p, e.latlng);
+        if (u == null) return;
+        const feature = await st.featureOfAsync(u).catch(() => null);
+        if (!feature) { showNotification('地番ポリゴンの読み込みに失敗しました。'); return; }
+        if (st !== chibanStore) return;
+        chibanOnGLFeatureClick(feature, 'banchi');
+        return;
+    }
+
+    /* 大字・小字：索引から件数と構成する地番のキーを集め、地図タイルの描画片を形として持たせる */
+    const oaza = p['大字名'] == null ? '' : String(p['大字名']);
+    const koaza = level === 'koaza' ? (p['小字名'] == null ? '' : String(p['小字名'])) : '';
+    let group, ki = -1;
+    if (level === 'oaza') group = st.oaza.find(o => o.o === oaza);
+    else { ki = st.koaza.findIndex(k => k.o === oaza && k.k === koaza); group = st.koaza[ki]; }
+    if (!group) return;
+
+    const memberKeys = [];
+    const addRange = (start, n) => {
+        for (let u = start; u < start + n; u++) {
+            const fid = st.banchi[u][2], dk = st.entryDk(u);
+            if (fid) memberKeys.push(fid);
+            if (dk && dk !== fid) memberKeys.push(dk);
+        }
+    };
+    if (level === 'oaza') group.ks.forEach(k2 => addRange(st.koaza[k2].r[0], st.koaza[k2].r[1]));
+    else addRange(group.r[0], group.r[1]);
+
+    const o = ['==', ['coalesce', ['get', '大字名'], ''], oaza];
+    const flt = level === 'oaza' ? o : ['all', o, ['==', ['coalesce', ['get', '小字名'], ''], koaza]];
+    const polys = [];
+    ChibanGL.queryPieces(level, flt).forEach(f => {
+        const g = f.geometry;
+        if (!g) return;
+        if (g.type === 'Polygon') polys.push(g.coordinates);
+        else if (g.type === 'MultiPolygon') g.coordinates.forEach(c => polys.push(c));
+    });
+    const feature = {
+        type: 'Feature',
+        geometry: polys.length ? { type: 'MultiPolygon', coordinates: polys } : chibanBBoxGeometry(group.b),
+        properties: {
+            level, groupKey: level === 'oaza' ? (oaza || 'unknown') : ((oaza || 'unknown') + '_' + koaza),
+            oazaName: oaza, koazaName: koaza, memberChibanKeys: memberKeys, count: group.n
+        },
+        _bbox: group.b,
+        _noGeom: level === 'oaza'
+    };
+    if (level === 'koaza') {
+        try { await st.loadKoaza(ki); feature._members = st.loaded.get(ki) || null; } catch (err) {}
+        if (st !== chibanStore) return;
+    }
+    chibanOnGLFeatureClick(feature, level);
 }
 
 function clearChibanLayers() {
-    if (chibanLayer) { map.removeLayer(chibanLayer); chibanLayer = null; }
     if (chibanLabelLayer) { map.removeLayer(chibanLabelLayer); chibanLabelLayer = null; }
 }
 
-/* opts.fromMove：パン（移動）による呼び出し。描画済みの範囲内ならやり直さない。 */
-async function renderChibanLayer(opts) {
-    const fromMove = !!(opts && opts.fromMove);
-    if (!chibanGeoJSON || !map) return;
-    const visibilityChk = document.getElementById('chk-chiban-layer-visible');
-    if (visibilityChk && !visibilityChk.checked) { clearChibanLayers(); return; }
-
-    const level = currentChibanLevel();
-    window._chibanRenderToken = (window._chibanRenderToken || 0) + 1;
-    const myToken = window._chibanRenderToken;
-
-    await ensureChibanLevelComputed(level);
-    /* 待機中にさらにズーム操作が行われていた場合、古い結果の描画は行わない */
-    if (myToken !== window._chibanRenderToken) return;
-    /* 待機中にチェックボックスがオフにされていた場合も描画しない */
-    if (visibilityChk && !visibilityChk.checked) return;
-
-    const allFeatures = chibanHierarchy[level] || [];
-    const zoom = map.getZoom();
+/* ラベルは索引（名前と範囲）だけから作る。ポリゴンの形は不要。
+   ・大字／小字：範囲の中心に、ラベルが収まる大きさのときだけ表示
+   ・地番：表示範囲内の件数が上限以下のときだけ、各地番の範囲の中心に表示 */
+function buildChibanLabelLayerFromIndex(level) {
+    const group = L.layerGroup();
+    const st = chibanStore;
+    if (!st || !map) return group;
     const bounds = map.getBounds();
-    const isBanchi = (level === 'banchi');
-    /* 描画済みのレイヤが「同じデータ・同じ階層」のものか */
-    const sameLayer = !!(chibanLayer && map.hasLayer(chibanLayer) && chibanLayer._chibanSrc === allFeatures && chibanLayer._chibanLevel === level);
+    const inView = (b) => !(b[2] < bounds.getWest() || b[0] > bounds.getEast() || b[3] < bounds.getSouth() || b[1] > bounds.getNorth());
+    const mk = (text, b) => makeChibanLabelMarker(text, CHIBAN_LABEL_FIXED_PX, [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]).addTo(group);
 
-    /* 大字・小字：ポリゴンはどこを見ても同じなので、パンでは何もしない。
-       ズームだけが変わった場合（同じ階層内）は、ポリゴンは作り直さずラベルだけ更新する。 */
-    if (sameLayer && !isBanchi) {
-        if (fromMove) return;
-        if (chibanLabelLayer) map.removeLayer(chibanLabelLayer);
-        chibanLabelLayer = buildChibanLabelLayer(allFeatures, level).addTo(map);
-        return;
-    }
-    /* 地番：描画済みの範囲（表示範囲より広めに描いてある）にまだ収まっているパンでは作り直さない */
-    if (sameLayer && isBanchi && fromMove && chibanLayer._chibanZoom === zoom
-        && chibanLayer._chibanBounds && chibanLayer._chibanBounds.contains(bounds)) return;
-
-    clearChibanLayers();
-    /* 地番は、表示範囲より一回り広い範囲だけを描画対象にする（パンのたびに作り直さずに済む） */
-    const drawBounds = bounds.pad(0.5);
-    const features = isBanchi
-        ? allFeatures.filter(f => bboxIntersectsMapBounds(getFeatureBBoxCached(f), drawBounds))
-        : allFeatures;
-    const style = CHIBAN_LEVEL_STYLE[level];
-    chibanLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
-        renderer: getChibanRenderer(),
-        style,
-        onEachFeature: (feature, layer) => {
-            layer.on('mouseover', function () { if (!layer._chibanActive) this.setStyle({ fillOpacity: Math.min(style.fillOpacity + 0.3, 0.6) }); });
-            layer.on('mouseout', function () { if (!layer._chibanActive) chibanLayer.resetStyle(this); });
-            layer.on('click', (e) => onChibanClick(feature, layer, e, level));
+    if (level === 'banchi') {
+        if (map.getZoom() < CHIBAN_ZOOM_BANCHI_LABEL) return group;
+        const hits = [];
+        for (let u = 0; u < st.banchi.length; u++) {
+            const e = st.banchi[u];
+            if (!e[1]) continue;
+            const b = [e[3], e[4], e[5], e[6]];
+            if (!inView(b)) continue;
+            hits.push([e[1], b]);
+            if (hits.length > CHIBAN_LABEL_MAX_COUNT) return group;
         }
-    }).addTo(map);
-    chibanLayer._chibanSrc = allFeatures;
-    chibanLayer._chibanLevel = level;
-    chibanLayer._chibanZoom = zoom;
-    chibanLayer._chibanBounds = drawBounds;
+        hits.forEach(h => mk(h[0], h[1]));
+        return group;
+    }
+    const fits = (b, text) => {
+        const p1 = map.latLngToContainerPoint([b[1], b[0]]), p2 = map.latLngToContainerPoint([b[3], b[2]]);
+        const w = Math.abs(p2.x - p1.x), h = Math.abs(p2.y - p1.y);
+        return w >= CHIBAN_LABEL_FIXED_PX * Math.max(text.length, 1) / 0.72 * 0.8 && h >= CHIBAN_LABEL_FIXED_PX / 0.5;
+    };
+    if (level === 'oaza') {
+        st.oaza.forEach(o => { if (o.o && inView(o.b) && fits(o.b, o.o)) mk(o.o, o.b); });
+    } else {
+        st.koaza.forEach(k => { if (k.k && inView(k.b) && fits(k.b, k.k)) mk(k.k, k.b); });
+    }
+    return group;
+}
 
-    /* ラベルは、実際に見えている範囲のものだけ作る（地番は件数が多いため） */
-    const labelFeatures = isBanchi
-        ? features.filter(f => bboxIntersectsMapBounds(getFeatureBBoxCached(f), bounds))
-        : features;
-    chibanLabelLayer = buildChibanLabelLayer(labelFeatures, level).addTo(map);
+/* opts.fromMove：パン（移動）による呼び出し。境界線はGLが自動で追従するので、ここではラベルだけ作り直す */
+async function renderChibanLayer(opts) {
+    if (!map || !chibanStore) return;
+    ChibanGL.apply();
+    clearChibanLayers();
+    const chk = document.getElementById('chk-chiban-layer-visible');
+    if (chk && !chk.checked) return;
+    chibanLabelLayer = buildChibanLabelLayerFromIndex(currentChibanLevel()).addTo(map);
 }
 
 function toggleChibanLayerVisibility() {
@@ -5328,7 +6200,7 @@ function gatherChibanLinkedItems(feature, level) {
             const c = row.coords;
             if (!c || !c[0] || !c[1]) return;
             try {
-                if (turf.booleanPointInPolygon(turf.point([c[1], c[0]]), feature)) {
+                if (chibanFeatureContainsPoint(feature, turf.point([c[1], c[0]]))) {
                     pushItem({ type, id: row.id, title: row[titleField] || row.name || '無題', thumb: row[thumbField] || row.thumbnail || '' });
                 }
             } catch (err) {}
@@ -5353,7 +6225,7 @@ function gatherChibanLinkedItems(feature, level) {
             const coords = sector.map(pt => [pt[1], pt[0]]);
             try {
                 const sectorPolygon = turf.polygon([coords]);
-                if (turf.booleanIntersects(sectorPolygon, feature)) {
+                if (chibanFeatureIntersects(feature, sectorPolygon)) {
                     pushItem({ type: 'photo', id: p.id, title: p.title, thumb: p.img });
                 }
             } catch (err) {}
@@ -5397,14 +6269,7 @@ function gatherPhotoLinkedItems(photo) {
 
     /* 地番ポリゴン（個々のbanchi単位）のうち、扇と重なるものも紐づくデータに含める */
     try {
-        (chibanHierarchy.banchi || []).forEach(f => {
-            try {
-                if (turf.booleanIntersects(sectorPolygon, f)) {
-                    const pr = f.properties || {};
-                    items.push({ type: 'chiban', id: pr.chiban_key, title: buildChibanDisplayKey(pr) || '地番', thumb: '' });
-                }
-            } catch (err) {}
-        });
+        chibanSectorEntries(sectorPolygon).forEach(en => items.push({ type: 'chiban', id: en.id, title: en.title, thumb: '' }));
     } catch (err) {}
 
     return items;
@@ -5436,8 +6301,11 @@ function onChibanClick(feature, layer, e, level) {
 }
 
 function resetActiveChibanLayerStyle() {
+    if (typeof ChibanGL !== 'undefined') ChibanGL.clearHighlight();
     const layer = window._activeChibanLayer;
     if (!layer) return;
+    if (layer._chibanGL) { window._activeChibanLayer = null; return; }
+    if (layer._chibanTemp) { if (chibanActiveGroup) chibanActiveGroup.removeLayer(layer); window._activeChibanLayer = null; return; }
     layer._chibanActive = false;
     if (chibanLayer && chibanLayer.hasLayer && chibanLayer.hasLayer(layer)) chibanLayer.resetStyle(layer);
     else if (layer.setStyle) layer.setStyle(layer._chibanOriginalStyle || { color: '#e91e8c', weight: 2.5, fillColor: '#e91e8c', fillOpacity: 0.35, dashArray: '4,3' });
@@ -5687,21 +6555,22 @@ function onChibanCardClick(type, id) {
     else if (type === 'oldroad') { const r = oldRoadData.find(x => x.id === id); if (r) openOldRoadDetailModal(r); }
     else if (type === 'building') { const r = buildingData.find(x => x.id === id); if (r) openBuildingDetailModal(r); }
     else if (type === 'doc') { const r = docData.find(x => x.id === id); if (r) openDocDetailModal(r); }
-    else if (type === 'chiban') { const f = findChibanFeature(id); if (f) openChibanDetailModal(f, 'banchi'); }
+    else if (type === 'chiban') { chibanFeatureByKeyAsync(id).then(f => { if (f) openChibanDetailModal(f, 'banchi'); }); }
 }
 
 /* =====================================================================
    地番ポリゴン検索パネル：大字／小字／地番のフォルダ階層検索
    ===================================================================== */
 function buildChibanTreeData() {
-    if (window._chibanTreeData || !chibanGeoJSON) return;
-    const tree = {};
-    chibanGeoJSON.features.forEach(f => {
-        const p = f.properties || {};
-        const oaza = p['大字名'] || '（大字不明）';
-        const koaza = p['小字名'] || '（小字なし）';
-        (tree[oaza] = tree[oaza] || {});
-        (tree[oaza][koaza] = tree[oaza][koaza] || []).push(f);
+    if (window._chibanTreeData || !chibanStore) return;
+    const st = chibanStore, tree = {};
+    st.koaza.forEach(kz => {
+        const oaza = kz.o || '（大字不明）', koaza = kz.k || '（小字なし）';
+        const arr = [];
+        for (let u = kz.r[0]; u < kz.r[0] + kz.r[1]; u++) {
+            arr.push({ properties: { _uid: u, '地番': st.banchi[u][1], '大字名': kz.o, '小字名': kz.k } });
+        }
+        (tree[oaza] = tree[oaza] || {})[koaza] = arr;
     });
     window._chibanTreeData = tree;
 }
@@ -5773,8 +6642,8 @@ function renderChibanTree(query) {
     container.innerHTML = html || '<p style="color:#999;font-size:0.85rem;">該当する地番が見つかりませんでした。</p>';
 }
 
-function selectChibanLeaf(uid) {
-    const feature = (chibanGeoJSON && chibanGeoJSON.features) ? chibanGeoJSON.features[uid] : null;
+async function selectChibanLeaf(uid) {
+    const feature = chibanStore ? await chibanStore.featureOfAsync(uid).catch(() => null) : null;
     if (!feature) { showNotification('該当する地番ポリゴンが見つかりませんでした。'); return; }
     renderChibanSearchResultsOnMap([feature]);
     const p = feature.properties || {};
@@ -5782,14 +6651,23 @@ function selectChibanLeaf(uid) {
     document.getElementById('chiban-panel-status').innerHTML = `<i class="fa-solid fa-circle-check" style="color:#059669;"></i> 表示中：${escapeHtml(title)}`;
 }
 
-function selectChibanGroup(oaza, koaza) {
-    if (!window._chibanTreeData || !window._chibanTreeData[oaza]) return;
-    let feats = [];
+async function selectChibanGroup(oaza, koaza) {
+    if (!window._chibanTreeData || !window._chibanTreeData[oaza] || !chibanStore) return;
+    const st = chibanStore;
+    let pf = [];
     if (koaza) {
-        feats = window._chibanTreeData[oaza][koaza] || [];
+        pf = window._chibanTreeData[oaza][koaza] || [];
     } else {
-        Object.values(window._chibanTreeData[oaza]).forEach(arr => { feats = feats.concat(arr); });
+        Object.values(window._chibanTreeData[oaza]).forEach(arr => { pf = pf.concat(arr); });
     }
+    if (pf.length === 0) { showNotification('該当する地番ポリゴンが見つかりませんでした。'); return; }
+    /* 形（ジオメトリ）は、選んだ範囲に含まれる小字の分だけ読み込む */
+    const kset = Array.from(new Set(pf.map(f => st.banchi[f.properties._uid][0])));
+    if (kset.some(k => !st.loaded.has(k))) showNotification('地番ポリゴンを読み込んでいます...');
+    try { await chibanRunLimited(kset, 6, k => st.loadKoaza(k)); }
+    catch (err) { showNotification('地番ポリゴンの読み込みに失敗しました。'); return; }
+    if (st !== chibanStore) return;
+    const feats = pf.map(f => st.featureOf(f.properties._uid)).filter(Boolean);
     if (feats.length === 0) { showNotification('該当する地番ポリゴンが見つかりませんでした。'); return; }
     renderChibanSearchResultsOnMap(feats);
     const label = koaza ? `${oaza} ${koaza}` : oaza;
@@ -7439,14 +8317,7 @@ function renderRelatedAssets(record, type) {
                 });
             });
             /* 地番ポリゴン（個々の地番単位）も、扇と重なるものは紐づくデータに含める */
-            (chibanHierarchy.banchi || []).forEach(f => {
-                try {
-                    if (turf.booleanIntersects(sectorPolygon, f)) {
-                        const pr = f.properties || {};
-                        candidates.push({ type: 'chiban', id: pr.chiban_key, title: buildChibanDisplayKey(pr) || '地番', thumb: null, year: null });
-                    }
-                } catch (e) {}
-            });
+            chibanSectorEntries(sectorPolygon).forEach(en => candidates.push({ type: 'chiban', id: en.id, title: en.title, thumb: null, year: null }));
             /* 文書・史料は自身の座標を持たないため、紐づく地番ポリゴン経由で判定する */
             docData.forEach(r => {
                 if (!r.chibanKey) return;
