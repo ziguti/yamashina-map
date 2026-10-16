@@ -194,9 +194,10 @@ a { color: inherit; text-decoration: none; }
 .spot-group > summary::-webkit-details-marker { display: none; }
 .spot-group > summary::after { content: '\f078'; font-family: 'Font Awesome 6 Free'; font-weight: 900; float: right; font-size: 0.7rem; transition: transform 0.2s; }
 .spot-group[open] > summary::after { transform: rotate(180deg); }
-/* 詳細絞り込みと地番ポリゴン検索を同時に開いたとき：右側を上下半分ずつにする */
-body:has(#spot-settings-wrapper.open):has(#chiban-panel-wrapper.open) #spot-settings-wrapper { bottom: calc((100vh - var(--header-height) - var(--sub-header-height)) / 2); }
-body:has(#spot-settings-wrapper.open):has(#chiban-panel-wrapper.open) #chiban-panel-wrapper { top: calc(var(--header-height) + var(--sub-header-height) + (100vh - var(--header-height) - var(--sub-header-height)) / 2); }
+/* 詳細絞り込みと地番ポリゴン検索を同時に開いたとき：右側を上下半分ずつにして、2つとも操作できるようにする
+   （body に panels-split クラスが付く。付け外しは末尾のスクリプト） */
+body.panels-split #spot-settings-wrapper { bottom: calc((100vh - var(--header-height) - var(--sub-header-height)) / 2); bottom: calc((100dvh - var(--header-height) - var(--sub-header-height)) / 2); }
+body.panels-split #chiban-panel-wrapper { top: calc(var(--header-height) + var(--sub-header-height) + (100vh - var(--header-height) - var(--sub-header-height)) / 2); top: calc(var(--header-height) + var(--sub-header-height) + (100dvh - var(--header-height) - var(--sub-header-height)) / 2); }
 #slider-box {
     display: flex; flex: 1 1 240px; min-width: 200px; max-width: 520px; gap: 8px; align-items: center; pointer-events: none;
 }
@@ -1120,8 +1121,8 @@ label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; w
     #spot-settings-box { top: 120px; }
     #spot-settings-wrapper { top: var(--header-height); }
     #chiban-panel-wrapper { top: var(--header-height); }
-    body:has(#spot-settings-wrapper.open):has(#chiban-panel-wrapper.open) #spot-settings-wrapper { bottom: calc((100vh - var(--header-height)) / 2); }
-    body:has(#spot-settings-wrapper.open):has(#chiban-panel-wrapper.open) #chiban-panel-wrapper { top: calc(var(--header-height) + (100vh - var(--header-height)) / 2); }
+    body.panels-split #spot-settings-wrapper { bottom: calc((100vh - var(--header-height)) / 2); bottom: calc((100dvh - var(--header-height)) / 2); }
+    body.panels-split #chiban-panel-wrapper { top: calc(var(--header-height) + (100vh - var(--header-height)) / 2); top: calc(var(--header-height) + (100dvh - var(--header-height)) / 2); }
     .doc-modal-layout { flex-direction: column; }
     .doc-pdf-section { height: 40vh; }
     .doc-image-grid { grid-template-columns: repeat(2, 1fr); }
@@ -2853,9 +2854,10 @@ const PinSprites = {
 };
 
 /* ピン1個ぶんのデータ。L.marker と同じ感覚で .on('click', …) / .addTo(グループ) が使える */
-function CanvasPin(latlng, spec) {
+function CanvasPin(latlng, spec, title) {
     this._ll = L.latLng(latlng);
     this.spec = spec;
+    this.title = title || '';   /* 高ズームでピンの横に出す文字 */
     this._h = {};
     this._isPin = true;
     const lat = Math.max(-85.0511, Math.min(85.0511, this._ll.lat));
@@ -2875,7 +2877,7 @@ CanvasPin.prototype = {
     isPopupOpen: function () { return false; },
     openPopup: function () { return this; }
 };
-function makePin(latlng, spec) { return new CanvasPin(latlng, spec); }
+function makePin(latlng, spec, title) { return new CanvasPin(latlng, spec, title); }
 function stySpec(color, glyph) { return { k: 'tear', color: color, glyph: glyph }; }
 function make3DSpec(color, emph) { return { k: 'cube', color: color, emph: !!emph }; }
 
@@ -3173,9 +3175,30 @@ const PinHubGL = {
         g.drawImage(sp.c, W / 2 - sp.ax * r, H / 2 - sp.ay * r);
         return { data: g.getImageData(0, 0, W, H), ratio: r };
     },
+    _label: function (w, ax, hy, t) {   /* タイトル文字の画像（日本語フォントはブラウザのものを使う。ピンの右横・ピンの中心の高さに置く） */
+        const r = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+        const font = '600 12px "Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
+        const mc = document.createElement('canvas').getContext('2d');
+        mc.font = font;
+        const tw = Math.ceil(mc.measureText(t).width), x0 = (w - ax) + 5, th = 16;
+        const H = Math.ceil(2 * (Math.abs(hy) + th / 2 + 3)), W = Math.ceil(x0 + tw + 8);
+        const cv = document.createElement('canvas');
+        cv.width = Math.ceil(W * r); cv.height = Math.ceil(H * r);
+        const g = cv.getContext('2d');
+        g.scale(r, r); g.font = font; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 3.5;
+        g.strokeStyle = 'rgba(255,253,247,0.95)'; g.fillStyle = '#3a2a1c';
+        g.strokeText(t, x0, H / 2 + hy); g.fillText(t, x0, H / 2 + hy);
+        return { data: g.getImageData(0, 0, cv.width, cv.height), ratio: r };
+    },
     _ensure: function (id) {
         const gl = this.gl;
         if (gl.hasImage(id)) return;
+        if (id.indexOf('lb|') === 0) {
+            const a = id.split('|'), im = this._label(+a[1], +a[2], +a[3], a.slice(4).join('|'));
+            gl.addImage(id, im.data, { pixelRatio: im.ratio });
+            this._imgs.add(id);
+            return;
+        }
         let sp;
         if (id.indexOf('cl|') === 0) { const a = id.split('|'); sp = PinSprites.cluster(a[1], +a[2]); }
         else if (id.indexOf('pin|') === 0) sp = PinSprites.get(JSON.parse(id.slice(4)));
@@ -3198,21 +3221,28 @@ const PinHubGL = {
             gl.addSource(src, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, cluster: !!o.cluster, clusterRadius: PIN_CLUSTER_CELL_PX, clusterMaxZoom: PIN_CLUSTER_BELOW_ZOOM - 2 });
             const common = { 'icon-allow-overlap': true, 'icon-ignore-placement': true };
             if (o.cluster) gl.addLayer({ id: 'pins-c' + k, type: 'symbol', source: src, filter: ['has', 'point_count'], layout: Object.assign({ 'icon-image': ['concat', 'cl|', String(o.kind), '|', ['to-string', ['get', 'point_count']]] }, common) });
-            gl.addLayer({ id: 'pins-p' + k, type: 'symbol', source: src, filter: ['!', ['has', 'point_count']], layout: Object.assign({ 'icon-image': ['get', 'img'], 'icon-size': ['case', ['boolean', ['feature-state', 'hover'], false], 1.15, 1] }, common) });
-            g._glIds = o.cluster ? ['pins-c' + k, 'pins-p' + k] : ['pins-p' + k];
+            gl.addLayer({ id: 'pins-p' + k, type: 'symbol', source: src, filter: ['!', ['has', 'point_count']], layout: Object.assign({ 'icon-image': ['get', 'img'] }, common) });
+            /* ホバー中のピンだけ少し大きく重ねて描く（icon-size はfeature-stateを使えないため専用レイヤにする） */
+            gl.addLayer({ id: 'pins-h' + k, type: 'symbol', source: src, filter: ['==', ['id'], -1], layout: Object.assign({ 'icon-image': ['get', 'img'], 'icon-size': 1.15 }, common) });
+            /* 高ズーム（地図の倍率16以上）では、ピンの右横にタイトルを表示。重なる文字は自動で間引く */
+            gl.addLayer({ id: 'pins-l' + k, type: 'symbol', source: src, minzoom: 16, filter: ['all', ['!', ['has', 'point_count']], ['!=', ['get', 'lbl'], '']], layout: { 'icon-image': ['get', 'lbl'], 'icon-anchor': 'left', 'icon-allow-overlap': false, 'icon-ignore-placement': false } });
+            g._hid = 'pins-h' + k;
+            g._glIds = (o.cluster ? ['pins-c' + k] : []).concat(['pins-p' + k, 'pins-h' + k, 'pins-l' + k]);
         }
         const snap = g._snap = g._pins.slice(), feats = new Array(snap.length);
         for (let i = 0; i < snap.length; i++) {
             const p = snap[i], img = 'pin|' + JSON.stringify(p.spec);
             this._ensure(img);
+            let lbl = '';
+            if (p.title) { const sp = PinSprites.get(p.spec); lbl = 'lb|' + sp.w + '|' + sp.ax + '|' + sp.hy + '|' + String(p.title).replace(/\s+/g, ' ').slice(0, 40); }
             p._src = g._src; p._idx = i;
-            feats[i] = { type: 'Feature', id: i, properties: { i: i, img: img }, geometry: { type: 'Point', coordinates: [p._ll.lng, p._ll.lat] } };
+            feats[i] = { type: 'Feature', id: i, properties: { i: i, img: img, lbl: lbl }, geometry: { type: 'Point', coordinates: [p._ll.lng, p._ll.lat] } };
         }
         gl.getSource(g._src).setData({ type: 'FeatureCollection', features: feats });
     },
     _find: function (px, py) {
         const gl = this.gl, ids = [];
-        this.groups.forEach(g => { if (g._glIds) g._glIds.forEach(id => { if (gl.getLayer(id)) ids.push(id); }); });
+        this.groups.forEach(g => { if (g._glIds) g._glIds.forEach(id => { if (/^pins-[cp]/.test(id) && gl.getLayer(id)) ids.push(id); }); });
         if (!ids.length) return null;
         const r = 26, extra = L.Browser.touch ? 6 : 0;
         const fs = gl.queryRenderedFeatures([[px - r, py - r], [px + r, py + r]], { layers: ids });
@@ -3233,10 +3263,12 @@ const PinHubGL = {
         if (it === this._hover) return;
         const old = this._hover, gl = this.gl;
         this._hover = it;
-        try {
-            if (old && !old._cluster && old._src) gl.setFeatureState({ source: old._src, id: old._idx }, { hover: false });
-            if (it && !it._cluster && it._src) gl.setFeatureState({ source: it._src, id: it._idx }, { hover: true });
-        } catch (e) {}
+        const setF = (x, id) => {
+            if (!x || x._cluster || !x._src) return;
+            const g = this._bySrc[x._src];
+            if (g && g._hid && gl.getLayer(g._hid)) gl.setFilter(g._hid, ['==', ['id'], id]);
+        };
+        try { setF(old, -1); setF(it, it && it._idx); } catch (e) {}
         if (old && !old._cluster) old.fire('mouseout');
         if (it && !it._cluster) it.fire('mouseover');
         if (this.map) this.map.getContainer().style.cursor = it ? 'pointer' : '';
@@ -4264,7 +4296,7 @@ function addPhotoMarkersToMainMap(data) {
             rotateStyle = `transform: rotate(${angle}deg);`;
             counterRotateStyle = `transform: rotate(${-angle - 45}deg);`;
         }
-        const marker = makePin([p.lat, p.lng], { k: 'photo', color: color, angle: angle });
+        const marker = makePin([p.lat, p.lng], { k: 'photo', color: color, angle: angle }, p.title);
         marker.on('click', () => openPhotoDetailPanel(p, angle, color));
         markers.push(marker);
     });
@@ -4376,7 +4408,7 @@ function add3DMarkersToMap(filteredModels) {
     filteredModels.filter(m => !hFilter || hFilter.has(String(m.id))).forEach(m => {
         if (m.coords && m.coords[0] && m.coords[1]) {
             const color = get3DPinColor(m.condition, false);
-            const marker = makePin(m.coords, make3DSpec(color, false));
+            const marker = makePin(m.coords, make3DSpec(color, false), m.name);
             marker._pinColor = color;
             marker._recordId = m.id;
             marker.on('click', () => openDataDetailPanel(m, 'td'));
@@ -4999,7 +5031,7 @@ function renderNatureMapLayers(searchQuery) {
             }
         }
         if (!drawn && row.coords && row.coords[0]) {
-            const marker = makePin(row.coords, stySpec(style.color, style.icon));
+            const marker = makePin(row.coords, stySpec(style.color, style.icon), row.name);
             marker.on('click', () => openDataDetailPanel(row, 'nature'));
             marker.addTo(natureLayerGroup);
         }
@@ -5040,7 +5072,7 @@ function renderOldRoadMapLayers(searchQuery) {
             }
         }
         if (!drawn && row.coords && row.coords[0]) {
-            const marker = makePin(row.coords, stySpec(style.color, style.icon));
+            const marker = makePin(row.coords, stySpec(style.color, style.icon), row.name);
             marker.on('click', () => openDataDetailPanel(row, 'oldroad'));
             marker.addTo(oldRoadLayerGroup);
         }
@@ -5090,7 +5122,7 @@ function renderBuildingMapLayers(searchQuery) {
             }
         }
         if (!drawn && row.coords && row.coords[0]) {
-            const marker = makePin(row.coords, stySpec(style.color, style.icon));
+            const marker = makePin(row.coords, stySpec(style.color, style.icon), row.name);
             marker.on('click', () => openDataDetailPanel(row, 'building'));
             marker.addTo(buildingLayerGroup);
         }
@@ -5140,7 +5172,7 @@ function renderBookMapLayers(searchQuery) {
                 }
             }
             if (!drawn && row.coords && row.coords[0]) {
-                const marker = makePin(row.coords, stySpec(TYPE_COLORS.book, 'book'));
+                const marker = makePin(row.coords, stySpec(TYPE_COLORS.book, 'book'), row.entryLabel || row.h3 || row.h2 || row.h1 || b.title);
                 marker.on('click', () => openDataDetailPanel(mergedRow, 'book'));
                 marker.addTo(bookLayerGroup);
             }
@@ -11050,6 +11082,17 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
             n = nx;
         }
     });
+})();
+</script>
+<script>
+/* 詳細絞り込みと地番ポリゴン検索が両方開いている間だけ body に panels-split を付け、右側を上下に分ける */
+(function () {
+    const ids = ['spot-settings-wrapper', 'chiban-panel-wrapper'];
+    const els = ids.map(id => document.getElementById(id));
+    if (els.some(e => !e)) return;
+    const update = () => document.body.classList.toggle('panels-split', els.every(e => e.classList.contains('open')));
+    els.forEach(e => new MutationObserver(update).observe(e, { attributes: true, attributeFilter: ['class'] }));
+    update();
 })();
 </script>
 </body>
