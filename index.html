@@ -3129,6 +3129,7 @@ const PinHub = {
    ・クリック・ホバーの判定は queryRenderedFeatures。ピンのクリック処理（PinHub._onClick）は従来のまま。 */
 const PinHubGL = {
     _gid: 0, _timer: 0, _bySrc: {}, _imgs: new Set(),
+    _n: 1,   /* 従来のCanvas描画では『描いたピンの数』。_pinAt/_onMove が0だと判定を飛ばすので、MapLibre駆動では常に1にして毎回判定する */
     init: function (map) {
         if (this.map) return;
         this.map = map; this.gl = GLMaster.gl;
