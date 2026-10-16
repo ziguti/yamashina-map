@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>山科歴史アーカイブ | Yamashina Historical Archive</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#3a2a23">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="山科歴史">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3281,6 +3289,103 @@ const PinHubGL = {
     }
 };
 
+/* =====================================================================
+   ポリゴン（古道・建造物・自然系・文書・図書の範囲、変遷表示、見通しの扇形など）を MapLibre GL で描く
+   ・全ポリゴンを1つの GeoJSON ソース（塗り＋輪郭の3レイヤ）にまとめて描く。数百件あっても重くならない。
+   ・L.geoJSON と同じ使い方（.on('click') / .addTo(group) / .setStyle() / .getBounds()）ができるので、呼び出し側はほぼそのまま。
+   ・重なり順は、古地図タイル ＜ ポリゴン ＜ ピン。ポリゴンのクリックは、重なっているうち一番上の1件だけに伝える。 */
+const GLGeoHub = {
+    items: new Set(), _t: 0,
+    ready: function () { return !!(typeof GLMaster !== 'undefined' && GLMaster.gl && GLMaster.gl.getLayer('geo-fill')); },
+    add: function (it) { this.items.add(it); this.invalidate(); },
+    remove: function (it) { this.items.delete(it); this.invalidate(); },
+    invalidate: function () {
+        if (this._t) return;
+        this._t = setTimeout(() => { this._t = 0; this._sync(); }, 30);
+    },
+    _ensure: function (gl) {
+        if (gl.getSource('geo-all')) return;
+        const before = PinHub.firstGLId && PinHub.firstGLId();
+        gl.addSource('geo-all', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        gl.addLayer({ id: 'geo-fill', type: 'fill', source: 'geo-all', paint: { 'fill-color': ['get', 'fc'], 'fill-opacity': ['get', 'fo'] } }, before);
+        const line = { 'line-color': ['get', 'lc'], 'line-opacity': ['get', 'lo'], 'line-width': ['get', 'lw'] };
+        gl.addLayer({ id: 'geo-line', type: 'line', source: 'geo-all', filter: ['!=', ['get', 'dsh'], 1], layout: { 'line-join': 'round' }, paint: line }, before);
+        gl.addLayer({ id: 'geo-line-d', type: 'line', source: 'geo-all', filter: ['==', ['get', 'dsh'], 1], layout: { 'line-join': 'round' }, paint: Object.assign({ 'line-dasharray': [3, 2] }, line) }, before);
+        gl.on('click', (e) => this._click(e));
+    },
+    _sync: function () {
+        const gl = GLMaster.gl;
+        try { this._ensure(gl); } catch (e) { gl.once('load', () => this._sync()); return; }
+        const feats = [];
+        this.items.forEach(it => it._features(feats));
+        gl.getSource('geo-all').setData({ type: 'FeatureCollection', features: feats });
+    },
+    _click: function (e) {
+        if (PinHub._find && PinHub._find(e.point.x, e.point.y)) return;   /* ピンの上のクリックはピンが処理する */
+        const fs = GLMaster.gl.queryRenderedFeatures(e.point, { layers: ['geo-fill'] });
+        for (let i = 0; i < fs.length; i++) {
+            const it = this._byId[fs[i].properties._g];
+            if (it && this.items.has(it)) { it.fire('click', { latlng: L.latLng(e.lngLat.lat, e.lngLat.lng) }); return; }
+        }
+    },
+    _byId: {}
+};
+
+const GLGeoJSON = L.Layer.extend({
+    initialize: function (data, options) {
+        L.setOptions(this, options);
+        this._data = data;
+        this._style = (options && options.style) || {};
+        this._gid = 'g' + L.stamp(this);
+        GLGeoHub._byId[this._gid] = this;
+    },
+    onAdd: function () { GLGeoHub.add(this); },
+    onRemove: function () { GLGeoHub.remove(this); },
+    setStyle: function (st) { this._style = st; GLGeoHub.invalidate(); return this; },
+    bringToFront: function () { return this; },
+    _list: function () {
+        const d = this._data;
+        return d.type === 'FeatureCollection' ? d.features : (d.type === 'Feature' ? [d] : [{ type: 'Feature', properties: {}, geometry: d }]);
+    },
+    _features: function (out) {
+        const list = this._list();
+        for (let i = 0; i < list.length; i++) {
+            const f = list[i];
+            if (!f || !f.geometry || f.geometry.type === 'Point' || f.geometry.type === 'MultiPoint') continue;
+            const st = Object.assign({ color: '#3388ff', weight: 3, opacity: 1, fillOpacity: 0.2 }, typeof this._style === 'function' ? this._style(f) : this._style);
+            out.push({ type: 'Feature', geometry: f.geometry, properties: {
+                _g: this._gid,
+                fc: st.fillColor || st.color,
+                fo: st.fill === false ? 0 : st.fillOpacity,
+                lc: st.color,
+                lo: st.stroke === false ? 0 : st.opacity,
+                lw: st.weight,
+                dsh: st.dashArray ? 1 : 0
+            } });
+        }
+    },
+    getBounds: function () {
+        const b = L.latLngBounds([]);
+        const walk = (c) => { if (typeof c[0] === 'number') b.extend([c[1], c[0]]); else c.forEach(walk); };
+        this._list().forEach(f => { if (f && f.geometry && f.geometry.coordinates) walk(f.geometry.coordinates); });
+        return b;
+    }
+});
+
+/* MapLibre駆動モードなら GLGeoJSON、そうでなければ従来の L.geoJSON を返す */
+function makeGeo(data, options) {
+    return (typeof GLMaster !== 'undefined' && GLMaster.gl) ? new GLGeoJSON(data, options) : L.geoJSON(data, options);
+}
+/* 見通し距離の扇形（coords は [緯度,経度] の並び） */
+function makeSector(coords, st) {
+    if (typeof GLMaster !== 'undefined' && GLMaster.gl) {
+        const ring = coords.map(c => [c[1], c[0]]);
+        ring.push(ring[0]);
+        return new GLGeoJSON({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } }, { style: st });
+    }
+    return L.polygon(coords, Object.assign({ pane: 'sectorPane' }, st));
+}
+
 /* スプレッドシートの「地図タイルURL」列が .pmtiles で終わる（またはpmtiles://で始まる）
    単一ファイルURLの場合は、通常のXYZタイルURL（{z}/{x}/{y}形式）ではなく
    pmtilesアーカイブなので、L.tileLayerではなくpmtilesライブラリの
@@ -3436,7 +3541,7 @@ const GLRasterLayer = L.Layer.extend({
     },
     _doAdd: function (gl, maxzoom) {
         gl.addSource(this._gid, { type: 'raster', tiles: ['oldtile://' + this._resolverId + '/{z}/{x}/{y}'], tileSize: 256, minzoom: 0, maxzoom: Math.min(maxzoom, 22) });
-        gl.addLayer({ id: this._gid, type: 'raster', source: this._gid, paint: { 'raster-opacity': this._opacity, 'raster-fade-duration': 0 } }, PinHub.firstGLId && PinHub.firstGLId());
+        gl.addLayer({ id: this._gid, type: 'raster', source: this._gid, paint: { 'raster-opacity': this._opacity, 'raster-fade-duration': 0 } }, GLGeoHub.ready() ? 'geo-fill' : (PinHub.firstGLId && PinHub.firstGLId()));
     },
     setOpacity: function (o) {
         this._opacity = o; this.options.opacity = o;
@@ -3446,7 +3551,7 @@ const GLRasterLayer = L.Layer.extend({
     },
     bringToFront: function () {
         const gl = GLMaster.gl;
-        if (gl.getLayer(this._gid)) gl.moveLayer(this._gid, PinHub.firstGLId && PinHub.firstGLId());
+        if (gl.getLayer(this._gid)) gl.moveLayer(this._gid, GLGeoHub.ready() ? 'geo-fill' : (PinHub.firstGLId && PinHub.firstGLId()));
         return this;
     },
     bringToBack: function () {
@@ -4297,7 +4402,8 @@ function addPhotoMarkersToMainMap(data) {
             rotateStyle = `transform: rotate(${angle}deg);`;
             counterRotateStyle = `transform: rotate(${-angle - 45}deg);`;
         }
-        const marker = makePin([p.lat, p.lng], { k: 'photo', color: color, angle: angle }, p.title);
+        const marker = makePin([p.lat, p.lng], { k: 'photo', color: color, angle: angle },
+            (() => { const y = String(p.year == null ? '' : p.year).trim(); return (!y || isUnknownValue(y)) ? '' : (y.indexOf('年') >= 0 ? y : y + '年'); })());   /* ピン横の文字：撮影年（未登録なら表示しない） */
         marker.on('click', () => openPhotoDetailPanel(p, angle, color));
         markers.push(marker);
     });
@@ -4310,7 +4416,7 @@ function openPhotoDetailPanel(p, angle, color) {
     if (activeSectorLayer) { map.removeLayer(activeSectorLayer); activeSectorLayer = null; }
     if (angle !== null && angle !== undefined) {
         const sectorCoords = calculateSectorPoints(p.lat, p.lng, angle, p.distanceRaw, extractFov(p.fov));
-        activeSectorLayer = L.polygon(sectorCoords, { color, weight: 1.5, fillColor: color, fillOpacity: 0.35, pane: 'sectorPane' }).addTo(map);
+        activeSectorLayer = makeSector(sectorCoords, { color, weight: 1.5, fillColor: color, fillOpacity: 0.35 }).addTo(map);
     }
     const compareBtnHTML = (p.currentDirectLink && p.currentDirectLink.trim() !== '' && p.currentDirectLink.trim() !== '-')
         ? `<button class="mdp-db-btn" style="background:var(--accent-gold);margin-top:8px;" onclick="openBeforeAfter('${escapeJsAttr(p.imgFull)}', '${escapeJsAttr(p.currentDirectLink)}')"><i class="fa-solid fa-arrows-left-right"></i> 現在写真と比較</button>` : '';
@@ -4459,7 +4565,7 @@ function renderTDPolygons(filteredModels) {
         const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(m.chibanKey));
         if (features.length === 0) { console.warn(`Match Warning: Key [${m.chibanKey}] not found in GeoJSON`); return; }
         const color = get3DPinColor(m.condition, false);
-        const layer = L.geoJSON({ type: 'FeatureCollection', features }, { style: { color, weight: 1, fillColor: color, fillOpacity: 0.3 } });
+        const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color, weight: 1, fillColor: color, fillOpacity: 0.3 } });
         layer.on('click', () => openDataDetailPanel(m, 'td'));
         layer.addTo(modelClusterGroup);
     });
@@ -4915,7 +5021,7 @@ function transRender() {
         if (st === -1 && !showUnknown) return;
         if (st === 1 && !showPossible) return;
         if (!it.layer) {
-            it.layer = L.geoJSON({ type: 'FeatureCollection', features: it.feats });
+            it.layer = makeGeo({ type: 'FeatureCollection', features: it.feats });
             it.layer.on('click', () => openDataDetailPanel(it.row, it.db));
         }
         it.layer.setStyle(transStyleFor(it, st));
@@ -5025,7 +5131,7 @@ function renderNatureMapLayers(searchQuery) {
         if (row.chibanKey && displayMode === 'polygon') {
             const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
             if (features.length > 0) {
-                const layer = L.geoJSON({ type: 'FeatureCollection', features }, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } });
+                const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } });
                 layer.on('click', () => openDataDetailPanel(row, 'nature'));
                 layer.addTo(natureLayerGroup);
                 drawn = true;
@@ -5066,7 +5172,7 @@ function renderOldRoadMapLayers(searchQuery) {
         if (row.chibanKey && displayMode === 'polygon') {
             const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
             if (features.length > 0) {
-                const layer = L.geoJSON({ type: 'FeatureCollection', features }, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } });
+                const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } });
                 layer.on('click', () => openDataDetailPanel(row, 'oldroad'));
                 layer.addTo(oldRoadLayerGroup);
                 drawn = true;
@@ -5116,7 +5222,7 @@ function renderBuildingMapLayers(searchQuery) {
         if (row.chibanKey && displayMode === 'polygon') {
             const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
             if (features.length > 0) {
-                const layer = L.geoJSON({ type: 'FeatureCollection', features }, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } });
+                const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } });
                 layer.on('click', () => openDataDetailPanel(row, 'building'));
                 layer.addTo(buildingLayerGroup);
                 drawn = true;
@@ -5141,7 +5247,7 @@ function renderDocMapLayers(searchQuery) {
         if (!row.chibanKey) return;
         const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
         if (features.length === 0) return;
-        const layer = L.geoJSON({ type: 'FeatureCollection', features }, { style: { color: '#1a2a4a', fillColor: '#1a2a4a', fillOpacity: 0.35, weight: 1.5 } });
+        const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color: '#1a2a4a', fillColor: '#1a2a4a', fillOpacity: 0.35, weight: 1.5 } });
         layer.on('click', () => openDocDetailPanel(row));
         layer.addTo(docLayerGroup);
     });
@@ -5166,7 +5272,7 @@ function renderBookMapLayers(searchQuery) {
             if (row.chibanKey) {
                 const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
                 if (features.length > 0) {
-                    const layer = L.geoJSON({ type: 'FeatureCollection', features }, { style: { color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book, fillOpacity: 0.35, weight: 1.5 } });
+                    const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book, fillOpacity: 0.35, weight: 1.5 } });
                     layer.on('click', () => openDataDetailPanel(mergedRow, 'book'));
                     layer.addTo(bookLayerGroup);
                     drawn = true;
@@ -11094,6 +11200,66 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
     const update = () => document.body.classList.toggle('panels-split', els.every(e => e.classList.contains('open')));
     els.forEach(e => new MutationObserver(update).observe(e, { attributes: true, attributeFilter: ['class'] }));
     update();
+})();
+</script>
+<script>
+/* アプリとしてインストール：サービスワーカーの登録と、ポータル画面でのインストール案内 */
+(function () {
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+    const KEY = 'yha-install-dismissed', DAYS = 14;
+    const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const dismissed = () => { try { const t = +localStorage.getItem(KEY); return t && Date.now() - t < DAYS * 86400000; } catch (e) { return false; } };
+    let dp = null, box = null;
+
+    const css = document.createElement('style');
+    css.textContent = `
+    #install-banner { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 24px); opacity: 0; pointer-events: none; z-index: 10050; width: min(440px, calc(100% - 24px)); display: flex; gap: 14px; align-items: center; padding: 14px 16px; background: var(--white, #fffdf7); border: 1px solid var(--accent-gold, #a8874c); border-radius: 14px; box-shadow: 0 18px 44px rgba(25,16,9,0.32); font-family: var(--font-sans, sans-serif); transition: opacity .4s, transform .4s; }
+    #install-banner.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+    #install-banner img { width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+    #install-banner .ib-text { flex: 1; min-width: 0; font-size: 0.78rem; line-height: 1.6; color: var(--text-dark, #241a15); }
+    #install-banner .ib-text b { display: block; font-size: 0.9rem; font-family: var(--font-serif, serif); margin-bottom: 2px; }
+    #install-banner .ib-btns { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    #install-banner button { border: none; cursor: pointer; border-radius: 999px; padding: 8px 16px; font-size: 0.78rem; font-family: inherit; }
+    #install-banner .ib-go { background: var(--primary-brown, #3a2a23); color: #fffdf7; }
+    #install-banner .ib-later { background: transparent; color: var(--text-muted, #71604f); padding: 4px 8px; }`;
+    document.head.appendChild(css);
+
+    function build() {
+        box = document.createElement('div');
+        box.id = 'install-banner';
+        const how = isIOS && !dp ? 'Safariの共有ボタン（□に↑）から「ホーム画面に追加」を選ぶと、アプリとして使えます。'
+                                 : 'ホーム画面やデスクトップから、すぐ開けるアプリとして使えます。';
+        box.innerHTML = '<img src="apple-touch-icon.png" alt="">'
+            + '<div class="ib-text"><b>アプリとしてインストール</b>' + how + '</div>'
+            + '<div class="ib-btns">' + (dp ? '<button type="button" class="ib-go">インストール</button>' : '')
+            + '<button type="button" class="ib-later">' + (dp ? 'あとで' : '閉じる') + '</button></div>';
+        document.body.appendChild(box);
+        const go = box.querySelector('.ib-go');
+        if (go) go.onclick = async () => {
+            box.classList.remove('show');
+            dp.prompt();
+            try { await dp.userChoice; } catch (e) {}
+            dp = null;
+        };
+        box.querySelector('.ib-later').onclick = () => {
+            try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {}
+            box.classList.remove('show');
+        };
+    }
+    function update() {
+        const portal = document.getElementById('page-portal');
+        const want = portal && portal.classList.contains('active') && !standalone() && !dismissed() && (dp || isIOS);
+        if (want && !box) build();
+        if (box) box.classList.toggle('show', !!want);
+    }
+    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); dp = e; if (box) { box.remove(); box = null; } setTimeout(update, 1500); });
+    window.addEventListener('appinstalled', () => { dp = null; if (box) box.classList.remove('show'); });
+    const portal = document.getElementById('page-portal');
+    if (portal) new MutationObserver(update).observe(portal, { attributes: true, attributeFilter: ['class'] });
+    setTimeout(update, 2500);
 })();
 </script>
 </body>
