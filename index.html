@@ -564,6 +564,19 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
     font-family: var(--font-sans); font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; padding: 2px 7px; border-radius: 0; color: #fff; display: inline-block; margin: 6px 0 0 6px;
 }
 
+/* ===== 関連データ（古い順リスト） ===== */
+.rel-sub { font-family: var(--font-sans); font-size: 0.7rem; letter-spacing: 0.1em; color: #8a7a6a; font-weight: normal; }
+.rel-list { display: flex; flex-direction: column; gap: 8px; }
+.rel-item { display: flex; gap: 10px; align-items: stretch; cursor: pointer; background: var(--white); border: 1px solid var(--paper-line); transition: var(--transition); min-height: 56px; }
+.rel-item:hover { border-color: var(--accent-gold); box-shadow: var(--shadow); }
+.rel-item img { width: 84px; height: 64px; object-fit: cover; flex: none; background: #eee; display: block; }
+.rel-main { flex: 1; min-width: 0; padding: 6px 8px 6px 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.rel-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rel-year { font-family: var(--font-display); font-size: 0.78rem; font-weight: bold; color: var(--primary-brown); }
+.rel-badge { font-family: var(--font-sans); font-size: 0.58rem; letter-spacing: 0.14em; padding: 2px 7px; color: #fff; }
+.rel-title { font-family: var(--font-sans); font-size: 0.8rem; line-height: 1.4; color: #4c3b2f; overflow-wrap: anywhere; }
+.rel-empty, .rel-loading { font-size: 0.85rem; color: #888; margin-top: 8px; }
+
 /* ===== 全画面画像ズーム ===== */
 #full-screen-overlay {
     display: none; position: fixed; inset: 0; background: rgba(10,6,3,0.96); z-index: 20000;
@@ -2186,6 +2199,19 @@ function getRawGlbUrl(val) {
 }
 
 /* 年代文字列から西暦(3〜4桁)を抽出 */
+/* スプレッドシートの「整理番号（ID）」が複数の行で重なっていても、行どうしが混ざらないようにする。
+   同じIDが2回目以降に出てきた行には「-2」「-3」…を付けて一意にする（最初の行のIDはそのまま）。
+   IDで詳細・地図タイル・ピンを引いているため、重なったままだと「最初に見つかった1件」が全員分として使われてしまう。 */
+function ensureUniqueIds(arr, field) {
+    const f = field || 'id', seen = new Set();
+    arr.forEach(o => {
+        let id = String(o[f]), base = id, n = 1;
+        while (seen.has(id)) id = base + '-' + (++n);
+        seen.add(id);
+        o[f] = id;
+    });
+    return arr;
+}
 function extractYearFromEraString(str) {
     if (!str) return null;
     const m = String(str).match(/(\d{3,4})/);
@@ -3962,6 +3988,8 @@ function buildEraLayers() {
     eras = tiled.map(m => ({
         name: m.name, year: m.yearContent, url: m.tileUrl, id: m.id
     }));
+    /* 古地図ごとに別のタイルを出すため、レイヤは「地図名」ではなく一意なIDで管理する
+       （名前や西暦年が同じ地図があっても、互いに上書きされない） */
 
     layers = {};
     const layerControl = window._eraLayerControl;
@@ -3973,9 +4001,9 @@ function buildEraLayers() {
             console.error('古地図タイルレイヤの作成に失敗しました:', era.name, e);
             return;
         }
-        layers[era.name] = tl;
-        const safeName = escapeJsAttr(era.name);
-        const labelHtml = `<span>${escapeHtml(era.name)}（${escapeHtml(era.year) || '年代不明'}）</span><button class="layer-detail-btn" onclick="event.preventDefault();event.stopPropagation();openMapDetailModalByName('${safeName}')" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>`;
+        layers[era.id] = tl;
+        const safeName = escapeJsAttr(era.id);
+        const labelHtml = `<span>${escapeHtml(era.name)}（${escapeHtml(era.year) || '年代不明'}）</span><button class="layer-detail-btn" onclick="event.preventDefault();event.stopPropagation();openMapDetailModalById('${safeName}')" title="詳細を見る"><i class="fa-solid fa-circle-info"></i></button>`;
         layerControl.addOverlay(tl, labelHtml);
     });
 
@@ -3993,7 +4021,7 @@ function updateEraUI(index) {
     if (!era) return;
 
     Object.values(layers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
-    const nextLayer = layers[era.name];
+    const nextLayer = layers[era.id];
     if (nextLayer) { nextLayer.addTo(map); nextLayer.bringToFront(); activeOverlays = [nextLayer]; }
     else { activeOverlays = []; }
     updateOpacityUI();
@@ -4031,11 +4059,13 @@ function updateOpacityUI(fromSlider) {
         const latest = activeOverlays[activeOverlays.length - 1];
         /* 2枚重ねているとき：スライダーが半分以下なら下の地図名、半分より上なら上の地図名を表示する */
         const shown = (activeOverlays.length > 1 && parseFloat(slider.value) <= 0.5) ? activeOverlays[0] : latest;
-        let name = Object.keys(layers).find(k => layers[k] === shown);
+        const eraKey = Object.keys(layers).find(k => layers[k] === shown);
+        let name = null;
         let openInfo = null;
-        if (name) {
-            const eraName = name;
-            openInfo = () => openMapDetailModalByName(eraName);
+        if (eraKey !== undefined) {
+            const era = eras.find(e => String(e.id) === String(eraKey));
+            name = era ? era.name : eraKey;
+            openInfo = () => openMapDetailModalById(eraKey);
         } else {
             const dl = window._docDrawingLayers || {};
             const docId = Object.keys(dl).find(id => dl[id] === shown);
@@ -4420,7 +4450,6 @@ function openPhotoDetailPanel(p, angle, color) {
     }
     const compareBtnHTML = (p.currentDirectLink && p.currentDirectLink.trim() !== '' && p.currentDirectLink.trim() !== '-')
         ? `<button class="mdp-db-btn" style="background:var(--accent-gold);margin-top:8px;" onclick="openBeforeAfter('${escapeJsAttr(p.imgFull)}', '${escapeJsAttr(p.currentDirectLink)}')"><i class="fa-solid fa-arrows-left-right"></i> 現在写真と比較</button>` : '';
-    const linkedItems = gatherPhotoLinkedItems(p);
     const panelHtml = `
         <div class="mdp-media">
             <div class="media-loading-wrap" style="width:100%;height:100%;">
@@ -4448,12 +4477,10 @@ function openPhotoDetailPanel(p, angle, color) {
         </dl>
         <button class="mdp-db-btn" onclick="openPhotoDetailModalFromPanel('${escapeJsAttr(p.id)}')"><i class="fa-solid fa-database"></i> データベースで確認</button>
         ${compareBtnHTML}
-        <div class="modal-related-assets">
-            <h4><i class="fa-solid fa-diagram-project"></i> 紐づくデータ</h4>
-            ${buildChibanAssetListHtml(linkedItems)}
-        </div>
+        ${relatedBlockHtml('panel-related-body')}
     `;
     openMapDetailPanel(panelHtml);
+    relFill('panel-related-body', () => relatedForPhoto(p));
 }
 
 function openPhotoDetailModalFromPanel(id) {
@@ -6400,7 +6427,7 @@ function gatherChibanLinkedItems(feature, level) {
     keysToMatch.forEach(key => { if (window.chibanMap[key]) window.chibanMap[key].forEach(pushItem); });
 
     /* このポリゴンの範囲内に実際に座標が含まれるデータ（chibanKey欄の手入力に
-       頼らない、ジオメトリによる紐づき）も、すべて紐づくデータとして加える。 */
+       頼らない、ジオメトリによる紐づき）も、すべて関連データとして加える。 */
     const addContainedPoints = (arr, type, titleField, thumbField) => {
         arr.forEach(row => {
             const c = row.coords;
@@ -6438,59 +6465,6 @@ function gatherChibanLinkedItems(feature, level) {
         });
     } catch (err) {}
     return items;
-}
-
-/* 古写真1件について、その撮影方位が作る扇（半径は見通し距離のメタデータに
-   左右されない固定100m）に入っているデータ（座標を持つデータ・地番ポリゴン
-   問わず）を集める。古写真の詳細パネルの「紐づくデータ」欄に表示するために使う。 */
-function gatherPhotoLinkedItems(photo) {
-    const items = [];
-    if (!photo || !photo.lat || !photo.lng || photo.direction === undefined) return items;
-    const angle = getDirectionAngle(photo.direction);
-    if (angle === null) return items;
-
-    let sectorPolygon;
-    try {
-        const sector = calculateSectorPointsKm(photo.lat, photo.lng, angle, CHIBAN_LINK_RADIUS_KM, extractFov(photo.fov));
-        sectorPolygon = turf.polygon([sector.map(pt => [pt[1], pt[0]])]);
-    } catch (err) { return items; }
-
-    const addContainedPoints = (arr, type, titleField, thumbField) => {
-        arr.forEach(row => {
-            const c = row.coords;
-            if (!c || !c[0] || !c[1]) return;
-            try {
-                if (turf.booleanPointInPolygon(turf.point([c[1], c[0]]), sectorPolygon)) {
-                    items.push({ type, id: row.id, title: row[titleField] || row.name || '無題', thumb: row[thumbField] || row.thumbnail || '' });
-                }
-            } catch (err) {}
-        });
-    };
-    try {
-        addContainedPoints(models, 'td', 'name', 'thumbnail');
-        addContainedPoints(buildingData, 'building', 'name', 'thumbnail');
-        addContainedPoints(natureData, 'nature', 'name', 'thumbnail');
-        addContainedPoints(oldRoadData, 'oldroad', 'name', 'thumbnail');
-    } catch (err) {}
-
-    /* 地番ポリゴン（個々のbanchi単位）のうち、扇と重なるものも紐づくデータに含める */
-    try {
-        chibanSectorEntries(sectorPolygon).forEach(en => items.push({ type: 'chiban', id: en.id, title: en.title, thumb: '' }));
-    } catch (err) {}
-
-    return items;
-}
-
-function buildChibanAssetListHtml(items) {
-    if (items.length === 0) {
-        return '<p style="font-size:0.85rem;color:#666;margin-top:8px;">紐づくアーカイブ資産は現在ありません。</p>';
-    }
-    return `<div class="mdp-gallery-grid">${items.map(it => `
-        <div class="gallery-card" onclick='onChibanCardClick(${JSON.stringify(it.type)}, ${JSON.stringify(String(it.id))})'>
-            <img src="${escapeHtml(it.thumb) || 'https://placehold.co/300x200/ccc/fff?text=No+Image'}" onerror="this.src='https://placehold.co/300x200/ccc/fff?text=No+Image'" style="height:110px;">
-            <span class="type-badge" style="background:${TYPE_COLORS[it.type] || '#999'};margin:8px 0 0 8px;">${escapeHtml(TYPE_LABELS[it.type] || it.type)}</span>
-            <h3 style="font-size:0.85rem;margin:4px 8px 10px;">${escapeHtml(it.title)}</h3>
-        </div>`).join('')}</div>`;
 }
 
 /* 地番ポリゴンクリック：ポップアップは表示せず、直接クリックした地番をグレーアウトし、
@@ -6605,7 +6579,7 @@ function applyMapDetailPanelSize() {
 
 /* 地番詳細パネル：個々の地番(banchi)は実測属性を通常の詳細モーダルと同じdl形式で表示、
    大字/小字の集約(oaza/koaza)は属性情報を持たないため、紐づくデータのみ表示する。
-   紐づくデータのギャラリーカードをクリックすると、従来通り画面中央の詳細モーダルが開き、
+   関連データのカードをクリックすると、従来通り画面中央の詳細モーダルが開き、
    それを閉じてもこのパネルは開いたままになる。 */
 function openChibanDetailModal(feature, level) {
     const lvl = level || 'banchi';
@@ -6632,11 +6606,9 @@ function openChibanDetailModal(feature, level) {
         <div class="mdp-media" id="chiban-detail-mini-map"></div>
         ${headerHtml}
         ${metaHtml}
-        <div class="modal-related-assets">
-            <h4><i class="fa-solid fa-diagram-project"></i> 紐づくデータ</h4>
-            ${buildChibanAssetListHtml(items)}
-        </div>`;
+        ${relatedBlockHtml('panel-related-body')}`;
     openMapDetailPanel(panelHtml);
+    relFill('panel-related-body', () => items);
 
     setTimeout(() => {
         try {
@@ -6761,6 +6733,7 @@ function onChibanCardClick(type, id) {
     else if (type === 'oldroad') { const r = oldRoadData.find(x => x.id === id); if (r) openOldRoadDetailModal(r); }
     else if (type === 'building') { const r = buildingData.find(x => x.id === id); if (r) openBuildingDetailModal(r); }
     else if (type === 'doc') { const r = docData.find(x => x.id === id); if (r) openDocDetailModal(r); }
+    else if (type === 'book') { const h = findBookRowById(id); if (h) openBookDetailModalAtRow(h.book.id, h.row.id); }
     else if (type === 'chiban') { chibanFeatureByKeyAsync(id).then(f => { if (f) openChibanDetailModal(f, 'banchi'); }); }
 }
 
@@ -6943,6 +6916,7 @@ async function loadPhotoData() {
                 currentDirectLink: getImg(cols[21]) || ''
             };
         }).filter(p => p.lat !== 0);
+        ensureUniqueIds(archiveData);
 
         if (map) addPhotoMarkersToMainMap(archiveData);
         const list = document.getElementById('photo-list');
@@ -6989,6 +6963,7 @@ async function load3DData() {
                 chibanKey: cols[20] || ''
             };
         }).filter(m => m.coords[0] !== 0);
+        ensureUniqueIds(models);
 
         populateCategoryDropdown();
         if (map) add3DMarkersToMap(models);
@@ -7094,6 +7069,7 @@ async function loadMapData() {
             rights: cols[13] || '－',
             form: cols[14] || '－'
         }));
+        ensureUniqueIds(mapData);   /* 地図名・西暦年・整理番号が同じ地図があっても、1件ずつ別の地図として扱う */
         buildEraLayers();
     } catch (e) {
         console.error("古地図データの取得失敗:", e);
@@ -7130,6 +7106,7 @@ async function loadBuildingData() {
                 info: cols[14] || ''
             };
         });
+        ensureUniqueIds(buildingData);
         renderBuildingMapLayers();
     } catch (e) { console.error("歴史的建造物データの取得失敗:", e); }
 }
@@ -7159,6 +7136,7 @@ async function loadNatureData() {
                 thumbnail: (cols[1] || '').split(/[,\n]+/)[0] ? getImg((cols[1] || '').split(/[,\n]+/)[0].trim()) : null
             };
         });
+        ensureUniqueIds(natureData);
         renderNatureMapLayers();
     } catch (e) { console.error("自然系データの取得失敗:", e); }
 }
@@ -7188,6 +7166,7 @@ async function loadOldRoadData() {
                 coords: (coordParts[0] && coordParts[1]) ? [coordParts[0], coordParts[1]] : [0, 0]
             };
         });
+        ensureUniqueIds(oldRoadData);
         renderOldRoadMapLayers();
     } catch (e) { console.error("古道データの取得失敗:", e); }
 }
@@ -7229,6 +7208,7 @@ async function loadDocData() {
             drawingTileUrl: (cols[21] || '').trim(), // V 図面タイルURL
             genre: cols[22] || ''                    // W ジャンル
         }));
+        ensureUniqueIds(docData);
         renderDocMapLayers();
         buildDocDrawingTree();
     } catch (e) { console.error("文書・史料データの取得失敗:", e); }
@@ -7275,6 +7255,7 @@ async function loadBookData() {
             coordStr: cols[20] || ''
         }));
 
+        ensureUniqueIds(rawItems);
         const groups = new Map();
         const order = [];
         rawItems.forEach(item => {
@@ -7620,8 +7601,8 @@ async function iiifFillListThumb(imgId, manifestUrl) {
     } catch (e) { /* 失敗時はimgのonerrorがプレースホルダを出す */ }
 }
 /* レイヤ選択一覧の「詳細」ボタンから、名称で該当する古地図データを開く */
-function openMapDetailModalByName(name) {
-    const m = mapData.find(x => x.name === name);
+function openMapDetailModalById(id) {
+    const m = mapData.find(x => String(x.id) === String(id));
     if (m) openMapDetailModal(m);
     else showNotification('対応する古地図メタデータが見つかりませんでした。');
 }
@@ -8451,120 +8432,249 @@ function toggleModalPanel() {
 }
 
 /* =====================================================================
-   ■69 関連資料機能（getRecordYear, renderRelatedAssets）
+   ■69 関連データ機能（古写真の扇 ⇔ 座標・地番ポリゴンを持つデータ の紐づけ）
+   -------------------------------------------------------------------
+   ・紐づけの判定は「古写真の扇（固定半径100m）」と「データの位置」だけで行う。
+       データの位置 ＝ ①座標（扇の中に入っている）／②地番キーが指す地番ポリゴン（扇と重なる・接する）
+       どちらか一方でも満たせば紐づく。古写真側・データ側の両方から、まったく同じ判定を使う（対称）。
+   ・データが1件も登録されていない地番ポリゴンそのものは、紐づけの対象にしない。
+   ・表示は古い順（年代不明は末尾）。見出しは「関連データ」。
+   ・地番ポリゴンは小字ごとに遅延読み込みのため、判定は非同期。必要な小字だけを読み込んでから判定する。
    ===================================================================== */
-function getRecordYear(record, type) {
-    let y = null;
-    if (type === 'photo') y = parseInt(record.year);
-    else if (type === 'td') y = record.parsedYear;
-    else if (type === 'nature') y = parseInt(record.yearStart);
-    else if (type === 'oldroad') y = extractYearFromEraString(record.yearBuild);
-    else if (type === 'building') y = extractYearFromEraString(record.yearBuild);
-    else if (type === 'doc') y = parseInt(record.yearWest);
-    return (y === null || isNaN(y)) ? null : y;
+const REL_TYPE_ORDER = { photo: 0, td: 1, building: 2, nature: 3, oldroad: 4, doc: 5, book: 6, chiban: 7 };
+const REL_NO_IMG = 'https://placehold.co/120x80/ccc/fff?text=No+Image';
+let _relSeq = 0;
+
+/* 地番ポリゴン（ChibanStore）の準備待ち。データセット切替直後などで null の間だけ待つ */
+async function relWaitStore(maxMs) {
+    const t0 = Date.now();
+    while (!chibanStore && Date.now() - t0 < (maxMs || 8000)) await new Promise(r => setTimeout(r, 250));
+    return chibanStore;
 }
 
-function findSpatialPhotos(record) {
-    /* record.coords または record.lat/lng と、地番ポリゴンに空間的に交差/内包する古写真を抽出する。
-       「座標」と「地番ポリゴン」のどちらか一方だけでなく、両方が使える場合は両方で判定する
-       （どちらかに引っかかれば紐づける）。
-       扇の半径は「見通し距離」のメタデータには一切左右されない固定100mとする。 */
-    const results = [];
-    let targetPoly = null;
-    if (record.chibanKey) {
-        const f = findChibanFeature(record.chibanKey);
-        if (f) targetPoly = f;
-    }
-    const targetPt = record.coords ? { lat: record.coords[0], lng: record.coords[1] } : (record.lat ? { lat: record.lat, lng: record.lng } : null);
+/* 年代：各データの年代欄から西暦（3〜4桁）を取り出す。取れなければ null（＝年代不明） */
+function relYearOf(type, rec, book) {
+    let raw;
+    if (type === 'photo') raw = rec.year;
+    else if (type === 'td') raw = rec.parsedYear || rec.builtYear;
+    else if (type === 'nature') raw = rec.yearStart;
+    else if (type === 'oldroad' || type === 'building') raw = rec.yearBuild;
+    else if (type === 'doc') raw = rec.yearWest;
+    else if (type === 'book') raw = (book && book.yearWest) || rec.yearWest;
+    if (typeof raw === 'number') return isFinite(raw) && raw > 0 ? raw : null;
+    return extractYearFromEraString(raw);
+}
 
+/* 1件のデータ → 紐づけ用の「位置つきエントリ」。位置（座標も地番も）を持たないデータは null */
+function relEntryFor(type, rec, book) {
+    if (!rec) return null;
+    let title, thumb;
+    if (type === 'td') { title = rec.name; thumb = rec.thumbnail; }
+    else if (type === 'building') { title = rec.name; thumb = (rec.images && rec.images[0]) || rec.thumbnail; }
+    else if (type === 'nature') { title = rec.name; thumb = rec.thumbnail || (rec.images && rec.images[0]); }
+    else if (type === 'oldroad') { title = rec.name; thumb = rec.thumbnail; }
+    else if (type === 'doc') { title = rec.subject; thumb = rec.thumbnail; }
+    else if (type === 'book') { const b = book || rec.book || {}; title = `${b.title || ''}｜${rec.entryLabel || ''}`; thumb = ''; }
+    else return null;
+    const st = chibanStore, km = st ? st.keyMap() : null;
+    const units = [];
+    if (km) parseChibanKeyList(rec.chibanKey).forEach(k => { const u = km.get(k); if (u !== undefined && units.indexOf(u) < 0) units.push(u); });
+    const c = rec.coords;
+    const pts = (c && Number(c[0]) && Number(c[1])) ? [[Number(c[0]), Number(c[1])]] : [];
+    if (!pts.length && !units.length) return null;
+    return { type, id: String(rec.id), title: title || '無題', thumb: thumb || '', year: relYearOf(type, rec, book || rec.book), pts, units };
+}
+
+/* 全データ（石造物・建造物・自然系・古道・文書史料・図書）の位置つきエントリ一覧（キャッシュ付き） */
+let _relIdxCache = null;
+function relDataEntries() {
+    const st = chibanStore;
+    const sig = [models.length, buildingData.length, natureData.length, oldRoadData.length, docData.length, bookData.length].join('|');
+    if (_relIdxCache && _relIdxCache.st === st && _relIdxCache.sig === sig) return _relIdxCache.list;
+    const list = [];
+    const add = (type, arr) => arr.forEach(r => { const en = relEntryFor(type, r); if (en) list.push(en); });
+    add('td', models); add('building', buildingData); add('nature', natureData); add('oldroad', oldRoadData); add('doc', docData);
+    bookData.forEach(b => b.rows.forEach(r => { const en = relEntryFor('book', r, b); if (en) list.push(en); }));
+    _relIdxCache = { st, sig, list };
+    return list;
+}
+
+/* 古写真の扇（半径は見通し距離のメタデータに左右されない固定100m）。向きが無い写真は扇を作れないので対象外 */
+function relFanPolygon(p) {
+    const lat = Number(p.lat), lng = Number(p.lng);
+    if (!lat || !lng) return null;
+    const angle = getDirectionAngle(p.direction);
+    if (angle === null) return null;
+    try {
+        const sector = calculateSectorPointsKm(lat, lng, angle, CHIBAN_LINK_RADIUS_KM, extractFov(p.fov));
+        return turf.polygon([sector.map(pt => [pt[1], pt[0]])]);
+    } catch (e) { return null; }
+}
+let _relFanCache = null;
+function relPhotoFans() {
+    if (_relFanCache && _relFanCache.src === archiveData && _relFanCache.n === archiveData.length) return _relFanCache.list;
+    const list = [];
     archiveData.forEach(p => {
-        if (!p.lat) return;
-        const angle = getDirectionAngle(p.direction);
-        if (angle === null) return;
-        try {
-            const sector = calculateSectorPointsKm(p.lat, p.lng, angle, CHIBAN_LINK_RADIUS_KM, extractFov(p.fov));
-            const coords = sector.map(pt => [pt[1], pt[0]]);
-            const sectorPolygon = turf.polygon([coords]);
-            let intersects = false;
-            if (targetPt) intersects = turf.booleanPointInPolygon(turf.point([targetPt.lng, targetPt.lat]), sectorPolygon);
-            if (!intersects && targetPoly) intersects = turf.booleanIntersects(sectorPolygon, targetPoly);
-            if (intersects) results.push({ type: 'photo', id: p.id, title: p.title, thumb: p.img, year: parseInt(p.year) });
-        } catch (e) {}
+        const poly = relFanPolygon(p);
+        if (!poly) return;
+        try { list.push({ photo: p, poly, bbox: turf.bbox(poly) }); } catch (e) {}
     });
-    return results;
+    _relFanCache = { src: archiveData, n: archiveData.length, list };
+    return list;
 }
 
-function renderRelatedAssets(record, type) {
-    const baseYear = getRecordYear(record, type);
-    let candidates = [];
+function relBBoxOverlap(a, b) { return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]); }
+function relUnitBBox(u) { const e = chibanStore.banchi[u]; return [e[3], e[4], e[5], e[6]]; }
+function relPointInPoly(pt, poly, pbb) {
+    if (pt[1] < pbb[0] || pt[1] > pbb[2] || pt[0] < pbb[1] || pt[0] > pbb[3]) return false;
+    try { return turf.booleanPointInPolygon(turf.point([pt[1], pt[0]]), poly); } catch (e) { return false; }
+}
+/* 判定に必要な小字のポリゴンを読み込む */
+async function relEnsureUnits(units) {
+    const st = chibanStore;
+    if (!st || !units.length) return;
+    const kis = Array.from(new Set(units.map(u => st.banchi[u] && st.banchi[u][0]).filter(k => k !== undefined)));
+    await chibanRunLimited(kis, 6, async ki => { try { await st.loadKoaza(ki); } catch (e) {} });
+}
+function relToItem(en) { return { type: en.type, id: en.id, title: en.title, thumb: en.thumb, year: en.year }; }
 
-    if (type === 'photo') {
-        /* 古写真：撮影方位・画角から作る扇（半径は見通し距離のメタデータに左右されない
-           固定100m）に入っている、座標を持つデータ・地番ポリゴンを、両方問わず紐づける。 */
-        const angle = getDirectionAngle(record.direction);
-        let sectorPolygon = null;
-        if (angle !== null && record.lat && record.lng) {
-            try {
-                const sector = calculateSectorPointsKm(record.lat, record.lng, angle, CHIBAN_LINK_RADIUS_KM, extractFov(record.fov));
-                sectorPolygon = turf.polygon([sector.map(pt => [pt[1], pt[0]])]);
-            } catch (e) { sectorPolygon = null; }
+/* 古写真 → 扇に「座標が内包」または「地番ポリゴンが接触・内包」するデータ */
+async function relatedForPhoto(photo) {
+    const poly = relFanPolygon(photo);
+    if (!poly) return [];
+    await relWaitStore();
+    const fb = turf.bbox(poly), st = chibanStore;
+    const hits = [], pending = [];
+    relDataEntries().forEach(en => {
+        if (en.pts.some(pt => relPointInPoly(pt, poly, fb))) { hits.push(en); return; }
+        if (st && en.units.length) {
+            const near = en.units.filter(u => relBBoxOverlap(relUnitBBox(u), fb));
+            if (near.length) pending.push({ en, near });
         }
-        if (sectorPolygon) {
-            [
-                ['td', models], ['nature', natureData], ['oldroad', oldRoadData], ['building', buildingData]
-            ].forEach(([t, arr]) => {
-                arr.forEach(r => {
-                    if (!r.coords || !r.coords[0]) return;
-                    try {
-                        if (turf.booleanPointInPolygon(turf.point([r.coords[1], r.coords[0]]), sectorPolygon)) {
-                            candidates.push({ type: t, id: r.id, title: r.name || r.subject, thumb: r.thumbnail || (r.images && r.images[0]) || null, year: getRecordYear(r, t) });
-                        }
-                    } catch (e) {}
-                });
-            });
-            /* 地番ポリゴン（個々の地番単位）も、扇と重なるものは紐づくデータに含める */
-            chibanSectorEntries(sectorPolygon).forEach(en => candidates.push({ type: 'chiban', id: en.id, title: en.title, thumb: null, year: null }));
-            /* 文書・史料は自身の座標を持たないため、紐づく地番ポリゴン経由で判定する */
-            docData.forEach(r => {
-                if (!r.chibanKey) return;
-                const f = findChibanFeature(r.chibanKey);
-                if (!f) return;
-                try {
-                    if (turf.booleanIntersects(sectorPolygon, f)) {
-                        candidates.push({ type: 'doc', id: r.id, title: r.subject, thumb: r.thumbnail || null, year: getRecordYear(r, 'doc') });
-                    }
-                } catch (e) {}
-            });
-        }
-    } else {
-        if (record.chibanKey && window.chibanMap[record.chibanKey]) {
-            candidates = window.chibanMap[record.chibanKey]
-                .filter(it => !(it.type === type && String(it.id) === String(record.id)))
-                .map(it => ({ ...it, year: null }));
-        }
-        candidates.push(...findSpatialPhotos(record));
-    }
+    });
+    await relEnsureUnits(pending.reduce((a, x) => a.concat(x.near), []));
+    pending.forEach(({ en, near }) => {
+        if (near.some(u => { const f = st.featureOf(u); try { return f && turf.booleanIntersects(poly, f); } catch (e) { return false; } })) hits.push(en);
+    });
+    return hits.map(relToItem);
+}
 
-    if (baseYear !== null) {
-        candidates = candidates.filter(c => c.year === null || c.year === undefined ? true : c.year > baseYear);
-    }
+/* データ → そのデータの位置（座標／地番ポリゴン）が扇に入っている古写真。判定は上と同一 */
+async function relPhotosForEntry(en) {
+    if (!en) return [];
+    await relWaitStore();
+    const st = chibanStore, fans = relPhotoFans();
+    const hits = [], pending = [];
+    fans.forEach(f => {
+        if (en.pts.some(pt => relPointInPoly(pt, f.poly, f.bbox))) { hits.push(f.photo); return; }
+        if (st && en.units.length) {
+            const near = en.units.filter(u => relBBoxOverlap(relUnitBBox(u), f.bbox));
+            if (near.length) pending.push({ f, near });
+        }
+    });
+    await relEnsureUnits(pending.reduce((a, x) => a.concat(x.near), []));
+    pending.forEach(({ f, near }) => {
+        if (near.some(u => { const ft = st.featureOf(u); try { return ft && turf.booleanIntersects(f.poly, ft); } catch (e) { return false; } })) hits.push(f.photo);
+    });
+    return hits.map(p => ({ type: 'photo', id: String(p.id), title: p.title, thumb: p.img, year: relYearOf('photo', p) }));
+}
 
-    const container = document.getElementById('modal-related-assets-body');
-    if (!container) return;
-    if (candidates.length === 0) {
-        container.innerHTML = '<p style="font-size:0.85rem;color:#999;">関連する資料は見つかりませんでした。</p>';
-        return;
-    }
-    container.innerHTML = `<div class="asset-mini-grid">${candidates.map(c => `
-        <div class="asset-mini-card" onclick='onChibanCardClick(${JSON.stringify(c.type)}, ${JSON.stringify(String(c.id))})'>
-            <img src="${escapeHtml(c.thumb) || 'https://placehold.co/120x80/ccc/fff?text=No+Image'}" onerror="this.src='https://placehold.co/120x80/ccc/fff?text=No+Image'">
-            <span class="amc-badge" style="background:${TYPE_COLORS[c.type] || '#999'};">${escapeHtml(TYPE_LABELS[c.type] || c.type)}</span>
-            <div class="amc-title">${escapeHtml(c.title)}</div>
+/* 種別とIDから元データを引く（年代・サムネの補完用） */
+function relFindRecord(type, id) {
+    id = String(id);
+    const by = arr => arr.find(x => String(x.id) === id);
+    if (type === 'photo') return { rec: by(archiveData) };
+    if (type === 'td') return { rec: by(models) };
+    if (type === 'building') return { rec: by(buildingData) };
+    if (type === 'nature') return { rec: by(natureData) };
+    if (type === 'oldroad') return { rec: by(oldRoadData) };
+    if (type === 'doc') return { rec: by(docData) };
+    if (type === 'book') { const h = findBookRowById(id); return h ? { rec: h.row, book: h.book } : { rec: null }; }
+    return { rec: null };
+}
+
+/* 重複を除き、年代を補い、古い順（年代不明は末尾）に並べる */
+function relFinalize(items) {
+    const seen = new Set(), out = [];
+    (items || []).forEach(it => {
+        const k = it.type + ':' + it.id;
+        if (seen.has(k) || it.type === 'chiban') return;   /* 登録データのない地番ポリゴンそのものは紐づけない */
+        seen.add(k);
+        let year = it.year;
+        if (year === undefined || year === null) {
+            const f = relFindRecord(it.type, it.id);
+            year = f.rec ? relYearOf(it.type, f.rec, f.book) : null;
+        }
+        out.push(Object.assign({}, it, { year: (year === undefined) ? null : year }));
+    });
+    out.sort((a, b) => {
+        const ay = a.year, by = b.year;
+        if (ay === null && by !== null) return 1;
+        if (ay !== null && by === null) return -1;
+        if (ay !== by && ay !== null) return ay - by;
+        return ((REL_TYPE_ORDER[a.type] || 0) - (REL_TYPE_ORDER[b.type] || 0)) || String(a.title).localeCompare(String(b.title), 'ja');
+    });
+    return out;
+}
+
+function relListHtml(items) {
+    if (!items.length) return '<p class="rel-empty">関連データはありません。</p>';
+    return `<div class="rel-list">${items.map(it => `
+        <div class="rel-item" data-type="${escapeHtml(it.type)}" data-id="${escapeHtml(it.id)}" onclick="onRelatedCardClick(this)">
+            <img src="${escapeHtml(it.thumb) || REL_NO_IMG}" loading="lazy" onerror="this.onerror=null;this.src='${REL_NO_IMG}'">
+            <div class="rel-main">
+                <div class="rel-meta"><span class="rel-year">${it.year ? escapeHtml(it.year) + '年' : '年代不明'}</span><span class="rel-badge" style="background:${TYPE_COLORS[it.type] || '#999'};">${escapeHtml(TYPE_LABELS[it.type] || it.type)}</span></div>
+                <div class="rel-title">${escapeHtml(it.title)}</div>
+            </div>
         </div>`).join('')}</div>`;
 }
+function onRelatedCardClick(el) { onChibanCardClick(el.dataset.type, el.dataset.id); }
 
+/* 「関連データ」ブロック（見出し＋読み込み中表示）。containerId の中身を relFill で埋める */
+function relatedBlockHtml(containerId) {
+    return `<div class="modal-related-assets"><h4><i class="fa-solid fa-diagram-project"></i> 関連データ <span class="rel-sub">古い順</span></h4><div id="${containerId}"><p class="rel-loading"><i class="fa-solid fa-spinner fa-spin"></i> 読み込み中…</p></div></div>`;
+}
+/* itemsProvider（配列 or Promise）の結果を containerId に描く。途中で別の詳細に切り替わっていたら描かない */
+function relFill(containerId, itemsProvider) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const token = String(++_relSeq);
+    el.dataset.relToken = token;
+    Promise.resolve().then(itemsProvider).then(items => {
+        const el2 = document.getElementById(containerId);
+        if (!el2 || el2.dataset.relToken !== token) return;
+        el2.innerHTML = relListHtml(relFinalize(items));
+    }).catch(err => {
+        console.warn('関連データの取得に失敗:', err);
+        const el2 = document.getElementById(containerId);
+        if (el2 && el2.dataset.relToken === token) el2.innerHTML = '<p class="rel-empty">関連データを取得できませんでした。</p>';
+    });
+}
+
+/* 1件のデータ（古写真以外）に関連するもの：①扇に入る古写真 ②同じ地番キーを持つ他のデータ */
+function relatedForRecord(record, type) {
+    const book = (type === 'book') ? record.book : null;
+    const en = relEntryFor(type, record, book);
+    const sameKey = [];
+    parseChibanKeyList(record.chibanKey).forEach(k => {
+        (window.chibanMap[k] || []).forEach(it => {
+            if (it.type === type && String(it.id) === String(record.id)) return;
+            sameKey.push({ type: it.type, id: String(it.id), title: it.title, thumb: it.thumb, year: undefined });
+        });
+    });
+    return relPhotosForEntry(en).then(photos => photos.concat(sameKey));
+}
+/* 古写真・各データ共通の入口 */
+function relatedItemsFor(record, type) {
+    return type === 'photo' ? relatedForPhoto(record) : relatedForRecord(record, type);
+}
+
+/* DB詳細モーダル用（各モーダルは relatedAssetsBlockHTML() を置き、描画後に renderRelatedAssets を呼ぶ） */
+function renderRelatedAssets(record, type) {
+    relFill('modal-related-assets-body', () => relatedItemsFor(record, type));
+}
 function relatedAssetsBlockHTML() {
-    return `<div class="modal-related-assets"><h4><i class="fa-solid fa-diagram-project"></i> 関連資料</h4><div id="modal-related-assets-body"></div></div>`;
+    return relatedBlockHtml('modal-related-assets-body');
 }
 
 /* =====================================================================
@@ -9061,7 +9171,7 @@ function openDataDetailPanel(row, type, isOrigin) {
     if (displayRows.length > 1) {
         const others = displayRows.filter(r => String(r.id) !== String(row.id));
         familyHtml = `<div class="modal-related-assets">
-            <h4><i class="fa-solid fa-diagram-project"></i> 関連データ（同じグループ内・全${displayRows.length}件）</h4>
+            <h4><i class="fa-solid fa-diagram-project"></i> 同じグループのデータ（全${displayRows.length}件）</h4>
             <div class="mdp-gallery-grid">${others.map(r => `
                 <div class="gallery-card" onclick='openDataDetailPanel(${JSON.stringify(r).replace(/'/g, "&#39;")}, ${JSON.stringify(type)})'>
                     <img src="${escapeHtml((r.images && r.images[0]) || r.thumbnail) || 'https://placehold.co/300x200/ccc/fff?text=No+Image'}" onerror="this.src='https://placehold.co/300x200/ccc/fff?text=No+Image'" style="height:100px;">
@@ -9080,8 +9190,10 @@ function openDataDetailPanel(row, type, isOrigin) {
         <dl class="meta-info-list">${metaRows}</dl>
         <button class="mdp-db-btn" onclick="openDataDetailModalFromPanel(${JSON.stringify(type)}, ${JSON.stringify(String(row.id))})"><i class="fa-solid fa-database"></i> データベースで確認</button>
         ${familyHtml}
+        ${relatedBlockHtml('panel-related-body')}
     `;
     openMapDetailPanel(panelHtml, { keepOld: true });
+    relFill('panel-related-body', () => relatedForRecord(row, type));
 }
 
 function openDataDetailModalFromPanel(type, id) {
@@ -9264,7 +9376,7 @@ function focusOnEraMap(mapId) {
         if (slider) slider.value = idx;
         updateEraUI(idx);
         if (map) map.invalidateSize();
-        jumpToTileLayerBounds(layers[eras[idx].name]);
+        jumpToTileLayerBounds(layers[eras[idx].id]);
     }, 300);
 }
 
@@ -10253,8 +10365,10 @@ function openDocDetailPanel(row) {
             <dt>地番キー</dt><dd>${escapeHtml(row.chibanKey) || '－'}</dd>
         </dl>
         <button class="mdp-db-btn" onclick="openDocDetailModalFromPanel('${escapeJsAttr(row.id)}')"><i class="fa-solid fa-database"></i> データベースで確認</button>
+        ${relatedBlockHtml('panel-related-body')}
     `;
     openMapDetailPanel(panelHtml);
+    relFill('panel-related-body', () => relatedForRecord(row, 'doc'));
     loadDocPanelThumbnail(row, thumbId);
 }
 
