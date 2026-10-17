@@ -1051,7 +1051,11 @@ label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; w
 
 /* ===== IIIFビュアー（OpenSeadragon） ===== */
 .pdf-viewer-scroll.iiif-mode { overflow: hidden; scroll-snap-type: none; }
+.pdf-viewer-scroll.iiif-mode { position: relative; min-height: 0; }
 .iiif-wrap { flex: 0 0 100%; min-width: 100%; height: 100%; position: relative; direction: ltr; background: #1e1610; }
+/* 親（.pdf-viewer-scroll）いっぱいに広げる。中身（OpenSeadragon）が絶対配置で自身の高さを持たないため、
+   高さが親任せだとスマホで0になっていた */
+.pdf-viewer-scroll.iiif-mode > .iiif-wrap { position: absolute; top: 0; left: 0; right: 0; bottom: 0; height: auto; min-width: 0; }
 .iiif-osd { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
 .iiif-tools { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
 .iiif-tools button {
@@ -1144,8 +1148,12 @@ label.doc-tile-leaf span { flex: 1; overflow: hidden; text-overflow: ellipsis; w
     #chiban-panel-wrapper { top: var(--header-height); }
     body.panels-split #spot-settings-wrapper { bottom: calc((100vh - var(--header-height)) / 2); bottom: calc((100dvh - var(--header-height)) / 2); }
     body.panels-split #chiban-panel-wrapper { top: calc(var(--header-height) + (100vh - var(--header-height)) / 2); top: calc(var(--header-height) + (100dvh - var(--header-height)) / 2); }
-    .doc-modal-layout { flex-direction: column; }
-    .doc-pdf-section { height: 40vh; }
+    .doc-modal-layout { flex-direction: column; height: auto; min-height: 100%; flex: none; }
+    /* 以前は flex:1 のまま高さ40vhを指定していたため、下の情報欄が長いと縮められ、
+       中身が絶対配置のIIIFビュアーは高さ0になっていた。縮まない固定の高さにする */
+    .doc-pdf-section { flex: 0 0 auto; height: 40vh; height: 40dvh; min-height: 280px; }
+    .doc-pdf-section .pdf-viewer-scroll { min-height: 0; }
+    .doc-modal-layout > .info-section-wrapper { flex: none; }
     .doc-image-grid { grid-template-columns: repeat(2, 1fr); }
     .gallery-grid { columns: 2; column-gap: 14px; padding: 8px 0 10px; }
     .gallery-grid > .gallery-card { margin-bottom: 14px; }
@@ -9929,6 +9937,7 @@ function iiifDestroyViewer() {
     const v = window._docViewer;
     if (v && v.iiif) {
         try { clearTimeout(v.iiif.timer); } catch (e) {}
+        try { if (v.iiif.resizeObs) v.iiif.resizeObs.disconnect(); } catch (e) {}
         try { if (v.iiif.osd) v.iiif.osd.destroy(); } catch (e) {}
         if (v.iiif.keyHandler) document.removeEventListener('keydown', v.iiif.keyHandler);
         v.iiif = null;
@@ -10036,6 +10045,15 @@ function iiifCreateViewer() {
         if (s) { s.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> このコマの画像を読み込めませんでした。'; s.style.display = 'flex'; }
     });
     st.osd = osd;
+    /* モーダルを開いた直後やスマホのアドレスバーの出入りで箱の大きさが変わっても、描画領域を合わせ直す */
+    try {
+        const box = document.getElementById('iiif-osd');
+        if (box && window.ResizeObserver) {
+            st.resizeObs = new ResizeObserver(() => { try { osd.forceResize(); } catch (e) {} });
+            st.resizeObs.observe(box);
+        }
+        setTimeout(() => { try { osd.forceResize(); } catch (e) {} }, 350);
+    } catch (e) {}
 }
 
 function iiifSetupInteractions() {
