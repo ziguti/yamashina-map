@@ -7256,18 +7256,39 @@ async function loadBookData() {
         }));
 
         ensureUniqueIds(rawItems);
-        const groups = new Map();
-        const order = [];
+        /* 行を「1冊」にまとめる。これまでは書名だけでまとめていたため、書名が同じ別の本が1冊に混ざり、
+           資料URLも最初の1冊のものが全員に使われていた。
+           ・書名が同じでも、資料URLが異なれば別の本として分ける
+           ・資料URLが空の行は、同じ書名の直前の本の続き（小見出しの行）として扱う
+           ・本の識別子（id）は、最初の本は書名のまま、2冊目以降は「書名#2」「書名#3」…にする */
+        const bookGroups = [];
+        const lastByTitle = new Map();
         rawItems.forEach(item => {
-            const key = item.title;
-            if (!groups.has(key)) { groups.set(key, []); order.push(key); }
-            groups.get(key).push(item);
+            const cands = bookGroups.filter(g => g.title === item.title);
+            let g = null;
+            if (item.url) {
+                g = cands.find(c => c.url === item.url) || cands.find(c => !c.url) || null;
+                if (g && !g.url) g.url = item.url;
+            } else {
+                g = lastByTitle.get(item.title) || null;
+            }
+            if (!g) {
+                const n = cands.length + 1;
+                g = { title: item.title, id: n === 1 ? item.title : `${item.title}#${n}`, url: item.url, rows: [] };
+                bookGroups.push(g);
+            }
+            lastByTitle.set(item.title, g);
+            g.rows.push(item);
         });
+        const groups = new Map(bookGroups.map(g => [g.id, g.rows]));
+        const order = bookGroups.map(g => g.id);
+        const titleOfGroup = new Map(bookGroups.map(g => [g.id, g.title]));
 
         const firstNonEmpty = (arr, field) => { const v = arr.map(r => r[field]).find(v => v && v.trim() !== '' && v.trim() !== '-'); return v || ''; };
 
-        bookData = order.map(title => {
-            const rowsOfBook = groups.get(title);
+        bookData = order.map(bookId => {
+            const title = titleOfGroup.get(bookId);
+            const rowsOfBook = groups.get(bookId);
             const url = firstNonEmpty(rowsOfBook, 'url');
             rowsOfBook.forEach(r => {
                 r.pdfUrl = url; /* 文書・史料と同じビュアー関数（initDocPdf等）がこの名前を参照する */
@@ -7287,7 +7308,7 @@ async function loadBookData() {
             });
             rowsOfBook.sort((a, b) => a.startPage - b.startPage);
             return {
-                id: title, title, url,
+                id: bookId, title, url,
                 titleKana: firstNonEmpty(rowsOfBook, 'titleKana'),
                 creator: firstNonEmpty(rowsOfBook, 'creator'),
                 publisher: firstNonEmpty(rowsOfBook, 'publisher'),
