@@ -276,7 +276,7 @@ body.panels-split #chiban-panel-wrapper { top: calc(var(--header-height) + var(-
 #map.gl-driven > #map-gl { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; pointer-events: auto; background: #2a2118; }
 #map.gl-driven #map-gl, #map.gl-driven #map-gl canvas, #map.gl-driven #map-gl .maplibregl-canvas-container { cursor: inherit !important; }
 #map.gl-driven .leaflet-popup, #map.gl-driven .leaflet-tooltip { pointer-events: auto; }
-#map.gl-driven.gl-hover-layer { cursor: pointer; }
+#map.gl-driven.gl-hover-layer, #map.gl-driven.chiban-hover { cursor: pointer; }
 .map-overlay-panel {
     position: absolute; z-index: 1000; background: rgba(26,17,11,0.88); backdrop-filter: blur(12px);
     border: 1px solid rgba(168,135,76,0.45); border-radius: 2px; box-shadow: var(--shadow-lift); padding: 18px;
@@ -371,12 +371,12 @@ body.panels-split #chiban-panel-wrapper { top: calc(var(--header-height) + var(-
 .chiban-label span {
     display: inline-block;
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
-    font-weight: 400;
-    color: #fff;
+    font-weight: 500;
+    color: #fffdf7;
     line-height: 1;
-    -webkit-text-stroke: 0.6px #000;
+    -webkit-text-stroke: 0.6px #241a15;
     paint-order: stroke fill;
-    text-shadow: -0.6px -0.6px 0 #000, 0.6px -0.6px 0 #000, -0.6px 0.6px 0 #000, 0.6px 0.6px 0 #000;
+    text-shadow: -0.6px -0.6px 0 #241a15, 0.6px -0.6px 0 #241a15, -0.6px 0.6px 0 #241a15, 0.6px 0.6px 0 #241a15;
 }
 .chiban-tree-oaza > summary {
     font-family: var(--font-serif); font-weight: 700; color: var(--primary-brown); cursor: pointer;
@@ -1507,8 +1507,8 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
                     <div class="legend-item"><i class="fa-solid fa-torii-gate" style="color:#c62828;width:16px;"></i>古道：参道／<i class="fa-solid fa-road" style="color:#a1887f;width:16px;"></i>街道・国道</div>
                     <div class="legend-item"><i class="fa-solid fa-torii-gate" style="color:#ff8c00;width:16px;"></i>建造物：神社／<i class="fa-solid fa-building-columns" style="color:#c9a227;width:16px;"></i>洋風建築／<i class="fa-solid fa-train" style="color:#455a64;width:16px;"></i>鉄道／<i class="fa-solid fa-bridge" style="color:#78909c;width:16px;"></i>橋梁</div>
                     <div class="legend-item"><span class="legend-swatch" style="background:#1a2a4a;"></span>文書・史料</div>
-                    <div class="legend-item"><span class="legend-swatch" style="background:#ffd600;"></span>地番ポリゴン：大字／<span class="legend-swatch" style="background:#ff6d00;"></span>小字／<span class="legend-swatch" style="background:#00e5ff;"></span>地番</div>
-                    <div class="legend-item"><span class="legend-swatch" style="background:#424242;"></span>クリックして選択中の地番（グレーアウト）</div>
+                    <div class="legend-item"><span class="legend-swatch" style="background:#3a2a23;"></span>地番ポリゴン：大字／<span class="legend-swatch" style="background:#7a5a2a;"></span>小字／<span class="legend-swatch" style="background:#8c6d35;"></span>地番</div>
+                    <div class="legend-item"><span class="legend-swatch" style="background:#dcb86a;"></span>マウスを重ねた地番／<span class="legend-swatch" style="background:#3a2a23;"></span>クリックして選択中の地番</div>
                 </div>
                 <p style="font-size:0.72rem;color:var(--text-muted);margin-top:8px;">※ 種別ごとの詳しい色分けは、各データの絞り込み項目や地図上のアイコンでも確認できます。</p>
             </div>
@@ -3328,6 +3328,12 @@ const PinHubGL = {
    ・全ポリゴンを1つの GeoJSON ソース（塗り＋輪郭の3レイヤ）にまとめて描く。数百件あっても重くならない。
    ・L.geoJSON と同じ使い方（.on('click') / .addTo(group) / .setStyle() / .getBounds()）ができるので、呼び出し側はほぼそのまま。
    ・重なり順は、古地図タイル ＜ ポリゴン ＜ ピン。ポリゴンのクリックは、重なっているうち一番上の1件だけに伝える。 */
+/* 古地図タイルを差し込む位置：地番レイヤがあればその下、なければ検索結果の図形(geo-fill)／ピンの下 */
+function glOverlayAnchor() {
+    try { const c = (typeof ChibanGL !== 'undefined') ? ChibanGL.firstLayerId() : undefined; if (c) return c; } catch (e) {}
+    return GLGeoHub.ready() ? 'geo-fill' : (PinHub.firstGLId && PinHub.firstGLId());
+}
+
 const GLGeoHub = {
     items: new Set(), _t: 0,
     ready: function () { return !!(typeof GLMaster !== 'undefined' && GLMaster.gl && GLMaster.gl.getLayer('geo-fill')); },
@@ -3575,7 +3581,7 @@ const GLRasterLayer = L.Layer.extend({
     },
     _doAdd: function (gl, maxzoom) {
         gl.addSource(this._gid, { type: 'raster', tiles: ['oldtile://' + this._resolverId + '/{z}/{x}/{y}'], tileSize: 256, minzoom: 0, maxzoom: Math.min(maxzoom, 22) });
-        gl.addLayer({ id: this._gid, type: 'raster', source: this._gid, paint: { 'raster-opacity': this._opacity, 'raster-fade-duration': 0 } }, GLGeoHub.ready() ? 'geo-fill' : (PinHub.firstGLId && PinHub.firstGLId()));
+        gl.addLayer({ id: this._gid, type: 'raster', source: this._gid, paint: { 'raster-opacity': this._opacity, 'raster-fade-duration': 0 } }, glOverlayAnchor());
     },
     setOpacity: function (o) {
         this._opacity = o; this.options.opacity = o;
@@ -3585,7 +3591,7 @@ const GLRasterLayer = L.Layer.extend({
     },
     bringToFront: function () {
         const gl = GLMaster.gl;
-        if (gl.getLayer(this._gid)) gl.moveLayer(this._gid, GLGeoHub.ready() ? 'geo-fill' : (PinHub.firstGLId && PinHub.firstGLId()));
+        if (gl.getLayer(this._gid)) gl.moveLayer(this._gid, glOverlayAnchor());
         return this;
     },
     bringToBack: function () {
@@ -3937,17 +3943,17 @@ function initMap() {
         handleChibanMapClick(e);
     });
 
+    /* ズーム・移動の終了時に、ラベルだけを1回描き直す（zoomendとmoveendは続けて発火するので、まとめて1回にする） */
+    let _chibanRenderTimer = null;
+    const scheduleChibanRender = (delay) => {
+        clearTimeout(_chibanRenderTimer);
+        _chibanRenderTimer = setTimeout(() => { _chibanRenderTimer = null; renderChibanLayer(); }, delay);
+    };
     map.on('zoomend', () => {
-        const newLevel = currentChibanLevel();
-        window._lastChibanLevel = newLevel;
-        renderChibanLayer();
+        window._lastChibanLevel = currentChibanLevel();
+        scheduleChibanRender(120);
     });
-    /* パン（表示範囲の移動）でも、ビューポート内のみ再描画して負荷を抑える */
-    let _chibanMoveDebounce = null;
-    map.on('moveend', () => {
-        clearTimeout(_chibanMoveDebounce);
-        _chibanMoveDebounce = setTimeout(() => { renderChibanLayer({ fromMove: true }); }, 200);
-    });
+    map.on('moveend', () => scheduleChibanRender(160));
 
     const clusterIconFn = (cluster) => L.divIcon({
         html: '<div>' + cluster.getChildCount() + '</div>',
@@ -5560,19 +5566,34 @@ function chibanSectorEntries(sectorPolygon) {
      そのため、表示を切り替えるズームも「Leafletのズーム − 1」で指定する。
    ===================================================================== */
 const ChibanGL = {
-    layer: null, gl: null, ready: null, protocol: null, current: null,
-    datasets: {}, _dsPromises: {},
+    layer: null, gl: null, ready: null, protocol: null, current: null, direct: false,
+    datasets: {}, _dsPromises: {}, _visCache: {}, _hoverKey: null, _hoverBound: false,
     NONE: ['==', ['get', '__none__'], 1],
 
+    /* 地番の境界線は、メイン地図（GLMaster のMapLibre）に直接描く。
+       以前は「もう1枚のMapLibre」をLeafletのレイヤとして重ねていたため、操作中のCSS拡大縮小と再同期がぶつかって
+       点滅・位置ずれ・表示されない／選択できない、の原因になっていた。直接描けば、地図と完全に同じ動きになる。
+       （WebGLが使えず Leaflet単独で動いている場合だけ、従来の重ね方にもどる） */
     init() {
         if (this.ready) return this.ready;
         this.ready = new Promise((resolve, reject) => {
             try {
-                if (!window.maplibregl || !L.maplibreGL) throw new Error('MapLibre GLの読み込みに失敗しました');
+                if (!window.maplibregl) throw new Error('MapLibre GLの読み込みに失敗しました');
                 if (!this.protocol) {
                     this.protocol = new pmtiles.Protocol();
                     maplibregl.addProtocol('pmtiles', this.protocol.tile);
                 }
+                if (typeof GLMaster !== 'undefined' && GLMaster.gl) {
+                    this.direct = true;
+                    this.gl = GLMaster.gl;
+                    const gl = this.gl;
+                    const ok = () => { try { return !!gl.getLayer('gsi'); } catch (e) { return false; } };
+                    if (ok()) { resolve(); return; }
+                    const h = () => { if (ok()) { gl.off('styledata', h); resolve(); } };
+                    gl.on('styledata', h);
+                    return;
+                }
+                if (!L.maplibreGL) throw new Error('MapLibre GL（Leaflet連携）の読み込みに失敗しました');
                 if (!map.getPane('chibanPane')) map.createPane('chibanPane').style.zIndex = 390;
                 this.layer = L.maplibreGL({
                     style: { version: 8, sources: {}, layers: [] },
@@ -5594,8 +5615,29 @@ const ChibanGL = {
         return fallback;
     },
 
+    /* 地番レイヤのうち、いちばん下にあるもののID（古地図タイルをその下に入れるために使う） */
+    firstLayerId() {
+        if (!this.direct || !this.gl) return undefined;
+        try {
+            const ls = this.gl.getStyle().layers;
+            for (let i = 0; i < ls.length; i++) if (ls[i].id.indexOf('chb-') === 0) return ls[i].id;
+        } catch (e) {}
+        return undefined;
+    },
+
+    /* 地番レイヤを差し込む位置：検索結果の図形(geo-fill)・ピンより下 */
+    _anchor() {
+        if (!this.direct) return undefined;
+        try {
+            if (this.gl.getLayer('geo-fill')) return 'geo-fill';
+            return (typeof PinHub !== 'undefined' && PinHub.firstGLId) ? PinHub.firstGLId() : undefined;
+        } catch (e) { return undefined; }
+    },
+
     ensureDataset(id) {
-        if (!this._dsPromises[id]) this._dsPromises[id] = this._buildDataset(id);
+        if (!this._dsPromises[id]) {
+            this._dsPromises[id] = this._buildDataset(id).catch(e => { delete this._dsPromises[id]; throw e; });
+        }
         return this._dsPromises[id];
     },
 
@@ -5603,12 +5645,27 @@ const ChibanGL = {
         await this.init();
         const cfg = CHIBAN_DATASETS[id];
         const gl = this.gl;
-        const info = { fill: {}, line: {}, hl: {}, ids: [] };
-        const zoomRange = {      /* [表示を始めるLeafletズーム, 表示を終えるLeafletズーム]（nullは制限なし） */
-            oaza:   [null, CHIBAN_ZOOM_KOAZA],
-            koaza:  [CHIBAN_ZOOM_KOAZA, CHIBAN_ZOOM_BANCHI],
-            banchi: [CHIBAN_ZOOM_BANCHI, null]
+        const info = { fill: {}, line: {}, hl: {}, hv: {}, ids: [] };
+        /* [表示を始めるLeafletズーム, 表示を終えるLeafletズーム]（nullは制限なし）。
+           境目では前後0.5段階だけ両方を重ねて、色を交互に薄く・濃くする（切り替わる瞬間に何も見えない時間をなくす） */
+        const T = { koaza: CHIBAN_ZOOM_KOAZA, banchi: CHIBAN_ZOOM_BANCHI };
+        const BAND = 0.5;
+        const zoomRange = {
+            oaza:   [null, T.koaza + BAND],
+            koaza:  [T.koaza - BAND, T.banchi + BAND],
+            banchi: [T.banchi - BAND, null]
         };
+        const strictRange = { oaza: [null, T.koaza], koaza: [T.koaza, T.banchi], banchi: [T.banchi, null] };
+        /* 不透明度を、ズームに応じて 0→最大→0 と変化させる式（MapLibre側のズーム = Leafletのズーム − 1） */
+        const fadeOpacity = (level, maxOp) => {
+            const inStart = (level === 'oaza') ? null : (strictRange[level][0] - 1);
+            const outEnd = (level === 'banchi') ? null : (strictRange[level][1] - 1);
+            const stops = [];
+            if (inStart != null) stops.push(inStart - BAND, 0, inStart, maxOp);
+            if (outEnd != null) stops.push(outEnd, maxOp, outEnd + BAND, 0);
+            return ['interpolate', ['linear'], ['zoom']].concat(stops);
+        };
+        const before = this._anchor();
         for (const level of ['oaza', 'koaza', 'banchi']) {
             const url = chibanUrl(cfg.tiles[level]);
             const archive = new pmtiles.PMTiles(url);
@@ -5617,23 +5674,105 @@ const ChibanGL = {
             const sid = 'chb-' + id + '-' + level;
             gl.addSource(sid, { type: 'vector', url: 'pmtiles://' + url });
             const st = CHIBAN_LEVEL_STYLE[level];
-            const zr = zoomRange[level];
-            const zf = {};
-            if (zr[0] != null) zf.minzoom = zr[0] - 1;
-            if (zr[1] != null) zf.maxzoom = zr[1] - 1;
-            const add = (def) => { gl.addLayer(Object.assign({ source: sid, 'source-layer': srcLayer, layout: { visibility: 'none' } }, zf, def)); info.ids.push(def.id); };
+            const zr = zoomRange[level], sr = strictRange[level];
+            const zfBand = {}, zfStrict = {};
+            if (zr[0] != null) zfBand.minzoom = zr[0] - 1;
+            if (zr[1] != null) zfBand.maxzoom = zr[1] - 1;
+            if (sr[0] != null) zfStrict.minzoom = sr[0] - 1;
+            if (sr[1] != null) zfStrict.maxzoom = sr[1] - 1;
+            const add = (def, zf) => {
+                const lay = Object.assign({ source: sid, 'source-layer': srcLayer, layout: { visibility: 'none' } }, zf, def);
+                if (before && gl.getLayer(before)) gl.addLayer(lay, before); else gl.addLayer(lay);
+                info.ids.push(def.id);
+            };
             info.fill[level] = sid + '-fill';
             info.line[level] = sid + '-line';
-            add({ id: sid + '-fill', type: 'fill', paint: { 'fill-color': st.fillColor, 'fill-opacity': st.fillOpacity } });
-            add({ id: sid + '-line', type: 'line', paint: { 'line-color': st.color, 'line-width': st.weight, 'line-opacity': 0.9 } });
+            /* 下から順に：塗り → 縁取り(halo) → 境界線 → ホバー → 選択中 */
+            add({ id: sid + '-fill', type: 'fill', paint: { 'fill-color': st.fillColor, 'fill-opacity': fadeOpacity(level, st.fillOpacity), 'fill-antialias': false } }, zfBand);
+            add({ id: sid + '-halo', type: 'line', layout: { visibility: 'none', 'line-join': 'round' }, paint: { 'line-color': st.halo, 'line-width': st.haloWeight, 'line-opacity': fadeOpacity(level, 0.55) } }, zfBand);
+            add({ id: sid + '-line', type: 'line', layout: { visibility: 'none', 'line-join': 'round' }, paint: { 'line-color': st.color, 'line-width': st.weight, 'line-opacity': fadeOpacity(level, 0.95) } }, zfBand);
+            info.hv[level] = [sid + '-hvfill', sid + '-hvline'];
+            add({ id: sid + '-hvfill', type: 'fill', filter: this.NONE, paint: { 'fill-color': CHIBAN_HOVER_STYLE.fillColor, 'fill-opacity': CHIBAN_HOVER_STYLE.fillOpacity, 'fill-antialias': false } }, zfStrict);
+            add({ id: sid + '-hvline', type: 'line', filter: this.NONE, layout: { visibility: 'none', 'line-join': 'round' }, paint: { 'line-color': CHIBAN_HOVER_STYLE.color, 'line-width': CHIBAN_HOVER_STYLE.weight } }, zfStrict);
             if (level !== 'banchi') {
                 info.hl[level] = [sid + '-hlfill', sid + '-hlline'];
-                add({ id: sid + '-hlfill', type: 'fill', filter: this.NONE, paint: { 'fill-color': CHIBAN_ACTIVE_STYLE.fillColor, 'fill-opacity': 0.4 } });
-                add({ id: sid + '-hlline', type: 'line', filter: this.NONE, paint: { 'line-color': CHIBAN_ACTIVE_STYLE.color, 'line-width': CHIBAN_ACTIVE_STYLE.weight } });
+                add({ id: sid + '-hlfill', type: 'fill', filter: this.NONE, paint: { 'fill-color': CHIBAN_ACTIVE_STYLE.fillColor, 'fill-opacity': CHIBAN_ACTIVE_STYLE.fillOpacity, 'fill-antialias': false } }, {});
+                add({ id: sid + '-hlline', type: 'line', filter: this.NONE, layout: { visibility: 'none', 'line-join': 'round' }, paint: { 'line-color': CHIBAN_ACTIVE_STYLE.color, 'line-width': CHIBAN_ACTIVE_STYLE.weight } }, {});
             }
         }
         this.datasets[id] = info;
+        this._bindEvents();
         return info;
+    },
+
+    /* PMTilesの読み込み失敗は、原因が分かるようにコンソールへ出す（URL・CORS・Range対応の確認用） */
+    _bindEvents() {
+        if (this._evBound || !this.gl) return;
+        this._evBound = true;
+        const gl = this.gl;
+        let warned = false;
+        gl.on('error', (e) => {
+            const sid = e && e.sourceId;
+            if (sid && String(sid).indexOf('chb-') === 0) {
+                console.warn('地番タイルの読み込みエラー（' + sid + '）:', e.error && e.error.message ? e.error.message : e.error);
+                if (!warned) { warned = true; showNotification('地番ポリゴンのタイルを読み込めませんでした。通信状況をご確認ください。'); }
+            }
+        });
+        if (this.direct) this._bindHover();
+    },
+
+    /* ホバー：マウスの下にある地番（大字・小字の階層では、その大字／小字の全体）を金色で光らせる */
+    _bindHover() {
+        if (this._hoverBound) return;
+        this._hoverBound = true;
+        const gl = this.gl;
+        const host = gl.getContainer().parentNode || gl.getContainer();
+        let raf = 0, lastPt = null;
+        gl.on('mousemove', (e) => {
+            lastPt = e.point;
+            if (raf) return;
+            raf = requestAnimationFrame(() => { raf = 0; if (lastPt) this._hoverAt(lastPt); });
+        });
+        const off = () => { lastPt = null; this._setHover(null, null, null); };
+        gl.getCanvas().addEventListener('mouseleave', off);
+        gl.on('dragstart', off);
+        gl.on('zoomstart', off);
+    },
+
+    _hoverAt(pt) {
+        const gl = this.gl;
+        if (!this.isShowing() || !this._shown() || gl.isMoving()) { this._setHover(null, null, null); return; }
+        const level = currentChibanLevel();
+        let fs = [];
+        try { fs = gl.queryRenderedFeatures(pt, { layers: [this.datasets[this.current].fill[level]] }); } catch (e) {}
+        if (!fs.length) { this._setHover(null, null, null); return; }
+        const p = fs[0].properties || {};
+        let key, flt;
+        const cmp = (k) => (p[k] == null || p[k] === '') ? ['!', ['has', k]] : ['==', ['get', k], p[k]];
+        if (level === 'oaza') { key = 'o|' + p['大字名']; flt = cmp('大字名'); }
+        else if (level === 'koaza') { key = 'k|' + p['大字名'] + '|' + p['小字名']; flt = ['all', cmp('大字名'), cmp('小字名')]; }
+        else if (p['筆ID'] != null && p['筆ID'] !== '') { key = 'b|' + p['筆ID']; flt = cmp('筆ID'); }
+        else {
+            const nk = (p['地番'] != null) ? '地番' : 'TIBAN';
+            key = 'b|' + p['大字名'] + '|' + p['小字名'] + '|' + p[nk];
+            flt = ['all', cmp('大字名'), cmp('小字名'), cmp(nk)];
+        }
+        this._setHover(level, key, flt);
+    },
+
+    _setHover(level, key, flt) {
+        const k = key ? (level + '#' + key) : null;
+        if (k === this._hoverKey) return;
+        this._hoverKey = k;
+        const d = this.datasets[this.current];
+        for (const did in this.datasets) {
+            for (const lvl in this.datasets[did].hv) {
+                const on = (did === this.current && lvl === level && flt);
+                this.datasets[did].hv[lvl].forEach(lid => { try { this.gl.setFilter(lid, on ? flt : this.NONE); } catch (e) {} });
+            }
+        }
+        const host = this.gl.getContainer().parentNode;
+        if (host && host.classList) host.classList.toggle('chiban-hover', !!k);
     },
 
     async activate(id) {
@@ -5645,17 +5784,27 @@ const ChibanGL = {
         }
         if (id !== currentChibanDatasetId) return;      /* 準備中に別のデータへ切り替えられた */
         this.current = id;
+        this._setHover(null, null, null);
         this.apply();
     },
 
+    _shown() {
+        const chk = document.getElementById('chk-chiban-layer-visible');
+        return !chk || chk.checked;
+    },
+
+    /* 表示・非表示の切り替え。変わったレイヤだけに設定する（毎回全レイヤを触ると、そのたびに地図が描き直されて点滅する） */
     apply() {
         if (!this.gl) return;
-        const chk = document.getElementById('chk-chiban-layer-visible');
-        const show = !chk || chk.checked;
+        const show = this._shown();
         for (const did in this.datasets) {
             const vis = (show && did === this.current) ? 'visible' : 'none';
-            this.datasets[did].ids.forEach(lid => this.gl.setLayoutProperty(lid, 'visibility', vis));
+            this.datasets[did].ids.forEach(lid => {
+                if (this._visCache[lid] === vis) return;
+                try { this.gl.setLayoutProperty(lid, 'visibility', vis); this._visCache[lid] = vis; } catch (e) {}
+            });
         }
+        if (!show) this._setHover(null, null, null);
     },
 
     isShowing() {
@@ -5665,7 +5814,11 @@ const ChibanGL = {
     queryAt(latlng, level) {
         if (!this.isShowing()) return [];
         const pt = this.gl.project([latlng.lng, latlng.lat]);
-        return this.gl.queryRenderedFeatures(pt, { layers: [this.datasets[this.current].fill[level]] });
+        /* クリック位置の周囲±3pxも探す（細い境界線のすぐ脇や、小さな筆でも当たりやすくする） */
+        const L1 = [this.datasets[this.current].fill[level]];
+        let fs = this.gl.queryRenderedFeatures(pt, { layers: L1 });
+        if (!fs.length) fs = this.gl.queryRenderedFeatures([[pt.x - 3, pt.y - 3], [pt.x + 3, pt.y + 3]], { layers: L1 });
+        return fs;
     },
 
     queryPieces(level, filter) {
@@ -5750,6 +5903,7 @@ function activateChibanDataset(id) {
     const qEl = document.getElementById('chiban-search-input');
     renderChibanTree(qEl ? qEl.value.trim() : '');
     /* 地図タイル（PMTiles）の準備ができたら、境界線とラベルを描く */
+    _chibanLabelSig = '';
     ChibanGL.activate(id).then(() => renderChibanLayer());
     renderChibanLayer();
     /* 各データ（自然系・古道・建造物・文書史料・図書・石造物）のポリゴン表示は、地番キー→ポリゴンの解決を新データで行い直す。
@@ -6075,13 +6229,17 @@ function currentChibanLevel() {
     return 'oaza';
 }
 
+/* 地番ポリゴンの配色：サイトの色（--primary-brown #3a2a23 / --accent-gold #a8874c / --bg-cream #f6f1e5）に合わせた、
+   墨・金茶・薄い金色。地理院タイルにも古地図（セピア）にも埋もれないよう、境界線の下に細いクリーム色の縁取り(halo)を敷く。 */
 const CHIBAN_LEVEL_STYLE = {
-    oaza:   { color: '#ffd600', weight: 3,   fillColor: '#ffd600', fillOpacity: 0.06 },
-    koaza:  { color: '#ff6d00', weight: 2.2, fillColor: '#ff6d00', fillOpacity: 0.08 },
-    banchi: { color: '#00e5ff', weight: 1.6, fillColor: '#00b8d4', fillOpacity: 0.12 }
+    oaza:   { color: '#3a2a23', weight: 2.6, fillColor: '#3a2a23', fillOpacity: 0.04, halo: '#fffdf7', haloWeight: 4.6 },
+    koaza:  { color: '#7a5a2a', weight: 1.8, fillColor: '#a8874c', fillOpacity: 0.06, halo: '#fffdf7', haloWeight: 3.4 },
+    banchi: { color: '#8c6d35', weight: 1.1, fillColor: '#a8874c', fillOpacity: 0.10, halo: '#fffdf7', haloWeight: 2.6 }
 };
-/* クリックしてポップアップを開いている間、対象の地番を明確に「グレーアウト」して強調する */
-const CHIBAN_ACTIVE_STYLE = { color: '#212121', weight: 3, fillColor: '#424242', fillOpacity: 0.55 };
+/* マウスを重ねたとき：金色で光らせる */
+const CHIBAN_HOVER_STYLE = { color: '#a8874c', weight: 2.6, fillColor: '#dcb86a', fillOpacity: 0.38 };
+/* クリックして選択している間：墨色で濃く塗って「選択中」を明確にする */
+const CHIBAN_ACTIVE_STYLE = { color: '#191009', weight: 3, fillColor: '#3a2a23', fillOpacity: 0.42 };
 
 function getFeatureBBoxCached(f) {
     if (f._cachedBBox === undefined) {
@@ -6300,7 +6458,17 @@ async function handleChibanMapClick(e) {
 
     if (level === 'banchi') {
         const u = chibanResolveEntry(p, e.latlng);
-        if (u == null) return;
+        if (u == null) {
+            /* 索引に無い筆（属性名の食い違いなど）：地図タイルが持つ形と属性で、そのまま詳細を開く */
+            console.warn('地番タイルの属性が索引と一致しません（地図タイルの形で表示します）:', p);
+            const g0 = hits[0].geometry;
+            if (!g0) return;
+            const oz = p['大字名'] == null ? '' : String(p['大字名']), kz = p['小字名'] == null ? '' : String(p['小字名']);
+            const nn = p['地番'] != null ? p['地番'] : p['TIBAN'];
+            const dk0 = oz ? (oz + kz + (nn == null ? '' : nn)) : '';
+            chibanOnGLFeatureClick({ type: 'Feature', geometry: g0, properties: Object.assign({}, p, { chiban_key: p['筆ID'] || dk0, _dk: dk0 }) }, 'banchi');
+            return;
+        }
         const feature = await st.featureOfAsync(u).catch(() => null);
         if (!feature) { showNotification('地番ポリゴンの読み込みに失敗しました。'); return; }
         if (st !== chibanStore) return;
@@ -6396,13 +6564,21 @@ function buildChibanLabelLayerFromIndex(level) {
 }
 
 /* opts.fromMove：パン（移動）による呼び出し。境界線はGLが自動で追従するので、ここではラベルだけ作り直す */
+let _chibanLabelSig = '';
 async function renderChibanLayer(opts) {
     if (!map || !chibanStore) return;
     ChibanGL.apply();
-    clearChibanLayers();
     const chk = document.getElementById('chk-chiban-layer-visible');
-    if (chk && !chk.checked) return;
-    chibanLabelLayer = buildChibanLabelLayerFromIndex(currentChibanLevel()).addTo(map);
+    if (chk && !chk.checked) { _chibanLabelSig = ''; clearChibanLayers(); return; }
+    const level = currentChibanLevel();
+    const b = map.getBounds();
+    const sig = [currentChibanDatasetId, level, map.getZoom().toFixed(2), b.getWest().toFixed(5), b.getSouth().toFixed(5), b.getEast().toFixed(5), b.getNorth().toFixed(5)].join('|');
+    if (sig === _chibanLabelSig && chibanLabelLayer) return;     /* 同じ見え方なら作り直さない */
+    _chibanLabelSig = sig;
+    /* 先に新しいラベルを置いてから古いものを外す（その間、ラベルが一瞬消えることがない） */
+    const prev = chibanLabelLayer;
+    chibanLabelLayer = buildChibanLabelLayerFromIndex(level).addTo(map);
+    if (prev) map.removeLayer(prev);
 }
 
 function toggleChibanLayerVisibility() {
@@ -6496,7 +6672,7 @@ function resetActiveChibanLayerStyle() {
     if (layer._chibanTemp) { if (chibanActiveGroup) chibanActiveGroup.removeLayer(layer); window._activeChibanLayer = null; return; }
     layer._chibanActive = false;
     if (chibanLayer && chibanLayer.hasLayer && chibanLayer.hasLayer(layer)) chibanLayer.resetStyle(layer);
-    else if (layer.setStyle) layer.setStyle(layer._chibanOriginalStyle || { color: '#e91e8c', weight: 2.5, fillColor: '#e91e8c', fillOpacity: 0.35, dashArray: '4,3' });
+    else if (layer.setStyle) layer.setStyle(layer._chibanOriginalStyle || { color: '#b5832a', weight: 2.5, fillColor: '#dcb86a', fillOpacity: 0.35, dashArray: '4,3' });
     window._activeChibanLayer = null;
 }
 
@@ -6865,8 +7041,8 @@ function renderChibanSearchResultsOnMap(features, highlightColor) {
     if (!map || !chibanSearchLayerGroup) return;
     chibanSearchLayerGroup.clearLayers();
     if (!features || features.length === 0) return;
-    const color = highlightColor || '#e91e8c';
-    const baseStyle = { color, weight: 2.5, fillColor: color, fillOpacity: 0.35, dashArray: '4,3' };
+    const color = highlightColor || '#b5832a';
+    const baseStyle = { color, weight: 2.5, fillColor: highlightColor || '#dcb86a', fillOpacity: 0.35, dashArray: '4,3' };
     const layer = L.geoJSON({ type: 'FeatureCollection', features }, {
         style: baseStyle,
         onEachFeature: (feature, lyr) => {
