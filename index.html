@@ -3494,9 +3494,21 @@ const OldTile = {
         this._res[id] = resolver;
         return id;
     },
-    _canvas(w, h) { return (typeof OffscreenCanvas !== 'undefined') ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h }); },
+    _canvas(w, h) {
+        const cv = (typeof OffscreenCanvas !== 'undefined') ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
+        try { cv.getContext('2d'); } catch (e) {}   /* 描画コンテキストが無いキャンバスはPNG化でエラーになる（透明タイル用） */
+        return cv;
+    },
     async _png(cv) {
-        const blob = cv.convertToBlob ? await cv.convertToBlob({ type: 'image/png' }) : await new Promise(r => cv.toBlob(r, 'image/png'));
+        let blob;
+        try { blob = cv.convertToBlob ? await cv.convertToBlob({ type: 'image/png' }) : await new Promise(r => cv.toBlob(r, 'image/png')); }
+        catch (e) {
+            /* 失敗したら、1x1の透明PNGで代用する（タイル1枚のエラーで地図全体を止めない） */
+            const b64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+            const bin = atob(b64), u8 = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+            blob = new Blob([u8], { type: 'image/png' });
+        }
         return blob.arrayBuffer();
     },
     async _load(url, signal) {
@@ -5463,7 +5475,10 @@ class ChibanStore {
         this._pending.clear();
         await chibanRunLimited(ks, 6, async (ki) => {
             try { await this.loadKoaza(ki); }
-            catch (e) { this._failed.add(ki); console.warn('地番ポリゴン（小字）の読み込みに失敗:', this.koaza[ki].o, this.koaza[ki].k, e); }
+            catch (e) {
+                this._failed.add(ki); console.warn('地番ポリゴン（小字）の読み込みに失敗:', this.koaza[ki].o, this.koaza[ki].k, e);
+                if (!window._chibanBinWarned) { window._chibanBinWarned = true; showNotification('地番の形データ（.bin）を読み込めません。サーバーのCORS設定をご確認ください。'); }
+            }
         });
         if (chibanStore === this) chibanAfterGeometryLoaded();
     }
@@ -5581,7 +5596,7 @@ const ChibanGL = {
                 if (!window.maplibregl) throw new Error('MapLibre GLの読み込みに失敗しました');
                 if (!this.protocol) {
                     this.protocol = new pmtiles.Protocol();
-                    maplibregl.addProtocol('pmtiles', this.protocol.tile);
+                    maplibregl.addProtocol('pmtiles', this._tileHandler());
                 }
                 if (typeof GLMaster !== 'undefined' && GLMaster.gl) {
                     this.direct = true;
@@ -5604,6 +5619,28 @@ const ChibanGL = {
             } catch (e) { reject(e); }
         });
         return this.ready;
+    },
+
+    /* PMTilesのタイルを渡す前に、データがgzipのまま（ヘッダーの圧縮指定とずれている場合など）なら展開する。
+       展開されていないMVTをMapLibreが読むと「unknown command」エラーになり、そのタイルが丸ごと表示されない。 */
+    _tileHandler() {
+        const base = this.protocol.tile;
+        return async (params, ac) => {
+            const res = await base(params, ac);
+            try {
+                let d = res && res.data;
+                if (d && d.byteLength !== undefined && typeof DecompressionStream !== 'undefined') {
+                    for (let n = 0; n < 2; n++) {
+                        const u8 = new Uint8Array(d);
+                        if (u8.length > 2 && u8[0] === 0x1f && u8[1] === 0x8b) {
+                            d = await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+                        } else break;
+                    }
+                    if (d !== res.data) return Object.assign({}, res, { data: d });
+                }
+            } catch (e) { console.warn('地番タイルの展開に失敗:', e); }
+            return res;
+        };
     },
 
     async _layerName(archive, fallback) {
@@ -5649,7 +5686,7 @@ const ChibanGL = {
         /* [表示を始めるLeafletズーム, 表示を終えるLeafletズーム]（nullは制限なし）。
            境目では前後0.5段階だけ両方を重ねて、色を交互に薄く・濃くする（切り替わる瞬間に何も見えない時間をなくす） */
         const T = { koaza: CHIBAN_ZOOM_KOAZA, banchi: CHIBAN_ZOOM_BANCHI };
-        const BAND = 0.5;
+        const BAND = 0.3;
         const zoomRange = {
             oaza:   [null, T.koaza + BAND],
             koaza:  [T.koaza - BAND, T.banchi + BAND],
@@ -5666,11 +5703,20 @@ const ChibanGL = {
             return ['interpolate', ['linear'], ['zoom']].concat(stops);
         };
         const before = this._anchor();
+        const archives = {}, names = {};
+        await Promise.all(['oaza', 'koaza', 'banchi'].map(async (lv) => {
+            const a = new pmtiles.PMTiles(chibanUrl(cfg.tiles[lv]));
+            this.protocol.add(a);
+            archives[lv] = a;
+            names[lv] = await this._layerName(a, cfg.layerFallback[lv]);
+        }));
+        /* 診断：各タイルファイルの種類・圧縮・ズーム範囲をコンソールに出す（表示がおかしい時の原因調べ用） */
+        Promise.all(['oaza', 'koaza', 'banchi'].map(lv => archives[lv].getHeader().then(h => ({
+            level: lv, tileType: h.tileType, tileCompression: h.tileCompression, minZoom: h.minZoom, maxZoom: h.maxZoom, tiles: h.numAddressedTiles
+        })))).then(r => console.info('地番タイル診断 [' + id + ']（tileType 1=MVT / tileCompression 1=なし 2=gzip）:', r)).catch(() => {});
         for (const level of ['oaza', 'koaza', 'banchi']) {
             const url = chibanUrl(cfg.tiles[level]);
-            const archive = new pmtiles.PMTiles(url);
-            this.protocol.add(archive);
-            const srcLayer = await this._layerName(archive, cfg.layerFallback[level]);
+            const srcLayer = names[level];
             const sid = 'chb-' + id + '-' + level;
             gl.addSource(sid, { type: 'vector', url: 'pmtiles://' + url });
             const st = CHIBAN_LEVEL_STYLE[level];
@@ -5714,7 +5760,10 @@ const ChibanGL = {
         gl.on('error', (e) => {
             const sid = e && e.sourceId;
             if (sid && String(sid).indexOf('chb-') === 0) {
-                console.warn('地番タイルの読み込みエラー（' + sid + '）:', e.error && e.error.message ? e.error.message : e.error);
+                let tpos = '';
+                try { const c = e.tile && e.tile.tileID && e.tile.tileID.canonical; if (c) tpos = ' z' + c.z + '/x' + c.x + '/y' + c.y; } catch (x) {}
+                if ((this._errCount = (this._errCount || 0) + 1) <= 20)
+                    console.warn('地番タイルの読み込みエラー（' + sid + tpos + '）:', e.error && e.error.message ? e.error.message : e.error);
                 if (!warned) { warned = true; showNotification('地番ポリゴンのタイルを読み込めませんでした。通信状況をご確認ください。'); }
             }
         });
