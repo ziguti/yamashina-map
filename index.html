@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+a<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -2091,6 +2091,8 @@ CHIBAN_DATASETS.kyoto.azaNames = KYOTO_AZACD_NAMES;
 const CHIBAN_ZOOM_BANCHI = 18;
 const CHIBAN_ZOOM_KOAZA = 16;
 const CHIBAN_ZOOM_BANCHI_LABEL = 19;
+/* データ（地番キーを持つ史料・建造物など）のポリゴンに、名称ラベルを出し始めるズーム。地番テキスト（CHIBAN_ZOOM_BANCHI_LABEL）より低いズームから出す */
+const CHIBAN_ZOOM_DATA_LABEL = 16;
 let chibanHierarchy = { oaza: [], koaza: [], banchi: [] };
 
 /* ---------- グローバル状態 ---------- */
@@ -2106,7 +2108,6 @@ let chibanSearchLayerGroup;
 window._spotHierarchyFilterIds = { nature: null, oldroad: null, building: null, td: null, doc: null };
 window._spotHierarchyTrees = { nature: null, oldroad: null, building: null, td: null };
 let chibanLayer = null;
-let chibanLabelLayer = null;
 let chibanGeoJSON = null;      /* 実体は持たない（ジオメトリは小字単位で遅延読み込み）。「読み込み済みか」の判定用 */
 let chibanStore = null;        /* 現在のデータセットの索引＋ジオメトリ束（ChibanStore） */
 let chibanActiveGroup = null;  /* クリックした地番を強調表示する一時レイヤ */
@@ -3351,7 +3352,41 @@ const GLGeoHub = {
         const line = { 'line-color': ['get', 'lc'], 'line-opacity': ['get', 'lo'], 'line-width': ['get', 'lw'] };
         gl.addLayer({ id: 'geo-line', type: 'line', source: 'geo-all', filter: ['!=', ['get', 'dsh'], 1], layout: { 'line-join': 'round' }, paint: line }, before);
         gl.addLayer({ id: 'geo-line-d', type: 'line', source: 'geo-all', filter: ['==', ['get', 'dsh'], 1], layout: { 'line-join': 'round' }, paint: Object.assign({ 'line-dasharray': [3, 2] }, line) }, before);
+        /* データの名称ラベル：文字を画像にして登録し、MapLibreのシンボルレイヤで描く（地番ラベルより低いズームから表示）。重なる分は自動で間引く */
+        gl.addSource('geo-lbl', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        gl.addLayer({ id: 'geo-lbl-sym', type: 'symbol', source: 'geo-lbl', minzoom: CHIBAN_ZOOM_DATA_LABEL - 1,
+            layout: { 'icon-image': ['concat', 'dlb|', ['get', 't']], 'icon-allow-overlap': false, 'icon-ignore-placement': false, 'icon-padding': 2 } }, before);
+        gl.on('styleimagemissing', (e) => {
+            const id = e && e.id;
+            if (!id || id.indexOf('dlb|') !== 0 || gl.hasImage(id)) return;
+            try { const im = this._labelImage(id.slice(4)); gl.addImage(id, im.data, { pixelRatio: im.ratio }); } catch (err) {}
+        });
         gl.on('click', (e) => this._click(e));
+    },
+    _labelImage: function (t) {
+        const r = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+        const font = '600 12px "Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
+        const mc = document.createElement('canvas').getContext('2d');
+        mc.font = font;
+        const W = Math.ceil(mc.measureText(t).width) + 10, H = 22;
+        const cv = document.createElement('canvas');
+        cv.width = Math.ceil(W * r); cv.height = Math.ceil(H * r);
+        const g = cv.getContext('2d');
+        g.scale(r, r); g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 3.5;
+        g.strokeStyle = 'rgba(255,253,247,0.95)'; g.fillStyle = '#3a2a1c';
+        g.strokeText(t, W / 2, H / 2 + 0.5); g.fillText(t, W / 2, H / 2 + 0.5);
+        return { data: g.getImageData(0, 0, cv.width, cv.height), ratio: r };
+    },
+    /* この位置にあるデータのポリゴン（クリックの処理を持つもの）。地番ポリゴンのクリック処理より、こちらを優先するために使う */
+    hitAt: function (latlng) {
+        const gl = (typeof GLMaster !== 'undefined') && GLMaster.gl;
+        if (!gl || !gl.getLayer('geo-fill')) return null;
+        const fs = gl.queryRenderedFeatures(gl.project([latlng.lng, latlng.lat]), { layers: ['geo-fill'] });
+        for (let i = 0; i < fs.length; i++) {
+            const it = this._byId[fs[i].properties._g];
+            if (it && this.items.has(it) && it.listens && it.listens('click')) return it;
+        }
+        return null;
     },
     _sync: function () {
         const gl = GLMaster.gl;
@@ -3359,6 +3394,15 @@ const GLGeoHub = {
         const feats = [];
         this.items.forEach(it => it._features(feats));
         gl.getSource('geo-all').setData({ type: 'FeatureCollection', features: feats });
+        const lf = [];
+        this.items.forEach(it => {
+            const lb = it._label;
+            if (!lb || !lb.text || !lb.anchors) return;
+            const t = lb.text.length > 14 ? lb.text.slice(0, 13) + '…' : lb.text;
+            lb.anchors.forEach(a => lf.push({ type: 'Feature', properties: { t }, geometry: { type: 'Point', coordinates: a } }));
+        });
+        const ls = gl.getSource('geo-lbl');
+        if (ls) ls.setData({ type: 'FeatureCollection', features: lf });
     },
     _click: function (e) {
         if (PinHub._find && PinHub._find(e.point.x, e.point.y)) return;   /* ピンの上のクリックはピンが処理する */
@@ -3378,6 +3422,7 @@ const GLGeoJSON = L.Layer.extend({
         this._style = (options && options.style) || {};
         this._gid = 'g' + L.stamp(this);
         GLGeoHub._byId[this._gid] = this;
+        this._label = (options && options.label) || null;   /* 名称ラベル：{ text, anchors:[[lng,lat],...] } */
     },
     onAdd: function () { GLGeoHub.add(this); },
     onRemove: function () { GLGeoHub.remove(this); },
@@ -4615,10 +4660,9 @@ function renderTDPolygons(filteredModels) {
     const hFilter = window._spotHierarchyFilterIds.td;
     filteredModels.filter(m => !hFilter || hFilter.has(String(m.id))).forEach(m => {
         if (!m.chibanKey) return;
-        const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(m.chibanKey));
-        if (features.length === 0) { console.warn(`Match Warning: Key [${m.chibanKey}] not found in GeoJSON`); return; }
         const color = get3DPinColor(m.condition, false);
-        const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color, weight: 1, fillColor: color, fillOpacity: 0.3 } });
+        const layer = makeChibanDataLayer(m.chibanKey, { style: { color, weight: 1, fillColor: color, fillOpacity: 0.3 } }, m.name);
+        if (!layer) { console.warn(`Match Warning: Key [${m.chibanKey}] not found in GeoJSON`); return; }
         layer.on('click', () => openDataDetailPanel(m, 'td'));
         layer.addTo(modelClusterGroup);
     });
@@ -4697,13 +4741,54 @@ function computeChibanLookupKeys(props) {
    個々の地番境界のまま表示する。件数が少ない（データ1件あたりの紐づけ数）ため
    メインスレッドで同期的に計算しても問題ない。 */
 function buildDisplayGeometryForChibanFeatures(features) {
+    /* 地番ポリゴンの表示・非表示やズームに関係なく、常に1つのポリゴンに統合して返す（内部の境界線は描かない）。
+       地番ポリゴン表示時の内部の境界線・地番テキストは、地番レイヤ自身が下から透けて見える。 */
     if (!features || features.length <= 1) return features;
-    if (map && currentChibanLevel() === 'banchi') return features;
-    let merged = features[0];
-    for (let i = 1; i < features.length; i++) {
-        try { const u = turf.union(merged, features[i]); if (u) merged = u; } catch (e) {}
+    let merged = null;
+    const rest = [];
+    for (let i = 0; i < features.length; i++) {
+        if (!merged) { merged = features[i]; continue; }
+        try { const u = turf.union(merged, features[i]); if (u) merged = u; else rest.push(features[i]); }
+        catch (e) { rest.push(features[i]); }   /* 統合できなかった筆は、そのまま別の図形として残す（消えないように） */
     }
-    return merged ? [merged] : features;
+    return merged ? [merged].concat(rest) : features;
+}
+
+/* 地番キー（カンマ区切り可）からデータ用のポリゴンを作る。統合結果とラベル位置は、同じ地番キー・同じ読み込み状況の間は使い回す。
+   戻り値：{ features, anchors }（見つからなければ null）。anchors は名称ラベルを置く点（飛び地ごとに1つ） */
+const _chibanDataGeomCache = new Map();
+function chibanDataGeometry(rawKeys) {
+    const src = findChibanFeatures(rawKeys);
+    if (!src.length) return null;
+    const ck = currentChibanDatasetId + '|' + String(rawKeys) + '|' + src.length;
+    let hit = _chibanDataGeomCache.get(ck);
+    if (hit) return hit;
+    const features = buildDisplayGeometryForChibanFeatures(src);
+    const polys = [];
+    features.forEach(f => {
+        const g = f && f.geometry;
+        if (!g) return;
+        if (g.type === 'Polygon') polys.push(g.coordinates);
+        else if (g.type === 'MultiPolygon') g.coordinates.forEach(c => polys.push(c));
+    });
+    const anchors = [];
+    try {
+        chibanLabelComponents(polys).forEach(comp => {
+            const a = chibanLabelAnchor(polys, comp, comp.bbox);
+            if (a) anchors.push([a.x, a.y]);
+        });
+    } catch (e) {}
+    hit = { features, anchors };
+    if (_chibanDataGeomCache.size > 400) _chibanDataGeomCache.clear();
+    _chibanDataGeomCache.set(ck, hit);
+    return hit;
+}
+function makeChibanDataLayer(rawKeys, opts, labelText) {
+    const g = chibanDataGeometry(rawKeys);
+    if (!g) return null;
+    const o = Object.assign({}, opts);
+    if (labelText) o.label = { text: String(labelText), anchors: g.anchors };
+    return makeGeo({ type: 'FeatureCollection', features: g.features }, o);
 }
 
 /* =====================================================================
@@ -5182,9 +5267,8 @@ function renderNatureMapLayers(searchQuery) {
         const style = getNatureStyle(row);
         let drawn = false;
         if (row.chibanKey && displayMode === 'polygon') {
-            const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
-            if (features.length > 0) {
-                const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } });
+            const layer = makeChibanDataLayer(row.chibanKey, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } }, row.name);
+            if (layer) {
                 layer.on('click', () => openDataDetailPanel(row, 'nature'));
                 layer.addTo(natureLayerGroup);
                 drawn = true;
@@ -5223,9 +5307,8 @@ function renderOldRoadMapLayers(searchQuery) {
         const style = getOldRoadStyle(row);
         let drawn = false;
         if (row.chibanKey && displayMode === 'polygon') {
-            const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
-            if (features.length > 0) {
-                const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } });
+            const layer = makeChibanDataLayer(row.chibanKey, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } }, row.name);
+            if (layer) {
                 layer.on('click', () => openDataDetailPanel(row, 'oldroad'));
                 layer.addTo(oldRoadLayerGroup);
                 drawn = true;
@@ -5273,9 +5356,8 @@ function renderBuildingMapLayers(searchQuery) {
         const style = getBuildingStyle(row);
         let drawn = false;
         if (row.chibanKey && displayMode === 'polygon') {
-            const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
-            if (features.length > 0) {
-                const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } });
+            const layer = makeChibanDataLayer(row.chibanKey, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } }, row.name);
+            if (layer) {
                 layer.on('click', () => openDataDetailPanel(row, 'building'));
                 layer.addTo(buildingLayerGroup);
                 drawn = true;
@@ -5298,9 +5380,8 @@ function renderDocMapLayers(searchQuery) {
     const hFilter = window._spotHierarchyFilterIds.doc;
     docData.filter(row => (!q || _allText(row).includes(q)) && (!hFilter || hFilter.has(String(row.id)))).forEach(row => {
         if (!row.chibanKey) return;
-        const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
-        if (features.length === 0) return;
-        const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color: '#1a2a4a', fillColor: '#1a2a4a', fillOpacity: 0.35, weight: 1.5 } });
+        const layer = makeChibanDataLayer(row.chibanKey, { style: { color: '#1a2a4a', fillColor: '#1a2a4a', fillOpacity: 0.35, weight: 1.5 } }, row.subject || row.sub || row.id);
+        if (!layer) return;
         layer.on('click', () => openDocDetailPanel(row));
         layer.addTo(docLayerGroup);
     });
@@ -5323,9 +5404,8 @@ function renderBookMapLayers(searchQuery) {
             const mergedRow = Object.assign({}, row, { book: b });
             let drawn = false;
             if (row.chibanKey) {
-                const features = buildDisplayGeometryForChibanFeatures(findChibanFeatures(row.chibanKey));
-                if (features.length > 0) {
-                    const layer = makeGeo({ type: 'FeatureCollection', features }, { style: { color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book, fillOpacity: 0.35, weight: 1.5 } });
+                const layer = makeChibanDataLayer(row.chibanKey, { style: { color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book, fillOpacity: 0.35, weight: 1.5 } }, row.entryLabel || row.h3 || row.h2 || row.h1 || b.title);
+                if (layer) {
                     layer.on('click', () => openDataDetailPanel(mergedRow, 'book'));
                     layer.addTo(bookLayerGroup);
                     drawn = true;
@@ -5450,7 +5530,10 @@ class ChibanStore {
         const kz = this.koaza[ki];
         const p = (async () => {
             const off = kz.g[0], len = kz.g[1];
-            const res = await fetch(chibanUrl(CHIBAN_DATASETS[this.id].geom), { headers: { Range: 'bytes=' + off + '-' + (off + len - 1) } });
+            const gurl = chibanUrl(CHIBAN_DATASETS[this.id].geom), rh = { Range: 'bytes=' + off + '-' + (off + len - 1) };
+            /* ブラウザのキャッシュとRangeリクエストが噛み合わず ERR_CACHE_OPERATION_NOT_SUPPORTED になることがあるため、
+               失敗したらキャッシュを使わずに1回だけ取り直す */
+            const res = await fetch(gurl, { headers: rh }).catch(() => fetch(gurl, { headers: rh, cache: 'no-store' }));
             if (!res.ok) throw new Error('HTTP ' + res.status);
             let buf = await res.arrayBuffer();
             if (res.status === 200 && buf.byteLength > len) buf = buf.slice(off, off + len);   /* Range非対応のサーバー対策 */
@@ -5747,6 +5830,7 @@ const ChibanGL = {
             }
         }
         this.datasets[id] = info;
+        try { ChibanLabelGL.raise(); } catch (e) {}
         this._bindEvents();
         return info;
     },
@@ -5953,6 +6037,7 @@ function activateChibanDataset(id) {
     renderChibanTree(qEl ? qEl.value.trim() : '');
     /* 地図タイル（PMTiles）の準備ができたら、境界線とラベルを描く */
     _chibanLabelSig = '';
+    ChibanLabelGL.reset();
     ChibanGL.activate(id).then(() => renderChibanLayer());
     renderChibanLayer();
     /* 各データ（自然系・古道・建造物・文書史料・図書・石造物）のポリゴン表示は、地番キー→ポリゴンの解決を新データで行い直す。
@@ -6310,154 +6395,258 @@ function bboxIntersectsMapBounds(bbox, bounds) {
 /* =====================================================================
    地番ポリゴン内テキストラベル（大字名／小字名／地番）
    -------------------------------------------------------------------
-   表示中の階層（大字/小字/地番）に応じて、その階層単独の項目だけを
-   ラベルとして表示する（大字・小字・地番を連結した文字列は作らない）。
+   ラベルは MapLibre の「シンボルレイヤ」（GPUで描画）で出す。
+   以前はラベル1件ごとにHTML要素（Leafletのマーカー）を作っていたため、ラベルが出る
+   ズームで動作が重くなっていた。いまは文字を小さな画像にして地図に登録し、
+   重なりの間引きもMapLibreに任せる（ピンのタイトル表示と同じ仕組み）。
 
-   文字の大きさは階層を問わず、ポリゴンごとに変えず「画面に対して常に
-   一定」（CHIBAN_LABEL_FIXED_PX）にする。ポリゴンが小さすぎてその
-   固定サイズでは収まらない場合は、無理に縮小して詰め込むのではなく、
-   ラベル自体を表示しない（ズームして十分な大きさになれば表示される）。
-   これにより、可変サイズにしていた頃に起きていたポリゴンからの
-   はみ出しを防ぐ。
-
-   ・大字／小字（統合ポリゴン）：飛び地（離れた複数の部分）を含むことが
-     あるため、turf.flattenで個々の部分に分解し、部分ごとに収まるかを
-     判定したうえで、同じテキストをそれぞれに表示する。
-   ・地番（個々のポリゴン）：収まるかどうかの判定はせず、
-     CHIBAN_ZOOM_BANCHI_LABEL以上のズームで一律に表示する
-     （このズーム帯では通常十分な大きさがあるため）。
+   ・表示中の階層（大字/小字/地番）に応じて、その階層単独の項目だけを出す。
+   ・文字の大きさは常に一定（CHIBAN_LABEL_FIXED_PX）。
+   ・地番　　　：索引（名前と範囲）から、画面内の分だけを作る。
+   ・大字／小字：地図タイルが持つポリゴンの形から作る。タイルの境目で切れたポリゴン片は
+     つなげて1つの「まとまり」にし、飛び地（離れたまとまり）ごとにラベルを1つずつ出す。
+     ラベルが収まらないほど小さなまとまりには出さない（ズームすると出る）。
    ===================================================================== */
-const CHIBAN_LABEL_MAX_COUNT = 1500; /* 地番ラベルを出す上限件数（超えたら表示しない） */
-const CHIBAN_LABEL_FIXED_PX = 12; /* 全階層共通：画面に対して常に一定の大きさ */
+const CHIBAN_LABEL_MAX_COUNT = 2000; /* 地番ラベルを出す上限件数（超えたら表示しない） */
+const CHIBAN_LABEL_FIXED_PX = 12;    /* 全階層共通：画面に対して常に一定の大きさ */
 
-function getChibanLabelText(feature, level) {
-    const p = feature.properties || {};
-    if (level === 'oaza') return p.oazaName || '';
-    if (level === 'koaza') return p.koazaName || '';
-    if (level === 'banchi') return p['地番'] || '';
-    return '';
-}
-
-/* 緯度経度のバウンディングボックスから、現在の地図表示上でのおおよその
-   幅・高さ（ピクセル）を概算する。文字がポリゴン内に収まりそうかを
-   判定するための簡易な目安であり、厳密な形状追跡は行わない。 */
-function estimateFeaturePixelSize(bbox) {
-    if (!bbox || !map) return null;
-    const nw = map.latLngToContainerPoint(L.latLng(bbox[3], bbox[0]));
-    const se = map.latLngToContainerPoint(L.latLng(bbox[1], bbox[2]));
-    return { width: Math.abs(se.x - nw.x), height: Math.abs(se.y - nw.y) };
-}
-
-/* ポリゴンに収まるかどうかを判定するための「収容可能サイズ」の目安（px）を、
-   そのポリゴン自身の実面積を基準に求める。
-   バウンディングボックスの幅だけを見ると、細長い・L字形などの
-   不整形なポリゴンで実際の形より大きく見積もってしまい、はみ出しの
-   原因になるため、面積から求めた「同面積の正方形の一辺」と、
-   バウンディングボックスの短辺（幅・高さの小さい方）の両方を求め、
-   より小さい方を採用することで、はみ出しにくい安全側の見積もりにする。 */
-function estimateFeatureFitSizePx(feature, bbox) {
-    const size = estimateFeaturePixelSize(bbox);
-    if (!size) return null;
-    const shorterSide = Math.min(size.width, size.height);
-
-    const areaM2 = getFeatureAreaCached(feature);
-    if (!areaM2 || !map || !bbox) return shorterSide;
-    /* 1メートルあたりの画面ピクセル数を、バウンディングボックス中心の緯度で概算する */
-    const midLatLng = L.latLng((bbox[1] + bbox[3]) / 2, (bbox[0] + bbox[2]) / 2);
-    const p1 = map.latLngToContainerPoint(midLatLng);
-    const p2 = map.latLngToContainerPoint(L.latLng(midLatLng.lat, midLatLng.lng + 0.0005));
-    const metersPerDegreeLng = 0.0005 * 111320 * Math.cos(midLatLng.lat * Math.PI / 180);
-    const pxPerMeter = metersPerDegreeLng > 0 ? (Math.hypot(p2.x - p1.x, p2.y - p1.y) / metersPerDegreeLng) : 0;
-    if (!pxPerMeter) return shorterSide;
-    const areaPx2 = areaM2 * pxPerMeter * pxPerMeter;
-    const areaBasedSide = Math.sqrt(areaPx2);
-
-    return Math.min(shorterSide, areaBasedSide);
-}
-
-/* 固定サイズ（CHIBAN_LABEL_FIXED_PX）のテキストが、このポリゴン（の部分）に
-   実際に収まるかどうかを判定する（大字/小字用）。収まらない場合は
-   呼び出し側でラベルの表示自体を見送る（＝表示できる大きさになる
-   ズームまで出さない）。可変サイズだった頃の計算式を、
-   「fontSizeを求める」のではなく「固定fontSizeで収まるか」の判定に
-   組み替えている。 */
-function doesChibanLabelFit(text, feature, bbox, fontSizePx) {
-    if (!text) return false;
-    const fitSize = estimateFeatureFitSizePx(feature, bbox);
-    if (!fitSize) return false;
-    const charCount = Math.max(text.length, 1);
-    const requiredByWidth = (fontSizePx * charCount) / 0.72;
-    const requiredByHeight = fontSizePx / 0.5;
-    return fitSize >= Math.max(requiredByWidth, requiredByHeight);
-}
-
-/* 大字・小字の統合ポリゴンは飛び地（離れた複数の部分）を含むことがある。
-   1つのfeatureに対して代表点を1つだけ選ぶと、飛び地の一部だけ離れた
-   位置にラベルが出たり、その部分にとって不自然な大きさ・位置になって
-   ポリゴン外にはみ出したりする。そこでturf.flattenで個々の部分に分解し、
-   部分ごとに収まるかを判定して、同じテキストをそれぞれに表示する。 */
-function flattenFeatureParts(f) {
-    if (f._cachedParts) return f._cachedParts;   /* ズームのたびに再計算しないようキャッシュ */
-    let parts = [f];
-    try {
-        const flat = turf.flatten(f);
-        if (flat && flat.features && flat.features.length) parts = flat.features;
-    } catch (e) { /* 分解できない場合は元のfeatureをそのまま1件として扱う */ }
-    f._cachedParts = parts;
-    return parts;
-}
-
-function makeChibanLabelMarker(text, fontSizePx, lngLat) {
-    const icon = L.divIcon({
-        className: 'chiban-label',
-        html: `<span style="font-size:${fontSizePx}px;">${escapeHtml(text)}</span>`,
-        iconSize: [0, 0]
-    });
-    return L.marker([lngLat[1], lngLat[0]], { icon, interactive: false, keyboard: false });
-}
-
-/* 表示中のfeature群に対応するラベルレイヤを構築する。
-   ラベルはクリックを一切拾わない（pointer-events:noneはCSS側、
-   さらにマーカー自体もinteractive:falseにして、下のポリゴンの
-   クリック選択を妨げないようにしている）。 */
-function buildChibanLabelLayer(features, level) {
-    const group = L.layerGroup();
-
-    if (level === 'banchi') {
-        /* 地番テキストは、ポリゴンに収まるかどうかを問わず、
-           指定ズーム以上で一律・同じ大きさで表示する
-           （ポリゴン自体が個別表示に切り替わるズームより1段階遅らせ、
-           切り替え直後の混雑を避けている） */
-        if (!map || map.getZoom() < CHIBAN_ZOOM_BANCHI_LABEL) return group;
-        /* ラベルは1件ごとにHTML要素になるため、多すぎるとき（広く表示しているとき）は出さない */
-        if (features.length > CHIBAN_LABEL_MAX_COUNT) return group;
-        features.forEach(f => {
-            const text = getChibanLabelText(f, level);
-            if (!text) return;
-            let center;
-            try { center = turf.pointOnFeature(f).geometry.coordinates; } catch (e) { return; }
-            if (!center) return;
-            makeChibanLabelMarker(text, CHIBAN_LABEL_FIXED_PX, center).addTo(group);
-        });
-        return group;
+/* ---- 地番ラベル：ポリゴン判定の部品 ---- */
+function chibanRingHas(ring, x, y) {
+    let c = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
     }
-
-    /* 大字・小字レベル：地番と同じ固定サイズで表示しつつ、
-       実際にポリゴン（の各部分）へ収まる場合だけ表示する */
-    features.forEach(f => {
-        const text = getChibanLabelText(f, level);
-        if (!text) return;
-        flattenFeatureParts(f).forEach(part => {
-            const bbox = getFeatureBBoxCached(part);
-            if (!doesChibanLabelFit(text, part, bbox, CHIBAN_LABEL_FIXED_PX)) return;
-            let center;
-            try { center = turf.pointOnFeature(part).geometry.coordinates; } catch (e) { return; }
-            if (!center) return;
-            makeChibanLabelMarker(text, CHIBAN_LABEL_FIXED_PX, center).addTo(group);
-        });
-    });
-    return group;
+    return c;
 }
+function chibanPolyHas(poly, x, y) {      /* poly = [外周, 穴, 穴...] */
+    if (!chibanRingHas(poly[0], x, y)) return false;
+    for (let k = 1; k < poly.length; k++) if (chibanRingHas(poly[k], x, y)) return false;
+    return true;
+}
+function chibanPolyBBox(poly) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const r = poly[0];
+    for (let i = 0; i < r.length; i++) {
+        const x = r[i][0], y = r[i][1];
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    return [x0, y0, x1, y1];
+}
+/* 地図タイルは1つのポリゴンをタイルの境目で切って持つ。同じ名前のポリゴン片のうち、
+   つながっているもの（境目で接している・重なっている）を1つの「まとまり」にする。
+   離れているもの（飛び地）は別のまとまりになる。戻り値：[{ idx:[ポリゴン番号...], bbox }, ...] */
+function chibanLabelComponents(polys) {
+    const n = polys.length, par = [];
+    for (let i = 0; i < n; i++) par.push(i);
+    const find = (a) => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
+    const bb = polys.map(chibanPolyBBox);
+    const TOL = 2e-5;                     /* 約2m。タイルの境目で頂点がわずかにずれても、同じ点とみなす */
+    const near = (A, B, R) => {
+        const pick = (poly) => {
+            const r = poly[0], out = [], step = Math.max(1, Math.ceil(r.length / 400));
+            for (let i = 0; i < r.length; i += step) {
+                if (r[i][0] >= R[0] && r[i][0] <= R[2] && r[i][1] >= R[1] && r[i][1] <= R[3]) out.push(r[i]);
+            }
+            return out;
+        };
+        const a = pick(A), b = pick(B);
+        for (let i = 0; i < a.length; i++) for (let j = 0; j < b.length; j++) {
+            if (Math.abs(a[i][0] - b[j][0]) < TOL && Math.abs(a[i][1] - b[j][1]) < TOL) return true;
+        }
+        const inside = (pts, poly) => {
+            const m = Math.min(pts.length, 8), st = Math.max(1, Math.floor(pts.length / m));
+            for (let k = 0; k < pts.length; k += st) if (chibanPolyHas(poly, pts[k][0], pts[k][1])) return true;
+            return false;
+        };
+        return inside(a, B) || inside(b, A);
+    };
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        if (find(i) === find(j)) continue;
+        const a = bb[i], b = bb[j];
+        if (a[2] + TOL < b[0] || b[2] + TOL < a[0] || a[3] + TOL < b[1] || b[3] + TOL < a[1]) continue;
+        const R = [Math.max(a[0], b[0]) - TOL, Math.max(a[1], b[1]) - TOL, Math.min(a[2], b[2]) + TOL, Math.min(a[3], b[3]) + TOL];
+        if (near(polys[i], polys[j], R)) par[find(i)] = find(j);
+    }
+    const comp = new Map();
+    for (let i = 0; i < n; i++) {
+        const r = find(i);
+        let c = comp.get(r);
+        if (!c) comp.set(r, c = { idx: [], bbox: [Infinity, Infinity, -Infinity, -Infinity] });
+        c.idx.push(i);
+        const b = bb[i];
+        if (b[0] < c.bbox[0]) c.bbox[0] = b[0]; if (b[1] < c.bbox[1]) c.bbox[1] = b[1];
+        if (b[2] > c.bbox[2]) c.bbox[2] = b[2]; if (b[3] > c.bbox[3]) c.bbox[3] = b[3];
+    }
+    return Array.from(comp.values());
+}
+/* まとまりの中の、ラベルを置く点を決める。まず中心、だめなら周囲の格子点から、実際にポリゴンの内側にある点を探す。
+   view=[x0,y0,x1,y1] は今の画面の範囲（画面外にはみ出す大きなポリゴンでも、見えている部分に置く） */
+function chibanLabelAnchor(polys, comp, view) {
+    const x0 = Math.max(comp.bbox[0], view[0]), y0 = Math.max(comp.bbox[1], view[1]);
+    const x1 = Math.min(comp.bbox[2], view[2]), y1 = Math.min(comp.bbox[3], view[3]);
+    if (x1 <= x0 || y1 <= y0) return null;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const cands = [[cx, cy]];
+    for (let a = 1; a <= 5; a++) for (let b = 1; b <= 5; b++) cands.push([x0 + (x1 - x0) * a / 6, y0 + (y1 - y0) * b / 6]);
+    cands.sort((p, q) => (Math.hypot(p[0] - cx, p[1] - cy) - Math.hypot(q[0] - cx, q[1] - cy)));
+    const bbs = comp.idx.map(i => chibanPolyBBox(polys[i]));
+    for (let c = 0; c < cands.length; c++) {
+        const x = cands[c][0], y = cands[c][1];
+        for (let k = 0; k < comp.idx.length; k++) {
+            const b = bbs[k];
+            if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue;
+            if (chibanPolyHas(polys[comp.idx[k]], x, y)) return { x, y, bbox: [x0, y0, x1, y1] };
+        }
+    }
+    return null;
+}
+
+
+const ChibanLabelGL = {
+    SRC: 'chl-src',
+    IDS: ['chl-sym-o', 'chl-sym-k', 'chl-sym-b'],   /* 大字 / 小字 / 地番 */
+    EMPTY: { type: 'FeatureCollection', features: [] },
+    _bound: false, _last: '', _viewSig: '',
+
+    reset() { this._last = ''; this._viewSig = ''; },
+
+    /* ラベルの文字を画像にする（地図が「この画像が無い」と言ってきたときに、その場で作る） */
+    _image(text) {
+        const r = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+        const px = CHIBAN_LABEL_FIXED_PX;
+        const font = '500 ' + px + 'px -apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
+        const mc = document.createElement('canvas').getContext('2d');
+        mc.font = font;
+        const pad = 3;
+        const W = Math.ceil(mc.measureText(text).width) + pad * 2, H = px + pad * 2 + 2;
+        const cv = document.createElement('canvas');
+        cv.width = Math.ceil(W * r); cv.height = Math.ceil(H * r);
+        const g = cv.getContext('2d');
+        g.scale(r, r); g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+        g.lineWidth = 2.6; g.strokeStyle = '#241a15'; g.strokeText(text, W / 2, H / 2 + 0.5);
+        g.fillStyle = '#fffdf7'; g.fillText(text, W / 2, H / 2 + 0.5);
+        return { data: g.getImageData(0, 0, cv.width, cv.height), ratio: r };
+    },
+
+    /* ソースとレイヤを用意する（無ければ作る）。レイヤは階層ごとに分け、表示するズームを限る */
+    ensure() {
+        const gl = ChibanGL.gl;
+        if (!gl) return false;
+        if (!this._bound) {
+            this._bound = true;
+            gl.on('styleimagemissing', (e) => {
+                const id = e && e.id;
+                if (!id || id.indexOf('chl|') !== 0 || gl.hasImage(id)) return;
+                try { const im = this._image(id.slice(4)); gl.addImage(id, im.data, { pixelRatio: im.ratio }); } catch (err) {}
+            });
+            /* タイルの読み込みと描画が落ち着いたときに、大字・小字のラベルを作り直す */
+            gl.on('idle', () => this.refresh());
+        }
+        try {
+            if (!gl.getSource(this.SRC)) gl.addSource(this.SRC, { type: 'geojson', data: this.EMPTY });
+            const before = ChibanGL._anchor();
+            const zr = { o: [null, CHIBAN_ZOOM_KOAZA - 1], k: [CHIBAN_ZOOM_KOAZA - 1, CHIBAN_ZOOM_BANCHI - 1], b: [CHIBAN_ZOOM_BANCHI_LABEL - 1, null] };
+            ['o', 'k', 'b'].forEach((lv, i) => {
+                if (gl.getLayer(this.IDS[i])) return;
+                const def = {
+                    id: this.IDS[i], type: 'symbol', source: this.SRC, filter: ['==', ['get', 'lv'], lv],
+                    layout: { 'icon-image': ['concat', 'chl|', ['get', 't']], 'icon-allow-overlap': false, 'icon-ignore-placement': false, 'icon-padding': 1 }
+                };
+                if (zr[lv][0] != null) def.minzoom = zr[lv][0];
+                if (zr[lv][1] != null) def.maxzoom = zr[lv][1];
+                if (before && gl.getLayer(before)) gl.addLayer(def, before); else gl.addLayer(def);
+            });
+        } catch (e) { console.warn('地番ラベルのレイヤを作れませんでした:', e); return false; }
+        return true;
+    },
+
+    /* 地番の境界レイヤが後から増えたとき（データ切替など）に、ラベルを一番手前（検索結果・ピンの下）へ戻す */
+    raise() {
+        const gl = ChibanGL.gl;
+        if (!gl || !gl.getLayer(this.IDS[0])) return;
+        const before = ChibanGL._anchor();
+        this.IDS.forEach(id => { try { gl.moveLayer(id, (before && gl.getLayer(before)) ? before : undefined); } catch (e) {} });
+    },
+
+    clear() {
+        const gl = ChibanGL.gl;
+        this.reset();
+        if (!gl) return;
+        try { const s = gl.getSource(this.SRC); if (s) s.setData(this.EMPTY); } catch (e) {}
+    },
+
+    /* 地番：索引の名前と範囲から、画面内の分だけ作る（形は不要） */
+    _banchi() {
+        const st = chibanStore;
+        if (!st || map.getZoom() < CHIBAN_ZOOM_BANCHI_LABEL) return [];
+        const b = map.getBounds(), w = b.getWest(), e = b.getEast(), s = b.getSouth(), n = b.getNorth();
+        const out = [];
+        for (let u = 0; u < st.banchi.length; u++) {
+            const q = st.banchi[u];
+            if (!q[1]) continue;
+            if (q[5] < w || q[3] > e || q[6] < s || q[4] > n) continue;
+            out.push({ type: 'Feature', properties: { lv: 'b', t: String(q[1]) }, geometry: { type: 'Point', coordinates: [(q[3] + q[5]) / 2, (q[4] + q[6]) / 2] } });
+            if (out.length > CHIBAN_LABEL_MAX_COUNT) return [];   /* 多すぎるとき（広く表示しているとき）は出さない */
+        }
+        return out;
+    },
+
+    /* 大字・小字：地図タイルのポリゴン片を、名前ごとに集めて「まとまり」に分け、まとまりごとに1つ置く */
+    _pieces(level) {
+        const gl = ChibanGL.gl;
+        if (!gl.areTilesLoaded()) return null;          /* タイル読み込み中。落ち着いたら idle で再計算する */
+        const groups = new Map();
+        ChibanGL.queryPieces(level).forEach(f => {
+            const g = f.geometry;
+            if (!g) return;
+            const p = f.properties || {};
+            const oz = p['大字名'] == null ? '' : String(p['大字名']);
+            const kz = p['小字名'] == null ? '' : String(p['小字名']);
+            const name = level === 'oaza' ? oz : kz;
+            if (!name) return;
+            const key = level === 'oaza' ? oz : (oz + '\u0001' + kz);
+            let grp = groups.get(key);
+            if (!grp) groups.set(key, grp = { name, polys: [] });
+            if (g.type === 'Polygon') grp.polys.push(g.coordinates);
+            else if (g.type === 'MultiPolygon') g.coordinates.forEach(c => grp.polys.push(c));
+        });
+        const bd = map.getBounds(), dw = (bd.getEast() - bd.getWest()) * 0.06, dh = (bd.getNorth() - bd.getSouth()) * 0.06;
+        const view = [bd.getWest() + dw, bd.getSouth() + dh, bd.getEast() - dw, bd.getNorth() - dh];
+        const px = CHIBAN_LABEL_FIXED_PX, out = [];
+        groups.forEach(grp => {
+            chibanLabelComponents(grp.polys).forEach(comp => {
+                const a = chibanLabelAnchor(grp.polys, comp, view);
+                if (!a) return;
+                const p1 = map.latLngToContainerPoint([a.bbox[1], a.bbox[0]]), p2 = map.latLngToContainerPoint([a.bbox[3], a.bbox[2]]);
+                const w = Math.abs(p2.x - p1.x), h = Math.abs(p2.y - p1.y);
+                if (!(w >= px * Math.max(grp.name.length, 1) / 0.72 * 0.8 && h >= px / 0.5)) return;   /* 収まらないほど小さい */
+                out.push({ type: 'Feature', properties: { lv: level === 'oaza' ? 'o' : 'k', t: grp.name }, geometry: { type: 'Point', coordinates: [a.x, a.y] } });
+            });
+        });
+        return out;
+    },
+
+    refresh() {
+        if (!map || !chibanStore || !ChibanGL.isShowing()) return;
+        const chk = document.getElementById('chk-chiban-layer-visible');
+        if (chk && !chk.checked) { if (this._last) this.clear(); return; }
+        if (!this.ensure()) return;
+        const level = currentChibanLevel();
+        const b = map.getBounds();
+        const view = [currentChibanDatasetId, level, map.getZoom().toFixed(2), b.getWest().toFixed(5), b.getSouth().toFixed(5), b.getEast().toFixed(5), b.getNorth().toFixed(5)].join('|');
+        if (level === 'banchi' && view === this._viewSig) return;   /* 同じ見え方なら作り直さない */
+        let feats = null;
+        try { feats = (level === 'banchi') ? this._banchi() : this._pieces(level); }
+        catch (e) { console.warn('地番ラベルの作成に失敗:', e); return; }
+        if (feats === null) return;
+        this._viewSig = view;
+        const key = currentChibanDatasetId + '|' + level + '|' + feats.map(f => f.properties.t + '@' + f.geometry.coordinates[0].toFixed(6) + ',' + f.geometry.coordinates[1].toFixed(6)).join(';');
+        if (key === this._last) return;                              /* 結果が前回と同じなら描き直さない（idleの繰り返し防止） */
+        this._last = key;
+        try { ChibanGL.gl.getSource(this.SRC).setData({ type: 'FeatureCollection', features: feats }); } catch (e) {}
+    }
+};
 
 /* 地番・小字・大字の境界は MapLibre GL（ChibanGL）で描く。ここにはクリック判定とラベルを置く。 */
 
@@ -6492,6 +6681,7 @@ function chibanOnGLFeatureClick(feature, level) {
 async function handleChibanMapClick(e) {
     const st = chibanStore;
     if (!map || !st || !ChibanGL.isShowing()) return;
+    try { if (GLGeoHub.hitAt(e.latlng)) return; } catch (err) {}   /* データ（史料・建造物など）のポリゴンがあれば、そちらの詳細パネルを優先（地番の表示・非表示によらない） */
     const chk = document.getElementById('chk-chiban-layer-visible');
     if (chk && !chk.checked) return;
     /* 手前にある他のポリゴン（検索結果・史料の範囲など）がクリックされた場合は、そちらを優先する */
@@ -6571,63 +6761,18 @@ async function handleChibanMapClick(e) {
 }
 
 function clearChibanLayers() {
-    if (chibanLabelLayer) { map.removeLayer(chibanLabelLayer); chibanLabelLayer = null; }
+    ChibanLabelGL.clear();
 }
 
-/* ラベルは索引（名前と範囲）だけから作る。ポリゴンの形は不要。
-   ・大字／小字：範囲の中心に、ラベルが収まる大きさのときだけ表示
-   ・地番：表示範囲内の件数が上限以下のときだけ、各地番の範囲の中心に表示 */
-function buildChibanLabelLayerFromIndex(level) {
-    const group = L.layerGroup();
-    const st = chibanStore;
-    if (!st || !map) return group;
-    const bounds = map.getBounds();
-    const inView = (b) => !(b[2] < bounds.getWest() || b[0] > bounds.getEast() || b[3] < bounds.getSouth() || b[1] > bounds.getNorth());
-    const mk = (text, b) => makeChibanLabelMarker(text, CHIBAN_LABEL_FIXED_PX, [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]).addTo(group);
-
-    if (level === 'banchi') {
-        if (map.getZoom() < CHIBAN_ZOOM_BANCHI_LABEL) return group;
-        const hits = [];
-        for (let u = 0; u < st.banchi.length; u++) {
-            const e = st.banchi[u];
-            if (!e[1]) continue;
-            const b = [e[3], e[4], e[5], e[6]];
-            if (!inView(b)) continue;
-            hits.push([e[1], b]);
-            if (hits.length > CHIBAN_LABEL_MAX_COUNT) return group;
-        }
-        hits.forEach(h => mk(h[0], h[1]));
-        return group;
-    }
-    const fits = (b, text) => {
-        const p1 = map.latLngToContainerPoint([b[1], b[0]]), p2 = map.latLngToContainerPoint([b[3], b[2]]);
-        const w = Math.abs(p2.x - p1.x), h = Math.abs(p2.y - p1.y);
-        return w >= CHIBAN_LABEL_FIXED_PX * Math.max(text.length, 1) / 0.72 * 0.8 && h >= CHIBAN_LABEL_FIXED_PX / 0.5;
-    };
-    if (level === 'oaza') {
-        st.oaza.forEach(o => { if (o.o && inView(o.b) && fits(o.b, o.o)) mk(o.o, o.b); });
-    } else {
-        st.koaza.forEach(k => { if (k.k && inView(k.b) && fits(k.b, k.k)) mk(k.k, k.b); });
-    }
-    return group;
-}
-
-/* opts.fromMove：パン（移動）による呼び出し。境界線はGLが自動で追従するので、ここではラベルだけ作り直す */
+/* ラベルの描画は ChibanLabelGL（MapLibreのシンボルレイヤ）に任せる。
+   ここでは、境界線の表示切替と、ラベルの作り直しの指示だけを行う。 */
 let _chibanLabelSig = '';
 async function renderChibanLayer(opts) {
     if (!map || !chibanStore) return;
     ChibanGL.apply();
     const chk = document.getElementById('chk-chiban-layer-visible');
-    if (chk && !chk.checked) { _chibanLabelSig = ''; clearChibanLayers(); return; }
-    const level = currentChibanLevel();
-    const b = map.getBounds();
-    const sig = [currentChibanDatasetId, level, map.getZoom().toFixed(2), b.getWest().toFixed(5), b.getSouth().toFixed(5), b.getEast().toFixed(5), b.getNorth().toFixed(5)].join('|');
-    if (sig === _chibanLabelSig && chibanLabelLayer) return;     /* 同じ見え方なら作り直さない */
-    _chibanLabelSig = sig;
-    /* 先に新しいラベルを置いてから古いものを外す（その間、ラベルが一瞬消えることがない） */
-    const prev = chibanLabelLayer;
-    chibanLabelLayer = buildChibanLabelLayerFromIndex(level).addTo(map);
-    if (prev) map.removeLayer(prev);
+    if (chk && !chk.checked) { clearChibanLayers(); return; }
+    ChibanLabelGL.refresh();
 }
 
 function toggleChibanLayerVisibility() {
