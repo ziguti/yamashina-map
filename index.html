@@ -1,4 +1,4 @@
-a<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -276,7 +276,7 @@ body.panels-split #chiban-panel-wrapper { top: calc(var(--header-height) + var(-
 #map.gl-driven > #map-gl { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; pointer-events: auto; background: #2a2118; }
 #map.gl-driven #map-gl, #map.gl-driven #map-gl canvas, #map.gl-driven #map-gl .maplibregl-canvas-container { cursor: inherit !important; }
 #map.gl-driven .leaflet-popup, #map.gl-driven .leaflet-tooltip { pointer-events: auto; }
-#map.gl-driven.gl-hover-layer, #map.gl-driven.chiban-hover { cursor: pointer; }
+#map.gl-driven.gl-hover-layer, #map.gl-driven.chiban-hover, #map.gl-driven.geo-hover { cursor: pointer; }
 .map-overlay-panel {
     position: absolute; z-index: 1000; background: rgba(26,17,11,0.88); backdrop-filter: blur(12px);
     border: 1px solid rgba(168,135,76,0.45); border-radius: 2px; box-shadow: var(--shadow-lift); padding: 18px;
@@ -406,6 +406,31 @@ body.panels-split #chiban-panel-wrapper { top: calc(var(--header-height) + var(-
 }
 .spot-group-title:first-of-type { margin-top: 4px; border-top: none; }
 .spot-group-title i { color: var(--accent-gold); font-size: 0.9rem; }
+/* 詳細絞り込みパネル：データ単位の開閉ボタン＋その横の表示切り替え（全て表示／ピン／ポリゴン） */
+.spot-group-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0 12px; border-bottom: 1px solid var(--accent-gold); margin: 12px 0 12px; }
+.spot-group-head > .spot-group-title { flex: 1 1 140px; min-width: 0; margin: 0; padding: 10px 2px 9px; border: 0; background: transparent; cursor: pointer; text-align: left; }
+.spot-group-head > .spot-group-title::before { content: '\f054'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 0.65rem; color: var(--text-muted); transition: transform 0.2s; }
+.spot-group.open > .spot-group-head > .spot-group-title::before { transform: rotate(90deg); }
+.spot-group:not(.open) > .spot-group-body { display: none; }
+.spot-vis { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding-bottom: 2px; }
+.spot-vis label { display: flex; align-items: center; gap: 4px; margin: 0; font-family: var(--font-sans); font-size: 0.76rem; color: #4c3b2f; cursor: pointer; white-space: nowrap; }
+.spot-vis label.off { opacity: 0.35; cursor: not-allowed; }
+.spot-vis input { accent-color: var(--accent-gold); margin: 0; width: 15px; height: 15px; cursor: inherit; }
+#spot-top-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: -6px 0 18px; }
+#spot-panel-search-wrap { flex: 1 1 200px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; background: #fff; border: 1px solid var(--accent-gold); border-radius: 999px; }
+#spot-panel-search-wrap i { color: var(--accent-gold); font-size: 0.85rem; }
+#spot-panel-search { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: 0.88rem; color: var(--text-dark); }
+#spot-master-toggle { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border: 1px solid var(--accent-gold); border-radius: 999px; background: var(--primary-brown); color: #f3ead6; cursor: pointer; font-family: var(--font-sans); font-size: 0.8rem; white-space: nowrap; }
+#spot-master-toggle:hover { background: #4a362c; }
+.spot-results-block { margin: 18px 0 6px; }
+.spot-results-block h4 { font-family: var(--font-sans); font-size: 0.88rem; font-weight: 600; letter-spacing: 0.04em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; color: var(--primary-brown); }
+#spot-results { max-height: 340px; overflow-y: auto; padding-right: 2px; }
+.spot-results-hint { font-family: var(--font-sans); font-size: 0.76rem; color: var(--text-muted); line-height: 1.6; margin: 4px 0; }
+.spot-results-kind { display: flex; align-items: center; gap: 6px; margin: 10px 0 4px; font-family: var(--font-sans); font-size: 0.78rem; font-weight: 600; color: var(--primary-brown); }
+.spot-results-kind .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.spot-result-item { display: block; width: 100%; margin: 0 0 4px; padding: 7px 10px; text-align: left; background: #fff; border: 1px solid var(--paper-line); color: var(--text-dark); cursor: pointer; font-family: var(--font-sans); font-size: 0.82rem; line-height: 1.45; }
+.spot-result-item small { display: block; color: var(--text-muted); font-size: 0.72rem; }
+.spot-result-item:hover { border-color: var(--accent-gold); background: #fffaf0; }
 .hier-tree-container { margin-top: 10px; border: 1px solid var(--paper-line); border-radius: 2px; padding: 8px; max-height: 260px; overflow-y: auto; background: var(--white); }
 .hier-details summary { cursor: pointer; font-family: var(--font-sans); font-size: 0.82rem; padding: 5px 4px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .hier-children { padding-left: 16px; border-left: 1px dashed rgba(168,135,76,0.45); margin-left: 6px; }
@@ -1381,7 +1406,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
     </div>
     <div id="map-search-wrap">
         <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="search" id="spot-search-input" placeholder="全データを検索（メタデータ・本文）" oninput="onMapSearchInput()" autocomplete="off">
+        <input type="search" id="spot-search-input" placeholder="全データを検索（メタデータ・本文）" oninput="onMapSearchInput()" onkeydown="spotSearchKey(event)" autocomplete="off">
         <button type="button" class="sub-nav-btn" id="m-btn-spot" onclick="toggleSpotSettingsMode()" title="詳細絞り込み"><i class="fa-solid fa-sliders"></i><span>詳細絞り込み</span></button>
     </div>
     <div class="control-group">
@@ -1424,6 +1449,13 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
         <div id="spot-settings-box-content">
             <div class="spot-settings-close-btn" onclick="discardAndExitSpotSettings()" title="設定を破棄して閉じる"><i class="fa-solid fa-xmark"></i></div>
             <h3><i class="fa-solid fa-sliders"></i> 詳細絞り込み</h3>
+            <div id="spot-top-controls">
+                <div id="spot-panel-search-wrap">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="search" id="spot-panel-search" placeholder="全データを検索（メタデータ・本文）" oninput="spotPanelSearchInput()" onkeydown="spotSearchKey(event)" autocomplete="off">
+                </div>
+                <button type="button" id="spot-master-toggle" onclick="spotMasterToggle()" title="すべてのデータの表示・非表示を一括で切り替えます"><i class="fa-solid fa-eye-slash"></i><span>全て非表示</span></button>
+            </div>
 
 
             <div class="spot-group-title"><i class="fa-solid fa-camera-retro"></i> 古写真</div>
@@ -1493,6 +1525,10 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
             <div class="spot-section">
                 <label><input type="checkbox" id="chk-doc-pins" checked onchange="toggleMapPins('doc')"> 文書・史料データを表示</label>
                 <div class="hier-tree-container" id="doc-hierarchy-tree"><p style="font-size:0.75rem;color:#999;">パネルを開くと表示されます...</p></div>
+            </div>
+            <div class="spot-results-block" id="spot-results-block">
+                <h4><i class="fa-solid fa-list-ul"></i> 検索結果一覧 <span id="spot-results-count"></span></h4>
+                <div id="spot-results"></div>
             </div>
             <hr>
             <div class="spot-section">
@@ -2408,6 +2444,7 @@ function resetSpotSettingsFilters() {
     setChecked('chk-oldroad-mode-polygon', true);
     setChecked('chk-nature-mode-polygon', true);
     setChecked('chk-building-mode-polygon', true);
+    if (typeof spotViewApplyDefaults === 'function') spotViewApplyDefaults();     /* パネルの「全て表示／ピン／ポリゴン」も標準に戻す */
     clearSpatialTarget();
     window._spotHierarchyFilterIds = { nature: null, oldroad: null, building: null, td: null, doc: null };
     window._oldVisible = { nature: new Set(), oldroad: new Set(), building: new Set() };
@@ -3347,9 +3384,13 @@ const GLGeoHub = {
     _ensure: function (gl) {
         if (gl.getSource('geo-all')) return;
         const before = PinHub.firstGLId && PinHub.firstGLId();
-        gl.addSource('geo-all', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        gl.addLayer({ id: 'geo-fill', type: 'fill', source: 'geo-all', paint: { 'fill-color': ['get', 'fc'], 'fill-opacity': ['get', 'fo'] } }, before);
-        const line = { 'line-color': ['get', 'lc'], 'line-opacity': ['get', 'lo'], 'line-width': ['get', 'lw'] };
+        gl.addSource('geo-all', { type: 'geojson', promoteId: '_n', data: { type: 'FeatureCollection', features: [] } });   /* _n＝データごとの番号（ホバー・選択の状態を持たせる） */
+        /* ホバー（マウスを乗せた）／選択（クリックした）データは、塗りを濃く、輪郭を太くして目立たせる。状態の切り替えは再描画だけで済むので速い */
+        const sel = ['boolean', ['feature-state', 'sel'], false], hov = ['boolean', ['feature-state', 'hover'], false];
+        gl.addLayer({ id: 'geo-fill', type: 'fill', source: 'geo-all', paint: { 'fill-color': ['get', 'fc'],
+            'fill-opacity': ['case', sel, ['min', 1, ['+', ['get', 'fo'], 0.4]], hov, ['min', 1, ['+', ['get', 'fo'], 0.24]], ['get', 'fo']] } }, before);
+        const line = { 'line-color': ['case', sel, '#ffcf4d', ['get', 'lc']], 'line-opacity': ['case', sel, 1, hov, 1, ['get', 'lo']],
+            'line-width': ['case', sel, ['+', ['get', 'lw'], 2.4], hov, ['+', ['get', 'lw'], 1.4], ['get', 'lw']] };
         gl.addLayer({ id: 'geo-line', type: 'line', source: 'geo-all', filter: ['!=', ['get', 'dsh'], 1], layout: { 'line-join': 'round' }, paint: line }, before);
         gl.addLayer({ id: 'geo-line-d', type: 'line', source: 'geo-all', filter: ['==', ['get', 'dsh'], 1], layout: { 'line-join': 'round' }, paint: Object.assign({ 'line-dasharray': [3, 2] }, line) }, before);
         /* データの名称ラベル：文字を画像にして登録し、MapLibreのシンボルレイヤで描く（地番ラベルより低いズームから表示）。重なる分は自動で間引く */
@@ -3361,7 +3402,104 @@ const GLGeoHub = {
             if (!id || id.indexOf('dlb|') !== 0 || gl.hasImage(id)) return;
             try { const im = this._labelImage(id.slice(4)); gl.addImage(id, im.data, { pixelRatio: im.ratio }); } catch (err) {}
         });
+        /* 川・線路・道など細長いポリゴンの名称ラベル：1文字ずつ中心線に沿って並べて回転させる（地図の文字フォントを使わず、画像の文字で描く） */
+        gl.addSource('geo-lbl-ln', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        gl.addLayer({ id: 'geo-lbl-ln-sym', type: 'symbol', source: 'geo-lbl-ln', minzoom: CHIBAN_ZOOM_DATA_LABEL - 1,
+            layout: { 'icon-image': ['concat', 'dlc|', ['get', 'c']], 'icon-rotate': ['get', 'r'], 'icon-rotation-alignment': 'map', 'icon-pitch-alignment': 'map',
+                'icon-allow-overlap': true, 'icon-ignore-placement': true } }, before);
+        gl.on('styleimagemissing', (e) => {
+            const id = e && e.id;
+            if (!id || id.indexOf('dlc|') !== 0 || gl.hasImage(id)) return;
+            try { const im = this._charImage(id.slice(4)); gl.addImage(id, im.data, { pixelRatio: im.ratio }); } catch (err) {}
+        });
+        /* 文字の大きさは常に一定（画面上12px）なので、ズームが変わるたびに、収まる場所・並べ方を計算し直す */
+        gl.on('zoomend', () => this._syncLines());
+        this._bindHover(gl);
         gl.on('click', (e) => this._click(e));
+    },
+    /* マウスを乗せたデータポリゴンを光らせる */
+    _hoverNid: null, _selNid: null,
+    _bindHover: function (gl) {
+        let raf = 0, last = null;
+        const host = () => gl.getContainer().parentNode;
+        gl.on('mousemove', (e) => {
+            last = e.point;
+            if (raf) return;
+            raf = requestAnimationFrame(() => { raf = 0; if (last) this._hoverAt(last); });
+        });
+        const off = () => { last = null; this._setHoverNid(null); };
+        gl.getCanvas().addEventListener('mouseleave', off);
+        gl.on('dragstart', off);
+        this._host = host;
+    },
+    _hoverAt: function (pt) {
+        const gl = GLMaster.gl;
+        if (!gl || !gl.getLayer('geo-fill') || gl.isMoving()) { this._setHoverNid(null); return; }
+        if (PinHub._find && PinHub._find(pt.x, pt.y)) { this._setHoverNid(null); return; }     /* ピンの上ではピンを優先 */
+        let nid = null;
+        const fs = gl.queryRenderedFeatures(pt, { layers: ['geo-fill'] });
+        for (let i = 0; i < fs.length; i++) {
+            const it = this._byId[fs[i].properties._g];
+            if (it && this.items.has(it) && it.listens && it.listens('click')) { nid = it._nid; break; }
+        }
+        this._setHoverNid(nid);
+    },
+    _setState: function (nid, st) {
+        const gl = GLMaster.gl;
+        if (nid == null || !gl || !gl.getSource('geo-all')) return;
+        try { gl.setFeatureState({ source: 'geo-all', id: nid }, st); } catch (e) {}
+    },
+    _setHoverNid: function (nid) {
+        if (nid === this._hoverNid) return;
+        this._setState(this._hoverNid, { hover: false });
+        this._hoverNid = nid;
+        this._setState(nid, { hover: true });
+        try { const h = this._host && this._host(); if (h && h.classList) h.classList.toggle('geo-hover', nid != null); } catch (e) {}
+    },
+    /* クリックしたデータポリゴンを「選択中」にする（nid を省くと選択を外す） */
+    setSelected: function (nid) {
+        if (nid === this._selNid) return;
+        this._setState(this._selNid, { sel: false });
+        this._selNid = (nid == null) ? null : nid;
+        this._setState(this._selNid, { sel: true });
+    },
+    _charImage: function (t) {
+        const r = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+        const font = '600 12px "Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
+        const mc = document.createElement('canvas').getContext('2d');
+        mc.font = font;
+        const W = Math.ceil(mc.measureText(t).width) + 8, H = 22;
+        const cv = document.createElement('canvas');
+        cv.width = Math.ceil(W * r); cv.height = Math.ceil(H * r);
+        const g = cv.getContext('2d');
+        g.scale(r, r); g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 2;
+        g.strokeStyle = 'rgba(255,253,247,0.6)'; g.fillStyle = '#3a2a1c';
+        g.strokeText(t, W / 2, H / 2 + 0.5); g.fillText(t, W / 2, H / 2 + 0.5);
+        return { data: g.getImageData(0, 0, cv.width, cv.height), ratio: r };
+    },
+    /* 線状ラベルの文字を、今のズームに合わせて並べ直す */
+    _syncLines: function () {
+        const gl = (typeof GLMaster !== 'undefined') && GLMaster.gl;
+        if (!gl) return;
+        const src = gl.getSource('geo-lbl-ln');
+        if (!src) return;
+        const feats = [];
+        try {
+            if (gl.getZoom() >= CHIBAN_ZOOM_DATA_LABEL - 1) {
+                const c = gl.getCenter(), p1 = gl.project([c.lng, c.lat]), p2 = gl.project([c.lng + 0.001, c.lat]);
+                const px = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                const mpp = px > 0 ? (0.001 * 111320 * Math.cos(c.lat * Math.PI / 180)) / px : 0;   /* 画面1pxが何mか */
+                if (mpp > 0) {
+                    this.items.forEach(it => {
+                        const lb = it._label;
+                        if (!lb || !lb.text || !lb.lines || !lb.lines.length) return;
+                        const t = lb.text.length > 14 ? lb.text.slice(0, 13) + '…' : lb.text;
+                        lb.lines.forEach(plan => chibanLineLabelChars(plan, t, mpp).forEach(f => feats.push(f)));
+                    });
+                }
+            }
+        } catch (e) { console.warn('線状ラベルを作れませんでした:', e); }
+        src.setData({ type: 'FeatureCollection', features: feats });
     },
     _labelImage: function (t) {
         const r = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
@@ -3372,8 +3510,8 @@ const GLGeoHub = {
         const cv = document.createElement('canvas');
         cv.width = Math.ceil(W * r); cv.height = Math.ceil(H * r);
         const g = cv.getContext('2d');
-        g.scale(r, r); g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 3.5;
-        g.strokeStyle = 'rgba(255,253,247,0.95)'; g.fillStyle = '#3a2a1c';
+        g.scale(r, r); g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 2;
+        g.strokeStyle = 'rgba(255,253,247,0.6)'; g.fillStyle = '#3a2a1c';
         g.strokeText(t, W / 2, H / 2 + 0.5); g.fillText(t, W / 2, H / 2 + 0.5);
         return { data: g.getImageData(0, 0, cv.width, cv.height), ratio: r };
     },
@@ -3403,14 +3541,20 @@ const GLGeoHub = {
         });
         const ls = gl.getSource('geo-lbl');
         if (ls) ls.setData({ type: 'FeatureCollection', features: lf });
+        this._syncLines();
     },
     _click: function (e) {
-        if (PinHub._find && PinHub._find(e.point.x, e.point.y)) return;   /* ピンの上のクリックはピンが処理する */
+        if (PinHub._find && PinHub._find(e.point.x, e.point.y)) { this.setSelected(null); return; }   /* ピンの上のクリックはピンが処理する */
         const fs = GLMaster.gl.queryRenderedFeatures(e.point, { layers: ['geo-fill'] });
         for (let i = 0; i < fs.length; i++) {
             const it = this._byId[fs[i].properties._g];
-            if (it && this.items.has(it)) { it.fire('click', { latlng: L.latLng(e.lngLat.lat, e.lngLat.lng) }); return; }
+            if (it && this.items.has(it)) {
+                if (it.listens && it.listens('click')) this.setSelected(it._nid); else this.setSelected(null);
+                it.fire('click', { latlng: L.latLng(e.lngLat.lat, e.lngLat.lng) });
+                return;
+            }
         }
+        this.setSelected(null);      /* 何もないところをクリックしたら、選択を外す */
     },
     _byId: {}
 };
@@ -3420,7 +3564,8 @@ const GLGeoJSON = L.Layer.extend({
         L.setOptions(this, options);
         this._data = data;
         this._style = (options && options.style) || {};
-        this._gid = 'g' + L.stamp(this);
+        this._nid = L.stamp(this);
+        this._gid = 'g' + this._nid;
         GLGeoHub._byId[this._gid] = this;
         this._label = (options && options.label) || null;   /* 名称ラベル：{ text, anchors:[[lng,lat],...] } */
     },
@@ -3440,6 +3585,7 @@ const GLGeoJSON = L.Layer.extend({
             const st = Object.assign({ color: '#3388ff', weight: 3, opacity: 1, fillOpacity: 0.2 }, typeof this._style === 'function' ? this._style(f) : this._style);
             out.push({ type: 'Feature', geometry: f.geometry, properties: {
                 _g: this._gid,
+                _n: this._nid,
                 fc: st.fillColor || st.color,
                 fo: st.fill === false ? 0 : st.fillOpacity,
                 lc: st.color,
@@ -4398,23 +4544,30 @@ function _allText(o) {
 }
 let _mapSearchT = 0;
 function onMapSearchInput() {
+    const main = document.getElementById('spot-search-input'), pnl = document.getElementById('spot-panel-search');
+    if (main && pnl && pnl.value !== main.value) pnl.value = main.value;   /* パネル内の検索ボックスと中身をそろえる */
     clearTimeout(_mapSearchT);
-    _mapSearchT = setTimeout(() => {
-        const q = (document.getElementById('spot-search-input').value || '').trim();
-        if (q && map) {   /* 検索中は、非表示にしていたデータも含めて全種類を地図に出す */
-            ['photo', '3d', 'nature', 'oldroad', 'building', 'doc'].forEach(k => { const c = document.getElementById('chk-' + k + '-pins'); if (c) c.checked = true; });
-            [photoClusterGroup, modelClusterGroup, natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup, bookLayerGroup].forEach(g => { if (g && !map.hasLayer(g)) map.addLayer(g); });
-        }
-        applyMapFilters();
-        fitMapToSearchResults();
-    }, 250);
+    _mapSearchT = setTimeout(runMapSearchNow, 250);
+}
+function runMapSearchNow() {
+    clearTimeout(_mapSearchT);
+    const q = (document.getElementById('spot-search-input').value || '').trim();
+    const was = !!window._spotSearchActive;
+    window._spotSearchActive = !!q;
+    /* 検索を始めた瞬間だけ、非表示にしていた種類を標準の表示に戻す。検索中にパネルで切り替えた表示・非表示は、そのまま尊重する */
+    if (q && !was && map) {
+        try { spotViewEnsureVisible(); } catch (e) {}
+        if (bookLayerGroup && !map.hasLayer(bookLayerGroup)) map.addLayer(bookLayerGroup);
+    }
+    applyMapFilters();
+    fitMapToSearchResults();
 }
 function fitMapToSearchResults() {
     const q = (document.getElementById('spot-search-input').value || '').trim();
     if (!q || !map) return;
     const b = L.latLngBounds([]);
     [photoClusterGroup, modelClusterGroup, natureLayerGroup, oldRoadLayerGroup, buildingLayerGroup, docLayerGroup, bookLayerGroup].forEach(g => {
-        if (!g) return;
+        if (!g || !map.hasLayer(g)) return;     /* 非表示にしている種類は、移動先の範囲に含めない */
         (g._pins || []).forEach(p => b.extend(p._ll));
         g.eachLayer(l => { try { if (l.getBounds) b.extend(l.getBounds()); else if (l.getLatLng) b.extend(l.getLatLng()); } catch (e) {} });
     });
@@ -4427,6 +4580,7 @@ function applyMapFilters() {
     const activeEras = Array.from(document.querySelectorAll('.chk-era-filter:checked')).map(c => c.value);
     const activeDists = Array.from(document.querySelectorAll('.chk-dist-filter:checked')).map(c => c.value);
     const spotQuery = (document.getElementById('spot-search-input').value || '').trim().toLowerCase();
+    window._spotShown = {};      /* 今の条件で地図に出しているデータ（検索結果一覧に使う） */
 
     const filteredPhotos = archiveData.filter(p => {
         const matchEra = isUnknownValue(p.era) ? true : activeEras.some(e => p.era.includes(e));
@@ -4458,25 +4612,26 @@ function applyMapFilters() {
         return matchEra && matchYear && matchDist && matchSpatial && matchSearch;
     });
     addPhotoMarkersToMainMap(filteredPhotos);
+    window._spotShown.photo = spotViewMode('photo').pin ? filteredPhotos.filter(p => p.lat) : [];
 
     const spot3dCat = document.getElementById('spot-3d-category-filter').value;
     let filteredModels = spot3dCat ? models.filter(m => m.category === spot3dCat) : models.slice();
     if (spotQuery) {
         filteredModels = filteredModels.filter(m => _allText(m).includes(spotQuery));
     }
-    const tdMode = document.getElementById('chk-td-mode-polygon').checked ? 'polygon' : 'point';
-    if (tdMode === 'point') {
-        add3DMarkersToMap(filteredModels);
-    } else {
-        modelClusterGroup.clearLayers();
-        renderTDPolygons(filteredModels);
-    }
+    /* ピンとポリゴンは、同時に出せる */
+    const vmTd = spotViewMode('td'), tdHF = window._spotHierarchyFilterIds.td;
+    window._spotShown.td = filteredModels.filter(m => (!tdHF || tdHF.has(String(m.id))) && ((vmTd.pin && m.coords && m.coords[0]) || (vmTd.poly && m.chibanKey)));
+    modelClusterGroup.clearLayers();
+    if (vmTd.pin) add3DMarkersToMap(filteredModels);
+    if (vmTd.poly) renderTDPolygons(filteredModels);
 
     renderNatureMapLayers(spotQuery);
     renderOldRoadMapLayers(spotQuery);
     renderBuildingMapLayers(spotQuery);
     renderDocMapLayers(spotQuery);
     renderBookMapLayers(spotQuery);
+    if (typeof renderSpotSearchResults === 'function') renderSpotSearchResults();
 }
 </script>
 <script>
@@ -4771,14 +4926,18 @@ function chibanDataGeometry(rawKeys) {
         if (g.type === 'Polygon') polys.push(g.coordinates);
         else if (g.type === 'MultiPolygon') g.coordinates.forEach(c => polys.push(c));
     });
-    const anchors = [];
+    const anchors = [], lines = [];
     try {
         chibanLabelComponents(polys).forEach(comp => {
+            /* 川・線路・道のように細長いまとまりは、中心線に沿わせて文字を並べる。それ以外は従来どおり1点に置く */
+            let plan = null;
+            try { plan = chibanThinPlan(polys, comp); } catch (e) { plan = null; }
+            if (plan) { lines.push(plan); return; }
             const a = chibanLabelAnchor(polys, comp, comp.bbox);
             if (a) anchors.push([a.x, a.y]);
         });
     } catch (e) {}
-    hit = { features, anchors };
+    hit = { features, anchors, lines };
     if (_chibanDataGeomCache.size > 400) _chibanDataGeomCache.clear();
     _chibanDataGeomCache.set(ck, hit);
     return hit;
@@ -4787,7 +4946,7 @@ function makeChibanDataLayer(rawKeys, opts, labelText) {
     const g = chibanDataGeometry(rawKeys);
     if (!g) return null;
     const o = Object.assign({}, opts);
-    if (labelText) o.label = { text: String(labelText), anchors: g.anchors };
+    if (labelText) o.label = { text: String(labelText), anchors: g.anchors, lines: g.lines };
     return makeGeo({ type: 'FeatureCollection', features: g.features }, o);
 }
 
@@ -5262,11 +5421,12 @@ function renderNatureMapLayers(searchQuery) {
     natureLayerGroup.clearLayers();
     const q = (searchQuery || '').trim().toLowerCase();
     const hFilter = window._spotHierarchyFilterIds.nature;
-    const displayMode = document.getElementById('chk-nature-mode-polygon').checked ? 'polygon' : 'point';
+    const vm = spotViewMode('nature'), shown = [];
+    (window._spotShown = window._spotShown || {}).nature = shown;
     natureData.filter(row => (!q || _allText(row).includes(q)) && (!hFilter || hFilter.has(String(row.id))) && isRowVisibleOnMainMap(row, 'nature')).forEach(row => {
         const style = getNatureStyle(row);
         let drawn = false;
-        if (row.chibanKey && displayMode === 'polygon') {
+        if (row.chibanKey && vm.poly) {
             const layer = makeChibanDataLayer(row.chibanKey, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } }, row.name);
             if (layer) {
                 layer.on('click', () => openDataDetailPanel(row, 'nature'));
@@ -5274,11 +5434,13 @@ function renderNatureMapLayers(searchQuery) {
                 drawn = true;
             }
         }
-        if (!drawn && row.coords && row.coords[0]) {
+        if ((vm.pin || (vm.poly && !drawn)) && row.coords && row.coords[0]) {
             const marker = makePin(row.coords, stySpec(style.color, style.icon), row.name);
             marker.on('click', () => openDataDetailPanel(row, 'nature'));
             marker.addTo(natureLayerGroup);
+            drawn = true;
         }
+        if (drawn) shown.push(row);
     });
 }
 
@@ -5301,12 +5463,12 @@ function renderOldRoadMapLayers(searchQuery) {
     oldRoadLayerGroup.clearLayers();
     const q = (searchQuery || '').trim().toLowerCase();
     const hFilter = window._spotHierarchyFilterIds.oldroad;
-    const modeChk = document.getElementById('chk-oldroad-mode-polygon');
-    const displayMode = (!modeChk || modeChk.checked) ? 'polygon' : 'point';
+    const vm = spotViewMode('oldroad'), shown = [];
+    (window._spotShown = window._spotShown || {}).oldroad = shown;
     oldRoadData.filter(row => (!q || _allText(row).includes(q)) && (!hFilter || hFilter.has(String(row.id))) && isRowVisibleOnMainMap(row, 'oldroad')).forEach(row => {
         const style = getOldRoadStyle(row);
         let drawn = false;
-        if (row.chibanKey && displayMode === 'polygon') {
+        if (row.chibanKey && vm.poly) {
             const layer = makeChibanDataLayer(row.chibanKey, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } }, row.name);
             if (layer) {
                 layer.on('click', () => openDataDetailPanel(row, 'oldroad'));
@@ -5314,11 +5476,13 @@ function renderOldRoadMapLayers(searchQuery) {
                 drawn = true;
             }
         }
-        if (!drawn && row.coords && row.coords[0]) {
+        if ((vm.pin || (vm.poly && !drawn)) && row.coords && row.coords[0]) {
             const marker = makePin(row.coords, stySpec(style.color, style.icon), row.name);
             marker.on('click', () => openDataDetailPanel(row, 'oldroad'));
             marker.addTo(oldRoadLayerGroup);
+            drawn = true;
         }
+        if (drawn) shown.push(row);
     });
 }
 
@@ -5351,11 +5515,12 @@ function renderBuildingMapLayers(searchQuery) {
     buildingLayerGroup.clearLayers();
     const q = (searchQuery || '').trim().toLowerCase();
     const hFilter = window._spotHierarchyFilterIds.building;
-    const displayMode = document.getElementById('chk-building-mode-polygon').checked ? 'polygon' : 'point';
+    const vm = spotViewMode('building'), shown = [];
+    (window._spotShown = window._spotShown || {}).building = shown;
     buildingData.filter(row => (!q || _allText(row).includes(q)) && (!hFilter || hFilter.has(String(row.id))) && isRowVisibleOnMainMap(row, 'building')).forEach(row => {
         const style = getBuildingStyle(row);
         let drawn = false;
-        if (row.chibanKey && displayMode === 'polygon') {
+        if (row.chibanKey && vm.poly) {
             const layer = makeChibanDataLayer(row.chibanKey, { style: { color: style.color, fillColor: style.fillColor, fillOpacity: 0.35, weight: 1.5 } }, row.name);
             if (layer) {
                 layer.on('click', () => openDataDetailPanel(row, 'building'));
@@ -5363,11 +5528,13 @@ function renderBuildingMapLayers(searchQuery) {
                 drawn = true;
             }
         }
-        if (!drawn && row.coords && row.coords[0]) {
+        if ((vm.pin || (vm.poly && !drawn)) && row.coords && row.coords[0]) {
             const marker = makePin(row.coords, stySpec(style.color, style.icon), row.name);
             marker.on('click', () => openDataDetailPanel(row, 'building'));
             marker.addTo(buildingLayerGroup);
+            drawn = true;
         }
+        if (drawn) shown.push(row);
     });
 }
 
@@ -5378,12 +5545,16 @@ function renderDocMapLayers(searchQuery) {
     docLayerGroup.clearLayers();
     const q = (searchQuery || '').trim().toLowerCase();
     const hFilter = window._spotHierarchyFilterIds.doc;
+    const shown = [];
+    (window._spotShown = window._spotShown || {}).doc = shown;
+    if (!spotViewMode('doc').poly) return;
     docData.filter(row => (!q || _allText(row).includes(q)) && (!hFilter || hFilter.has(String(row.id)))).forEach(row => {
         if (!row.chibanKey) return;
         const layer = makeChibanDataLayer(row.chibanKey, { style: { color: '#1a2a4a', fillColor: '#1a2a4a', fillOpacity: 0.35, weight: 1.5 } }, row.subject || row.sub || row.id);
         if (!layer) return;
         layer.on('click', () => openDocDetailPanel(row));
         layer.addTo(docLayerGroup);
+        shown.push(row);
     });
 }
 
@@ -5393,6 +5564,8 @@ function renderDocMapLayers(searchQuery) {
 function renderBookMapLayers(searchQuery) {
     if (!bookLayerGroup) return;
     bookLayerGroup.clearLayers();
+    const shown = [];
+    (window._spotShown = window._spotShown || {}).book = shown;
     const q = (searchQuery || '').trim().toLowerCase();
     bookData.forEach(b => {
         b.rows.forEach(row => {
@@ -5415,7 +5588,9 @@ function renderBookMapLayers(searchQuery) {
                 const marker = makePin(row.coords, stySpec(TYPE_COLORS.book, 'book'), row.entryLabel || row.h3 || row.h2 || row.h1 || b.title);
                 marker.on('click', () => openDataDetailPanel(mergedRow, 'book'));
                 marker.addTo(bookLayerGroup);
+                drawn = true;
             }
+            if (drawn) shown.push(mergedRow);
         });
     });
 }
@@ -5875,6 +6050,7 @@ const ChibanGL = {
     _hoverAt(pt) {
         const gl = this.gl;
         if (!this.isShowing() || !this._shown() || gl.isMoving()) { this._setHover(null, null, null); return; }
+        if (typeof GLGeoHub !== 'undefined' && GLGeoHub._hoverNid != null) { this._setHover(null, null, null); return; }
         const level = currentChibanLevel();
         let fs = [];
         try { fs = gl.queryRenderedFeatures(pt, { layers: [this.datasets[this.current].fill[level]] }); } catch (e) {}
@@ -5893,14 +6069,51 @@ const ChibanGL = {
         this._setHover(level, key, flt);
     },
 
+    /* ホバー用の小さな図形置き場（地番1筆だけを描く）。
+       地図タイルのレイヤに setFilter すると、そのたびに画面内の全タイルが作り直されて重くなる。
+       地番（筆）の階層は件数が多くて特に重いので、ホバー中の1筆の形だけを小さなデータとして差し替えて描く。 */
+    _hvEnsure() {
+        const gl = this.gl;
+        if (gl.getSource('chb-hv-src')) return true;
+        try {
+            gl.addSource('chb-hv-src', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            const before = this._anchor();
+            const mk = (def) => { if (before && gl.getLayer(before)) gl.addLayer(def, before); else gl.addLayer(def); };
+            mk({ id: 'chb-hv-fill', type: 'fill', source: 'chb-hv-src', paint: { 'fill-color': CHIBAN_HOVER_STYLE.fillColor, 'fill-opacity': CHIBAN_HOVER_STYLE.fillOpacity, 'fill-antialias': false } });
+            mk({ id: 'chb-hv-line', type: 'line', source: 'chb-hv-src', layout: { 'line-join': 'round' }, paint: { 'line-color': CHIBAN_HOVER_STYLE.color, 'line-width': CHIBAN_HOVER_STYLE.weight } });
+            try { ChibanLabelGL.raise(); } catch (e) {}
+            return true;
+        } catch (e) { return false; }
+    },
+    _hvShow(level, flt) {
+        if (!this._hvEnsure()) return false;
+        const gl = this.gl, d = this.datasets[this.current];
+        let fs = [];
+        try { fs = gl.queryRenderedFeatures({ layers: [d.fill[level]], filter: flt }); } catch (e) { return false; }
+        if (!fs.length) return false;
+        let geoms = fs.map(f => ({ type: 'Feature', geometry: f.geometry, properties: {} }));
+        if (geoms.length > 1) {     /* タイルの境目で切れた破片は1つにつなぐ（重なって濃く見えるのを防ぐ） */
+            try { let u = geoms[0]; for (let i = 1; i < geoms.length && i < 12; i++) { const r = turf.union(u, geoms[i]); if (r) u = r; } geoms = [u]; } catch (e) {}
+        }
+        gl.getSource('chb-hv-src').setData({ type: 'FeatureCollection', features: geoms });
+        this._hvOn = true;
+        return true;
+    },
+    _hvClear() {
+        if (!this._hvOn) return;
+        this._hvOn = false;
+        try { this.gl.getSource('chb-hv-src').setData({ type: 'FeatureCollection', features: [] }); } catch (e) {}
+    },
     _setHover(level, key, flt) {
         const k = key ? (level + '#' + key) : null;
         if (k === this._hoverKey) return;
         this._hoverKey = k;
-        const d = this.datasets[this.current];
+        /* 地番（筆）の階層：小さな図形で描く（速い）。大字・小字の階層は件数が少ないので、従来どおりレイヤの絞り込みで描く */
+        const viaOverlay = !!(k && level === 'banchi' && this._hvShow(level, flt));
+        if (!viaOverlay) this._hvClear();
         for (const did in this.datasets) {
             for (const lvl in this.datasets[did].hv) {
-                const on = (did === this.current && lvl === level && flt);
+                const on = (did === this.current && lvl === level && flt && !viaOverlay);
                 this.datasets[did].hv[lvl].forEach(lid => { try { this.gl.setFilter(lid, on ? flt : this.NONE); } catch (e) {} });
             }
         }
@@ -6503,6 +6716,206 @@ function chibanLabelAnchor(polys, comp, view) {
 }
 
 
+/* ---- 細長いポリゴン（川・線路・道など）の中心線を求める ----
+   ポリゴンを細かい格子にして、中心（輪郭から一番遠い筋）をたどる線を作る。
+   戻り値：細長いときだけ { lng0, lat0, kx, ky, xy, ws, ds, total }（xy は中心線の点列[m]、ws は各点でのポリゴンの幅[m]）。細長くなければ null */
+function chibanThinPlan(polys, comp) {
+    const bb = comp.bbox;
+    const lat0 = (bb[1] + bb[3]) / 2, lng0 = (bb[0] + bb[2]) / 2;
+    const kx = 111320 * Math.cos(lat0 * Math.PI / 180), ky = 110574;
+    const rings = [];
+    let area = 0, perim = 0, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    comp.idx.forEach(pi => {
+        polys[pi].forEach((ring, ri) => {
+            const r = ring.map(p => [(p[0] - lng0) * kx, (p[1] - lat0) * ky]);
+            rings.push(r);
+            let a = 0, pl = 0;
+            for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+                a += r[j][0] * r[i][1] - r[i][0] * r[j][1];
+                pl += Math.hypot(r[i][0] - r[j][0], r[i][1] - r[j][1]);
+                if (ri === 0) { x0 = Math.min(x0, r[i][0]); x1 = Math.max(x1, r[i][0]); y0 = Math.min(y0, r[i][1]); y1 = Math.max(y1, r[i][1]); }
+            }
+            area += (ri === 0 ? 1 : -1) * Math.abs(a) / 2;
+            perim += pl;
+        });
+    });
+    if (!(area > 1) || !(perim > 0)) return null;
+    /* 周囲の長さ²÷面積：正方形は16、円は約12.6、1:4の長方形は25。大きいほど細長い。まず安く判定して、細長そうなものだけ詳しく調べる */
+    if (perim * perim / area < 22) return null;
+    const W = x1 - x0, H = y1 - y0;
+    const c = Math.max((2 * area / perim) / 4, Math.sqrt(area / 250000), Math.max(W, H) / 20000, 0.25);   /* 格子の1マスの大きさ[m] */
+    const rows = Math.ceil(H / c) + 1, cols = Math.ceil(W / c) + 2;
+    /* 走査線：各行の中心の高さで、輪郭との交点を集める */
+    const xsRow = new Array(rows);
+    rings.forEach(r => {
+        for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+            const ax = r[j][0], ay = r[j][1], bx = r[i][0], by = r[i][1];
+            if (ay === by) continue;
+            const lo = Math.min(ay, by), hi = Math.max(ay, by);
+            const r0 = Math.max(0, Math.ceil((lo - y0) / c - 0.5)), r1 = Math.min(rows - 1, Math.ceil((hi - y0) / c - 0.5) - 1);
+            for (let k = r0; k <= r1; k++) {
+                const y = y0 + (k + 0.5) * c;
+                (xsRow[k] || (xsRow[k] = [])).push(ax + (y - ay) * (bx - ax) / (by - ay));
+            }
+        }
+    });
+    const idOf = new Map(), cr = [], cc = [];
+    for (let k = 0; k < rows; k++) {
+        const xs = xsRow[k];
+        if (!xs) continue;
+        xs.sort((a, b) => a - b);
+        for (let i = 0; i + 1 < xs.length; i += 2) {
+            const a = Math.ceil((xs[i] - x0) / c - 0.5), b = Math.ceil((xs[i + 1] - x0) / c - 0.5) - 1;
+            for (let q = a; q <= b; q++) {
+                const key = k * cols + q;
+                if (idOf.has(key)) continue;
+                idOf.set(key, cr.length); cr.push(k); cc.push(q);
+            }
+        }
+        if (cr.length > 320000) return null;
+    }
+    const n = cr.length;
+    if (n < 20) return null;
+    const DR = [-1, -1, -1, 0, 0, 1, 1, 1], DC = [-1, 0, 1, -1, 1, -1, 0, 1], DL = [Math.SQRT2, 1, Math.SQRT2, 1, 1, Math.SQRT2, 1, Math.SQRT2];
+    const nb = new Int32Array(n * 8);
+    for (let i = 0; i < n; i++) for (let d = 0; d < 8; d++) {
+        const v = idOf.get((cr[i] + DR[d]) * cols + cc[i] + DC[d]);
+        nb[i * 8 + d] = v === undefined ? -1 : v;
+    }
+    /* 輪郭までの距離（マス単位）。2回なぞるだけの簡易な方法 */
+    const dist = new Float32Array(n);
+    for (let i = 0; i < n; i++) dist[i] = (nb[i * 8 + 1] < 0 || nb[i * 8 + 3] < 0 || nb[i * 8 + 4] < 0 || nb[i * 8 + 6] < 0) ? 1 : 1e9;
+    for (let i = 0; i < n; i++) for (const d of [0, 1, 2, 3]) { const v = nb[i * 8 + d]; if (v >= 0 && dist[v] + DL[d] < dist[i]) dist[i] = dist[v] + DL[d]; }
+    for (let i = n - 1; i >= 0; i--) for (const d of [4, 5, 6, 7]) { const v = nb[i * 8 + d]; if (v >= 0 && dist[v] + DL[d] < dist[i]) dist[i] = dist[v] + DL[d]; }
+    /* 中心の筋を通りやすくした最短経路（輪郭に近いほど遠回り扱い）。端から端までの一番長い経路を、2回の探索で見つける */
+    const sweep = (start) => {
+        const cost = new Float64Array(n).fill(Infinity), glen = new Float64Array(n), par = new Int32Array(n).fill(-1);
+        const hk = [], hv = [];
+        const push = (k, v) => {
+            let i = hk.length; hk.push(k); hv.push(v);
+            while (i > 0) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; }
+            hk[i] = k; hv[i] = v;
+        };
+        const pop = () => {
+            const rk = hk[0], rv = hv[0], lk = hk.pop(), lv = hv.pop();
+            if (hk.length) {
+                let i = 0;
+                for (;;) {
+                    let ch = 2 * i + 1;
+                    if (ch >= hk.length) break;
+                    if (ch + 1 < hk.length && hk[ch + 1] < hk[ch]) ch++;
+                    if (hk[ch] >= lk) break;
+                    hk[i] = hk[ch]; hv[i] = hv[ch]; i = ch;
+                }
+                hk[i] = lk; hv[i] = lv;
+            }
+            return [rk, rv];
+        };
+        cost[start] = 0; push(0, start);
+        while (hk.length) {
+            const [k, u] = pop();
+            if (k > cost[u]) continue;
+            for (let d = 0; d < 8; d++) {
+                const v = nb[u * 8 + d];
+                if (v < 0) continue;
+                const nc = k + DL[d] / (dist[v] * dist[v]);
+                if (nc < cost[v]) { cost[v] = nc; par[v] = u; glen[v] = glen[u] + DL[d]; push(nc, v); }
+            }
+        }
+        let far = start;
+        for (let i = 0; i < n; i++) if (cost[i] < Infinity && glen[i] > glen[far]) far = i;
+        return { far, par };
+    };
+    let s0 = 0;
+    for (let i = 1; i < n; i++) if (dist[i] > dist[s0]) s0 = i;
+    const A = sweep(s0).far, sw = sweep(A), B = sw.far;
+    const cells = [];
+    for (let v = B; v >= 0; v = sw.par[v]) { cells.push(v); if (v === A) break; }
+    if (cells.length < 4) return null;
+    /* 点列にして、なめらかにする（格子のギザギザを取る） */
+    let px = cells.map(v => x0 + (cc[v] + 0.5) * c), py = cells.map(v => y0 + (cr[v] + 0.5) * c), pw = cells.map(v => (2 * dist[v] - 1) * c);
+    const smooth = (arr, k) => arr.map((_, i) => { let s = 0, m = 0; for (let j = Math.max(0, i - k); j <= Math.min(arr.length - 1, i + k); j++) { s += arr[j]; m++; } return s / m; });
+    const K = Math.max(2, Math.min(6, Math.round(cells.length / 40)));
+    px = smooth(smooth(px, K), K); py = smooth(smooth(py, K), K); pw = smooth(pw, 2);
+    /* 等間隔に並べ直す */
+    const cum = [0];
+    for (let i = 1; i < px.length; i++) cum.push(cum[i - 1] + Math.hypot(px[i] - px[i - 1], py[i] - py[i - 1]));
+    const total = cum[cum.length - 1];
+    const sorted = pw.slice().sort((a, b) => a - b), wmed = sorted[sorted.length >> 1];
+    if (!(total >= 4 * wmed)) return null;      /* 長さが幅の4倍に満たなければ「細長い」とみなさない */
+    const ds = Math.max(c, total / 2000), m = Math.floor(total / ds) + 1;
+    const xy = new Float64Array(m * 2), ws = new Float64Array(m);
+    for (let i = 0, j = 0; i < m; i++) {
+        const s = Math.min(total, i * ds);
+        while (j < cum.length - 2 && cum[j + 1] < s) j++;
+        const t = cum[j + 1] > cum[j] ? (s - cum[j]) / (cum[j + 1] - cum[j]) : 0;
+        xy[i * 2] = px[j] + (px[j + 1] - px[j]) * t; xy[i * 2 + 1] = py[j] + (py[j + 1] - py[j]) * t;
+        ws[i] = pw[j] + (pw[j + 1] - pw[j]) * t;
+    }
+    return { lng0, lat0, kx, ky, xy, ws, ds, total: (m - 1) * ds };
+}
+/* 線状ラベルの1文字分の幅[px]（文字は画面上12pxで描く） */
+const _chibanCharAdv = new Map();
+function chibanCharAdvance(ch) {
+    let w = _chibanCharAdv.get(ch);
+    if (w === undefined) {
+        const ctx = chibanCharAdvance._ctx || (chibanCharAdvance._ctx = document.createElement('canvas').getContext('2d'));
+        ctx.font = '600 12px "Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
+        w = ctx.measureText(ch).width + 0.5;
+        _chibanCharAdv.set(ch, w);
+    }
+    return w;
+}
+/* 中心線に沿って文字を並べる。mpp＝画面1pxが何mか。
+   ・ポリゴンの幅が文字の高さ（12px）に余裕を足した分以上ある区間にだけ並べる（はみ出さない）。足りない間は出さず、ズームすると出る。
+   ・長い区間には、間隔をあけて繰り返し並べる。
+   ・文字の向きは左から右に読める向きにそろえる。 */
+function chibanLineLabelChars(plan, text, mpp) {
+    const chars = Array.from(text);
+    const adv = chars.map(ch => chibanCharAdvance(ch) * mpp);
+    const Lt = adv.reduce((a, b) => a + b, 0);
+    const out = [];
+    if (!(Lt > 0) || plan.total < Lt) return out;
+    const need = 14 * mpp, ds = plan.ds, ws = plan.ws, m = ws.length;
+    const okAt = (i) => ws[i] >= need;
+    const at = (s) => {          /* 中心線上の距離 s の位置 */
+        const f = Math.min(Math.max(s / ds, 0), m - 1), i = Math.min(m - 2, Math.floor(f)), t = f - i;
+        return [plan.xy[i * 2] + (plan.xy[i * 2 + 2] - plan.xy[i * 2]) * t, plan.xy[i * 2 + 1] + (plan.xy[i * 2 + 3] - plan.xy[i * 2 + 1]) * t];
+    };
+    const G = Math.max(Lt * 3, 320 * mpp);       /* 繰り返しの間隔 */
+    let i = 0;
+    while (i < m && out.length < 600) {
+        if (!okAt(i)) { i++; continue; }
+        let j = i;
+        while (j + 1 < m && okAt(j + 1)) j++;
+        const runLen = (j - i) * ds;
+        const cnt = Math.floor((runLen + G) / (Lt + G));
+        if (cnt >= 1) {
+            const span = cnt * Lt + (cnt - 1) * G;
+            const start = i * ds + (runLen - span) / 2;
+            for (let k = 0; k < cnt; k++) {
+                const a = start + k * (Lt + G), mid = a + Lt / 2, dd = Math.max(ds, Lt / 6);
+                const p1 = at(mid - dd), p2 = at(mid + dd);
+                const rev = (p2[0] - p1[0]) < 0;       /* 右から左へ向かう線は、文字を逆順に置いて、読みやすい向きにする */
+                let cum = 0;
+                for (let q = 0; q < chars.length; q++) {
+                    const off = cum + adv[q] / 2; cum += adv[q];
+                    if (chars[q].trim() === '') continue;
+                    const s = rev ? a + Lt - off : a + off, h = Math.max(ds, adv[q] * 0.6);
+                    const c0 = at(s), q1 = at(s - h), q2 = at(s + h);
+                    let vx = q2[0] - q1[0], vy = q2[1] - q1[1];
+                    if (rev) { vx = -vx; vy = -vy; }
+                    out.push({ type: 'Feature', properties: { c: chars[q], r: -Math.atan2(vy, vx) * 180 / Math.PI },
+                        geometry: { type: 'Point', coordinates: [plan.lng0 + c0[0] / plan.kx, plan.lat0 + c0[1] / plan.ky] } });
+                }
+            }
+        }
+        i = j + 1;
+    }
+    return out;
+}
+
+
 const ChibanLabelGL = {
     SRC: 'chl-src',
     IDS: ['chl-sym-o', 'chl-sym-k', 'chl-sym-b'],   /* 大字 / 小字 / 地番 */
@@ -6882,6 +7295,7 @@ function openMapDetailPanel(bodyHtml, opts) {
     if (typeof applyMapDetailPanelSize === 'function') applyMapDetailPanelSize();
 }
 function closeMapDetailPanel() {
+    try { GLGeoHub.setSelected(null); } catch (e) {}
     document.getElementById('map-detail-panel').classList.remove('open');
     const rz = document.getElementById('map-detail-resizer'); if (rz) rz.classList.remove('open');
     resetActiveChibanLayerStyle();
@@ -11692,26 +12106,238 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
 })();
 </script>
 <script>
-/* 詳細絞り込みパネル：データ単位（古写真・石造物…）ごとに開閉式にまとめる */
+/* 詳細絞り込みパネル：データ単位（古写真・石造物…）ごとに開閉式にまとめ、
+   その横に「全て表示／ピン／ポリゴン」のチェックを置く。検索結果一覧と、全体の表示・非表示切り替えもここ。 */
 (function () {
     const box = document.getElementById('spot-settings-box-content');
     if (!box) return;
+    const $ = (id) => document.getElementById(id);
+    const KINDS = {
+        photo:    { label: '古写真',       legacy: 'photo',    pin: true,  poly: false, hasPin: true,  hasPoly: false },
+        td:       { label: '石造物',       legacy: '3d',       pin: true,  poly: false, hasPin: true,  hasPoly: true, mode: 'chk-td-mode-polygon' },
+        oldroad:  { label: '古道',         legacy: 'oldroad',  pin: false, poly: true,  hasPin: true,  hasPoly: true, mode: 'chk-oldroad-mode-polygon' },
+        nature:   { label: '自然系',       legacy: 'nature',   pin: false, poly: true,  hasPin: true,  hasPoly: true, mode: 'chk-nature-mode-polygon' },
+        building: { label: '歴史的建造物', legacy: 'building', pin: false, poly: true,  hasPin: true,  hasPoly: true, mode: 'chk-building-mode-polygon' },
+        doc:      { label: '文書',         legacy: 'doc',      pin: false, poly: true,  hasPin: false, hasPoly: true }
+    };
+    const BY_LABEL = {};
+    Object.keys(KINDS).forEach(k => { BY_LABEL[KINDS[k].label] = k; });
+
+    function visHtml(k) {
+        const c = KINDS[k];
+        const off = (cond, msg) => cond ? ' disabled title="' + msg + '"' : '';
+        return '<span class="spot-vis" data-kind="' + k + '">'
+            + '<label><input type="checkbox" id="vw-' + k + '-all" onchange="spotViewChange(\'' + k + '\',\'all\')"> 全て表示</label>'
+            + '<label class="' + (c.hasPin ? '' : 'off') + '"><input type="checkbox" id="vw-' + k + '-pin"' + off(!c.hasPin, 'このデータには座標ピンがありません') + ' onchange="spotViewChange(\'' + k + '\',\'pin\')"> ピン</label>'
+            + '<label class="' + (c.hasPoly ? '' : 'off') + '"><input type="checkbox" id="vw-' + k + '-poly"' + off(!c.hasPoly, 'このデータには地番ポリゴンがありません') + ' onchange="spotViewChange(\'' + k + '\',\'poly\')"> ポリゴン</label>'
+            + '</span>';
+    }
+
+    /* ---- データ単位の開閉ボタン（閉じたままでも、横のチェックで表示を切り替えられる） ---- */
     box.querySelectorAll('.spot-group-title').forEach(t => {
-        const d = document.createElement('details');
-        d.className = 'spot-group';
-        const sm = document.createElement('summary');
-        sm.className = 'spot-group-title';
-        sm.innerHTML = t.innerHTML;
-        t.parentNode.insertBefore(d, t);
-        d.appendChild(sm);
+        const kind = BY_LABEL[t.textContent.trim()];
+        const g = document.createElement('div');
+        g.className = 'spot-group';
+        if (kind) g.dataset.kind = kind;
+        const head = document.createElement('div');
+        head.className = 'spot-group-head';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'spot-group-title';
+        btn.innerHTML = t.innerHTML;
+        btn.addEventListener('click', () => g.classList.toggle('open'));
+        head.appendChild(btn);
+        if (kind) head.insertAdjacentHTML('beforeend', visHtml(kind));
+        const body = document.createElement('div');
+        body.className = 'spot-group-body';
+        g.appendChild(head); g.appendChild(body);
+        t.parentNode.insertBefore(g, t);
         let n = t.nextElementSibling;
         t.remove();
         while (n && n.classList.contains('spot-section') && !/^\s*凡例/.test(n.textContent)) {
             const nx = n.nextElementSibling;
-            d.appendChild(n);
+            body.appendChild(n);
             n = nx;
         }
     });
+    /* 旧来の「ピンを表示」「ポリゴンで表示」のチェックは、上のチェックに置き換えた（中身は内部で同期して使い続ける）ので隠す */
+    ['chk-photo-pins', 'chk-3d-pins', 'chk-td-mode-polygon', 'chk-oldroad-pins', 'chk-oldroad-mode-polygon', 'chk-nature-pins',
+     'chk-nature-mode-polygon', 'chk-building-pins', 'chk-building-mode-polygon', 'chk-doc-pins'].forEach(id => {
+        const el = $(id), lb = el && el.closest('label');
+        if (lb) lb.style.display = 'none';
+    });
+    box.querySelectorAll('.spot-group-body .spot-section').forEach(sec => {
+        if (Array.from(sec.children).every(c => c.style.display === 'none')) sec.style.display = 'none';
+    });
+
+    /* ---- 表示状態：ピン／ポリゴンは独立して選べる ---- */
+    const boxes = (k) => ({ all: $('vw-' + k + '-all'), pin: $('vw-' + k + '-pin'), poly: $('vw-' + k + '-poly') });
+    window.spotViewMode = function (kind) {
+        const b = boxes(kind), c = KINDS[kind];
+        if (!b.pin && !b.poly) {     /* パネルの用意前は、従来の設定を使う */
+            const m = c && c.mode && $(c.mode);
+            const poly = m ? m.checked : kind === 'doc';
+            return { pin: !poly && kind !== 'doc', poly: poly };
+        }
+        return { pin: !!(b.pin && b.pin.checked && !b.pin.disabled), poly: !!(b.poly && b.poly.checked && !b.poly.disabled) };
+    };
+    function syncLegacy(k) {
+        const c = KINDS[k], v = window.spotViewMode(k);
+        const pins = $('chk-' + c.legacy + '-pins');
+        if (pins) pins.checked = v.pin || v.poly;      /* 種類ごとの地図レイヤの表示／非表示 */
+        if (c.mode) { const m = $(c.mode); if (m) m.checked = v.poly; }
+    }
+    function refreshUI() {
+        let any = false;
+        Object.keys(KINDS).forEach(k => {
+            const b = boxes(k);
+            if (!b.all) return;
+            const en = [b.pin, b.poly].filter(x => x && !x.disabled);
+            const on = en.filter(x => x.checked).length;
+            b.all.checked = en.length > 0 && on === en.length;
+            b.all.indeterminate = on > 0 && on < en.length;
+            if (on) any = true;
+        });
+        const bt = $('spot-master-toggle');
+        if (bt) {
+            bt.querySelector('span').textContent = any ? '全て非表示' : '全て表示';
+            bt.querySelector('i').className = 'fa-solid ' + (any ? 'fa-eye-slash' : 'fa-eye');
+        }
+    }
+    function applyToMap(kinds) {
+        const hasMap = typeof map !== 'undefined' && map;
+        kinds.forEach(k => {
+            syncLegacy(k);
+            if (hasMap) { try { toggleMapPins(KINDS[k].legacy); } catch (e) {} }
+        });
+        if (hasMap) { try { applyMapFilters(); } catch (e) { console.warn(e); } }
+        refreshUI();
+    }
+    window.spotViewChange = function (kind, which) {
+        const b = boxes(kind);
+        if (which === 'all') [b.pin, b.poly].forEach(x => { if (x && !x.disabled) x.checked = b.all.checked; });
+        applyToMap([kind]);
+    };
+    window.spotMasterToggle = function () {
+        const keys = Object.keys(KINDS);
+        const any = keys.some(k => { const v = window.spotViewMode(k); return v.pin || v.poly; });
+        keys.forEach(k => { const b = boxes(k); [b.pin, b.poly].forEach(x => { if (x && !x.disabled) x.checked = !any; }); });
+        applyToMap(keys);
+    };
+    window.spotViewApplyDefaults = function (kinds) {
+        (kinds || Object.keys(KINDS)).forEach(k => {
+            const b = boxes(k), c = KINDS[k];
+            if (b.pin) b.pin.checked = c.pin && !b.pin.disabled;
+            if (b.poly) b.poly.checked = c.poly && !b.poly.disabled;
+            syncLegacy(k);
+        });
+        refreshUI();
+    };
+    /* 検索を始めたとき、非表示にしていた種類を標準の表示に戻す */
+    window.spotViewEnsureVisible = function () {
+        const hidden = Object.keys(KINDS).filter(k => { const v = window.spotViewMode(k); return !v.pin && !v.poly; });
+        window.spotViewApplyDefaults(hidden);
+        hidden.forEach(k => { try { toggleMapPins(KINDS[k].legacy); } catch (e) {} });
+    };
+    window.spotViewApplyDefaults();
+
+    /* ---- 検索ボックス（メインマップ上のものと連動）。Enterで詳細絞り込みパネルを開いて検索 ---- */
+    window.spotPanelSearchInput = function () {
+        const p = $('spot-panel-search'), m = $('spot-search-input');
+        if (m && p) m.value = p.value;
+        onMapSearchInput();
+    };
+    window.spotOpenPanel = function () {
+        if (!spotSettingsModeActive) toggleSpotSettingsMode();
+        else {
+            const w = $('spot-settings-wrapper');
+            if (w && !w.classList.contains('open')) toggleSpotSettingsPanelViaTab();
+        }
+    };
+    window.spotSearchKey = function (e) {
+        if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;     /* 日本語入力の変換確定のEnterでは動かさない */
+        e.preventDefault();
+        const p = $('spot-panel-search'), m = $('spot-search-input'), src = e.target;
+        if (src === p && m) m.value = p.value; else if (src === m && p) p.value = m.value;
+        window.spotOpenPanel();
+        if (typeof runMapSearchNow === 'function') runMapSearchNow();
+        if (src === m) m.blur();      /* 入力中の画面ぼかしを解いて、パネルが見えるようにする */
+    };
+
+    /* ---- 検索結果一覧 ---- */
+    const ORDER = ['photo', 'td', 'oldroad', 'nature', 'building', 'doc', 'book'];
+    const LABEL = { photo: '古写真', td: '石造物', oldroad: '古道', nature: '自然系', building: '歴史的建造物', doc: '文書・史料', book: '図書' };
+    const PER_KIND = 80;
+    const llOf = (row) => (row.coords && row.coords[0]) ? row.coords : null;
+    function info(kind, row) {
+        switch (kind) {
+            case 'photo': return { t: row.title || row.refNum, s: [row.era, row.year ? row.year + '年' : ''].filter(Boolean).join('　'), ll: row.lat ? [row.lat, row.lng] : null };
+            case 'td':    return { t: row.name, s: row.category || '', ll: llOf(row), key: row.chibanKey };
+            case 'doc':   return { t: row.subject || row.sub || row.id, s: row.genre || row.main || '', key: row.chibanKey };
+            case 'book':  return { t: row.entryLabel || row.h3 || row.h2 || row.h1 || (row.book && row.book.title), s: row.book ? row.book.title : '', ll: llOf(row), key: row.chibanKey };
+            default:      return { t: row.name, s: row.type || '', ll: llOf(row), key: row.chibanKey };
+        }
+    }
+    function openItem(kind, row) {
+        if (kind === 'photo') openPhotoDetailPanel(row, getDirectionAngle(row.direction), getDistanceColor(row.distanceRaw));
+        else if (kind === 'doc') openDocDetailPanel(row);
+        else openDataDetailPanel(row, kind);
+    }
+    function focusItem(inf) {
+        if (typeof map === 'undefined' || !map) return;
+        try {
+            if (inf.key && typeof chibanDataGeometry === 'function') {
+                const g = chibanDataGeometry(inf.key);
+                if (g && g.features && g.features.length) {
+                    const bb = turf.bbox({ type: 'FeatureCollection', features: g.features });
+                    map.fitBounds([[bb[1], bb[0]], [bb[3], bb[2]]], { padding: [60, 60], maxZoom: 18 });
+                    return;
+                }
+            }
+        } catch (e) {}
+        if (inf.ll) map.flyTo(inf.ll, Math.max(map.getZoom(), 17), { duration: 0.8 });
+    }
+    window.renderSpotSearchResults = function () {
+        const el = $('spot-results'), cnt = $('spot-results-count'), m = $('spot-search-input');
+        if (!el) return;
+        const q = m ? (m.value || '').trim() : '';
+        const items = window._spotResultItems = [];
+        if (!q) {
+            el.innerHTML = '<p class="spot-results-hint">上の検索ボックスにキーワードを入れてEnterを押すと、検索結果がここに一覧で出ます。</p>';
+            if (cnt) cnt.textContent = '';
+            return;
+        }
+        const shown = window._spotShown || {};
+        let html = '', total = 0;
+        ORDER.forEach(kind => {
+            const rows = shown[kind];
+            if (!rows || !rows.length) return;
+            if (KINDS[kind]) { const v = window.spotViewMode(kind); if (!v.pin && !v.poly) return; }   /* 非表示にしている種類は載せない */
+            total += rows.length;
+            html += '<div class="spot-results-kind"><span class="dot" style="background:' + ((typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[kind]) || '#888') + '"></span>' + LABEL[kind] + '（' + rows.length + '件）</div>';
+            rows.slice(0, PER_KIND).forEach(row => {
+                const inf = info(kind, row);
+                const i = items.push({ kind: kind, row: row, inf: inf }) - 1;
+                html += '<button type="button" class="spot-result-item" data-i="' + i + '">' + escapeHtml(String(inf.t || '（無題）'))
+                    + (inf.s ? '<small>' + escapeHtml(String(inf.s)) + '</small>' : '') + '</button>';
+            });
+            if (rows.length > PER_KIND) html += '<p class="spot-results-hint">ほか ' + (rows.length - PER_KIND) + ' 件。キーワードを足すと絞り込めます。</p>';
+        });
+        el.innerHTML = html || '<p class="spot-results-hint">該当するデータはありません（非表示にしている種類は含まれません）。</p>';
+        if (cnt) cnt.textContent = total ? '（' + total + '件）' : '';
+    };
+    const resEl = $('spot-results');
+    if (resEl) {
+        resEl.addEventListener('click', (e) => {
+            const b = e.target.closest && e.target.closest('.spot-result-item');
+            if (!b) return;
+            const it = (window._spotResultItems || [])[+b.dataset.i];
+            if (!it) return;
+            focusItem(it.inf);
+            try { openItem(it.kind, it.row); } catch (err) { console.warn(err); }
+        });
+        window.renderSpotSearchResults();
+    }
 })();
 </script>
 <script>
