@@ -4913,18 +4913,22 @@ function buildDisplayGeometryForChibanFeatures(features) {
 /* =====================================================================
    古道ポリゴンの「余計な分岐」を除く
    ・古道の地番ポリゴンは、街道筋以外の分岐する里道まで1筆に含まれていることがある。
-   ・そこで、つながった図形ごとに「道の中心線」を計算し、中心線に沿った帯と元の形の共通部分だけを残す。
-   ・残る部分は元の地番ポリゴンの境界線そのままの形（枝を切り落とした切り口だけが帯の端の丸みになる）。
-   ・計算に失敗した場合や、細長くない図形は、元の形のまま返す（消えない）。
+   ・筆ごとに次の処理をする。
+       1) 両隣（隣接する筆）のうち、頂点どうしの距離がいちばん近い頂点を、道の入口と出口（2点）として選ぶ
+       2) 筆の中心線を計算し、その2点を結ぶ最短経路だけを残す（これ以外が分岐道）
+       3) 最短経路に沿った帯と、元の筆の形との共通部分だけを表示する（境界線は元の筆のまま）
+   ・隣の筆が1つしかない筆は、接点から中心線上で最も遠い所までを道とみなす。隣の筆が無い筆は、いちばん長い一本道を残す。
+   ・計算に失敗した筆は、元の形のまま返す（消えない）。
    ===================================================================== */
-function _trimRoadPolygon(rings) {
+function _trimRoadPolygon(rings, contacts) {
     const lng0 = rings[0][0][0], lat0 = rings[0][0][1];
     const kx = 111320 * Math.cos(lat0 * Math.PI / 180), ky = 110540;
-    const loc = rings.map(r => r.map(c => [(c[0] - lng0) * kx, (c[1] - lat0) * ky]));
+    const toXY = c => [(c[0] - lng0) * kx, (c[1] - lat0) * ky];
+    const loc = rings.map(r => r.map(toXY));
     let per = 0;
     loc.forEach(r => { for (let i = 0; i < r.length - 1; i++) per += Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]); });
     if (per < 4) return null;
-    /* 1) 外周を細かい点に分ける（点の数が増えすぎないよう間隔を調整） */
+    /* 1) 外周を細かい点に分ける */
     const step = Math.min(2, Math.max(0.3, per / 2500));
     const pts = [], ringOf = [], ringStart = [], ringLen = [];
     loc.forEach((r, ri) => {
@@ -4949,7 +4953,7 @@ function _trimRoadPolygon(rings) {
         }
         return c;
     };
-    /* 2) 三角形分割 → 外周の点から等距離の点（＝道の中心線の候補）を求める */
+    /* 2) 三角形分割 → 外周の点から等距離の点（＝道の中心線）を求める */
     const del = Delaunator.from(pts), T = del.triangles, H = del.halfedges;
     const nT = T.length / 3, cc = new Array(nT);
     for (let t = 0; t < nT; t++) {
@@ -4977,11 +4981,11 @@ function _trimRoadPolygon(rings) {
         if (o < e) continue;
         const t1 = (e / 3) | 0, t2 = (o / 3) | 0, c1 = cc[t1], c2 = cc[t2];
         if (!c1 || !c2) continue;
-        if (adjacent(T[e], T[e % 3 === 2 ? e - 2 : e + 1])) continue;   /* 外周に沿った隣どうしの点が作る線は中心線ではない */
+        if (adjacent(T[e], T[e % 3 === 2 ? e - 2 : e + 1])) continue;
         link(t1, t2, Math.hypot(c1.x - c2.x, c1.y - c2.y));
     }
     if (adj.size < 2) return null;
-    /* 3) いちばん大きなつながりの中で、最も遠い2点を結ぶ経路＝街道筋。枝はここで落ちる */
+    /* 最も大きなつながりだけを使う */
     const seen = new Set();
     let best = null;
     adj.forEach((_, s) => {
@@ -4991,7 +4995,7 @@ function _trimRoadPolygon(rings) {
         if (!best || comp.length > best.length) best = comp;
     });
     if (!best || best.length < 2) return null;
-    const dijkstra = (src) => {
+    const dijkstra = (src, ok) => {
         const dist = new Map([[src, 0]]), prev = new Map();
         const heap = [[0, src]];
         const push = (it) => { heap.push(it); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
@@ -4999,28 +5003,94 @@ function _trimRoadPolygon(rings) {
         while (heap.length) {
             const [d, u] = pop();
             if (d > dist.get(u)) continue;
-            adj.get(u).forEach(([v, w]) => { const nd = d + w; if (!dist.has(v) || nd < dist.get(v)) { dist.set(v, nd); prev.set(v, u); push([nd, v]); } });
+            adj.get(u).forEach(([v, w]) => { if (ok && !ok(v)) return; const nd = d + w; if (!dist.has(v) || nd < dist.get(v)) { dist.set(v, nd); prev.set(v, u); push([nd, v]); } });
         }
         let far = src, fd = 0;
         dist.forEach((d, n) => { if (d > fd) { fd = d; far = n; } });
-        return { far, fd, prev };
+        return { far, fd, prev, dist };
     };
-    const a1 = dijkstra(best[0]);
-    const a2 = dijkstra(a1.far);
-    const path = [];
-    for (let n = a2.far; n !== undefined; n = a2.prev.get(n)) path.push(n);
-    path.reverse();
-    const rs = path.map(n => cc[n].r).sort((x, y) => x - y);
-    const medianW = 2 * rs[rs.length >> 1];
-    if (a2.fd < Math.max(6, 3 * medianW)) return null;     /* 細長い形ではない（広場・敷地など）ので、そのまま */
-    /* 4) 道の中心線を、およそ1m間隔に間引く */
+    const snap = (p) => {
+        let bn = best[0], bd = Infinity;
+        for (let i = 0; i < best.length; i++) { const c = cc[best[i]], d = (c.x - p[0]) ** 2 + (c.y - p[1]) ** 2; if (d < bd) { bd = d; bn = best[i]; } }
+        return bn;
+    };
+    const rAll = best.map(n => cc[n].r).sort((x, y) => x - y);
+    const medianW = 2 * rAll[rAll.length >> 1];
+    /* 3) 入口と出口（隣の筆との接点）を決め、中心線上の最短経路を求める */
+    const cs = (contacts || []).map(c => toXY(c.p)), csFrom = (contacts || []).map(c => toXY(c.from));
+    let fromA = null;
+    let nA = null, nB = null, vA = null, vB = null, openA = false, openB = false, route;
+    if (cs.length >= 2) {
+        let bi = 0, bj = 1, bd = -1;
+        for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
+            const d = Math.hypot(cs[i][0] - cs[j][0], cs[i][1] - cs[j][1]);
+            if (d > bd) { bd = d; bi = i; bj = j; }
+        }
+        if (bd >= Math.max(3, 2 * medianW)) { vA = cs[bi]; vB = cs[bj]; nA = snap(vA); nB = snap(vB); }
+        else { vA = cs[0]; fromA = csFrom[0]; }    /* 接点が1か所に固まっている → 片側だけの接点として扱う */
+    } else if (cs.length === 1) { vA = cs[0]; fromA = csFrom[0]; }
+    if (vA && !vB) {
+        nA = snap(vA);
+        /* 反対側の出口：接点付近と同じくらいの道幅が続く範囲（＝本道）の中で、最も遠い所。細い枝には入らない */
+        let r0 = cc[nA].r;
+        best.forEach(n => { const c = cc[n]; if (Math.hypot(c.x - vA[0], c.y - vA[1]) <= 5 && c.r > r0) { r0 = c.r; nA = n; } });   /* 接点付近で最も道幅のある中心線上の点から始める */
+        const okW = (v) => cc[v].r >= 0.6 * r0;
+        let d1 = dijkstra(nA, okW);
+        if (d1.dist.size < 3) d1 = dijkstra(nA);
+        nB = d1.far; openB = true;
+        /* 隣の筆から接点へ向かう方向（道の進行方向）に最も進んだ所を出口にする。幅が近い枝があっても、まっすぐ続く側を選べる */
+        if (fromA) {
+            let ux = vA[0] - fromA[0], uy = vA[1] - fromA[1]; const L = Math.hypot(ux, uy);
+            if (L > 1) {
+                ux /= L; uy /= L;
+                let bn = nB, bv = -Infinity;
+                best.forEach(n => { const c = cc[n], v = (c.x - vA[0]) * ux + (c.y - vA[1]) * uy; if (v > bv) { bv = v; bn = n; } });
+                if (bv > 3 * medianW) nB = bn;
+            }
+        }
+    } else if (!vA) {
+        /* 隣の筆が無い筆：道幅の大きい部分（本道）の中で、最も遠い2点を結ぶ */
+        const rRef = rAll[Math.min(rAll.length - 1, Math.floor(rAll.length * 0.8))], okW = (v) => cc[v].r >= 0.6 * rRef;
+        const seed = best.filter(okW)[0];
+        let d0 = seed !== undefined ? dijkstra(seed, okW) : dijkstra(best[0]);
+        nA = d0.far; openA = true;
+        let d1 = dijkstra(nA, seed !== undefined ? okW : null);
+        if (d1.dist.size < 3) d1 = dijkstra(nA);
+        nB = d1.far; openB = true;
+        if (d1.fd < Math.max(6, 3 * medianW)) return null;    /* 隣の筆が無く、細長くもない形（敷地など）はそのまま */
+    }
+    const dd = dijkstra(nA, (vA && !vB) || openA ? ((v) => true) : null);
+    const nodes = [];
+    for (let n = nB; n !== undefined; n = dd.prev.get(n)) nodes.push(n);
+    nodes.reverse();
+    if (nodes[0] !== nA) return null;
+    /* 4) 経路を点列にする（およそ1m間隔に間引く）。接点の頂点を端に加える。行き止まり側は少し延ばす */
+    const raw = nodes.map(n => ({ x: cc[n].x, y: cc[n].y, r: cc[n].r }));
+    const ext = (a, b, r) => {      /* 点 b から見て a と反対方向へ r だけ延ばした点 */
+        const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+        if (L < 1e-6) return null;
+        return { x: b.x + dx / L * r, y: b.y + dy / L * r, r: b.r };
+    };
+    const look = (arr, fromEnd) => {      /* 端から約3m内側の点 */
+        let acc = 0;
+        if (fromEnd) { for (let i = arr.length - 1; i > 0; i--) { acc += Math.hypot(arr[i].x - arr[i - 1].x, arr[i].y - arr[i - 1].y); if (acc >= 3) return arr[i - 1]; } return arr[0]; }
+        for (let i = 0; i < arr.length - 1; i++) { acc += Math.hypot(arr[i + 1].x - arr[i].x, arr[i + 1].y - arr[i].y); if (acc >= 3) return arr[i + 1]; } return arr[arr.length - 1];
+    };
+    let full = raw.slice();
+    if (vA && !openA) full.unshift({ x: vA[0], y: vA[1], r: raw[0].r });
+    if (vB && !openB) full.push({ x: vB[0], y: vB[1], r: raw[raw.length - 1].r });
+    if (openA) { const e = ext(look(raw, false), raw[0], raw[0].r); if (e) full.unshift(e); }
+    if (openB) { const e = ext(look(raw, true), raw[raw.length - 1], raw[raw.length - 1].r); if (e) full.push(e); }
     const line = [];
-    path.forEach((n, i) => {
-        const c = cc[n], last = line[line.length - 1];
-        if (!last || i === path.length - 1 || Math.hypot(c.x - last.x, c.y - last.y) >= 1) line.push({ x: c.x, y: c.y, r: c.r });
+    full.forEach((c, i) => {
+        const last = line[line.length - 1];
+        if (!last || i === full.length - 1 || Math.hypot(c.x - last.x, c.y - last.y) >= 1) line.push(c);
     });
-    /* 5) 中心線を区間に分け、区間ごとの道幅に合わせた帯（バッファ）を作ってつなぐ */
-    const chunkLen = Math.max(20, a2.fd / 30);
+    if (line.length < 2) return null;
+    /* 5) 経路を区間に分け、区間ごとの道幅に合わせた帯（バッファ）を作ってつなぐ */
+    let total = 0;
+    for (let i = 1; i < line.length; i++) total += Math.hypot(line[i].x - line[i - 1].x, line[i].y - line[i - 1].y);
+    const chunkLen = Math.max(20, total / 30);
     const chunks = [];
     let cur = [line[0]], acc = 0;
     for (let i = 1; i < line.length; i++) {
@@ -5029,34 +5099,103 @@ function _trimRoadPolygon(rings) {
         if (acc >= chunkLen && i < line.length - 1) { chunks.push(cur); cur = [line[i]]; acc = 0; }
     }
     if (cur.length >= 2) chunks.push(cur); else if (chunks.length && cur.length === 1) chunks[chunks.length - 1].push(cur[0]);
-    let swath = null;
-    chunks.forEach(ch => {
-        const rr = ch.map(p => p.r).sort((x, y) => x - y);
-        const R = rr[Math.min(rr.length - 1, Math.floor(rr.length * 0.9))] * 1.35 + 0.5;
-        const coords = ch.map(p => [p.x / kx + lng0, p.y / ky + lat0]);
-        if (coords.length < 2) return;
-        const b = turf.buffer(turf.lineString(coords), R / 1000, { units: 'kilometers', steps: 8 });
-        if (!b) return;
-        if (!swath) swath = b; else { const u = turf.union(swath, b); if (u) swath = u; }
-    });
-    if (!swath) return null;
-    const res = turf.intersect(turf.polygon(rings), swath);
-    if (!res || !res.geometry) return null;
-    return res;
+    /* 帯を作って元の形と重ねる。図形の端の数値の誤差で失敗することがあるので、帯の太さをわずかに変えて数回試す */
+    const buildSwath = (mult) => {
+        let swath = null;
+        chunks.forEach(ch => {
+            const rr = ch.map(p => p.r).sort((x, y) => x - y);
+            const R = (rr[Math.min(rr.length - 1, Math.floor(rr.length * 0.9))] * 1.35 + 0.5) * mult;
+            const coords = ch.map(p => [p.x / kx + lng0, p.y / ky + lat0]);
+            if (coords.length < 2) return;
+            const b = turf.buffer(turf.lineString(coords), R / 1000, { units: 'kilometers', steps: 8 });
+            if (!b) return;
+            if (!swath) swath = b; else { const u = turf.union(swath, b); if (u) swath = u; }
+        });
+        return swath;
+    };
+    const poly = turf.polygon(rings);
+    const polyT = turf.truncate(poly, { precision: 7 });
+    for (const mult of [1, 1.013, 0.987, 1.04]) {
+        try {
+            const sw = buildSwath(mult);
+            if (!sw) continue;
+            let res = null;
+            try { res = turf.intersect(poly, sw); }
+            catch (e) { res = turf.intersect(polyT, turf.truncate(sw, { precision: 7 })); }
+            if (res && res.geometry) return res;
+        } catch (e) { /* 次の太さで再挑戦 */ }
+    }
+    return null;
 }
-function trimOldRoadFeatures(features) {
+/* 筆（ポリゴン）の一覧を受け取り、古道として余計な分岐を除いた筆の一覧を返す */
+function trimOldRoadParcels(features) {
     if (typeof Delaunator === 'undefined' || typeof turf === 'undefined' || !features || !features.length) return features;
-    const out = [];
+    const parts = [];
     features.forEach(f => {
         const g = f && f.geometry;
         const polys = !g ? null : (g.type === 'Polygon' ? [g.coordinates] : (g.type === 'MultiPolygon' ? g.coordinates : null));
-        if (!polys) { out.push(f); return; }
-        polys.forEach(rings => {
-            let res = null;
-            try { res = _trimRoadPolygon(rings); } catch (e) { res = null; }
-            if (res && res.geometry) out.push({ type: 'Feature', properties: (f.properties || {}), geometry: res.geometry });
-            else out.push({ type: 'Feature', properties: (f.properties || {}), geometry: { type: 'Polygon', coordinates: rings } });
+        if (!polys) { parts.push({ other: f }); return; }
+        polys.forEach(rings => parts.push({ rings, props: f.properties || {} }));
+    });
+    const geo = parts.filter(p => p.rings);
+    if (!geo.length) return features;
+    const lng0 = geo[0].rings[0][0][0], lat0 = geo[0].rings[0][0][1];
+    const kx = 111320 * Math.cos(lat0 * Math.PI / 180), ky = 110540;
+    geo.forEach(p => {
+        p.xy = p.rings[0].map(c => [(c[0] - lng0) * kx, (c[1] - lat0) * ky]);
+        let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+        p.xy.forEach(q => { if (q[0] < a) a = q[0]; if (q[1] < b) b = q[1]; if (q[0] > c) c = q[0]; if (q[1] > d) d = q[1]; });
+        p.bb = [a, b, c, d];
+    });
+    const segDist = (px, py, ring) => {
+        let m = Infinity;
+        for (let i = 0; i < ring.length - 1; i++) {
+            const ax = ring[i][0], ay = ring[i][1], bx = ring[i + 1][0], by = ring[i + 1][1];
+            const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+            let t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0; t = Math.max(0, Math.min(1, t));
+            const d = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+            if (d < m) m = d;
+        }
+        return m;
+    };
+    const pip = (x, y, ring) => {
+        let c = false;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+            if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+        }
+        return c;
+    };
+    const TOL = 1.0;     /* この距離（m）以内なら隣り合う筆とみなす */
+    const out = [];
+    parts.forEach(p => {
+        if (!p.rings) { out.push(p.other); return; }
+        /* 隣り合う筆ごとに、いちばん近い頂点（接点）を求める */
+        const contacts = [];
+        geo.forEach(q => {
+            if (q === p) return;
+            if (q.bb[0] > p.bb[2] + TOL || q.bb[2] < p.bb[0] - TOL || q.bb[1] > p.bb[3] + TOL || q.bb[3] < p.bb[1] - TOL) return;
+            const ds = p.xy.map(v => segDist(v[0], v[1], q.xy));
+            const mn = Math.min.apply(null, ds);
+            if (!(mn <= TOL)) return;
+            /* 最短距離とほぼ同じ頂点（共有する境界線上の頂点）が複数ある場合は、その両端の中点を接点にする */
+            const tied = [];
+            ds.forEach((d, i) => { if (d <= mn + 0.3) tied.push(p.xy[i]); });
+            let A = tied[0], B = tied[0], bd = 0;
+            for (let i = 0; i < tied.length; i++) for (let j = i + 1; j < tied.length; j++) { const d = Math.hypot(tied[i][0] - tied[j][0], tied[i][1] - tied[j][1]); if (d > bd) { bd = d; A = tied[i]; B = tied[j]; } }
+            const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
+            let fx = (q.bb[0] + q.bb[2]) / 2, fy = (q.bb[1] + q.bb[3]) / 2;
+            if (bd > 0.5) {      /* 共有する境界線に垂直で、この筆の内側へ向かう方向＝道の進行方向 */
+                const ex = (B[0] - A[0]) / bd, ey = (B[1] - A[1]) / bd;
+                let nx = -ey, ny = ex;
+                if (!pip(mx + nx * 1.5, my + ny * 1.5, p.xy)) { nx = -nx; ny = -ny; }
+                fx = mx - nx * 10; fy = my - ny * 10;
+            }
+            contacts.push({ p: [mx / kx + lng0, my / ky + lat0], from: [fx / kx + lng0, fy / ky + lat0] });
         });
+        let res = null;
+        try { res = _trimRoadPolygon(p.rings, contacts); } catch (e) { res = null; }
+        out.push({ type: 'Feature', properties: p.props, geometry: (res && res.geometry) ? res.geometry : { type: 'Polygon', coordinates: p.rings } });
     });
     return out;
 }
@@ -5070,8 +5209,8 @@ function chibanDataGeometry(rawKeys, trimRoad) {
     const ck = currentChibanDatasetId + '|' + String(rawKeys) + '|' + src.length + (trimRoad ? '|road' : '');
     let hit = _chibanDataGeomCache.get(ck);
     if (hit) return hit;
-    let features = buildDisplayGeometryForChibanFeatures(src);
-    if (trimRoad) features = trimOldRoadFeatures(features);   /* 古道：街道筋以外の分岐を除く */
+    /* 古道：筆ごとに、街道筋以外の分岐を除いてから1つのポリゴンにまとめる */
+    const features = buildDisplayGeometryForChibanFeatures(trimRoad ? trimOldRoadParcels(src) : src);
     const polys = [];
     features.forEach(f => {
         const g = f && f.geometry;
