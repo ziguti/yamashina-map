@@ -5020,15 +5020,19 @@ function _trimRoadPolygon(rings, contacts) {
     const cs = (contacts || []).map(c => toXY(c.p)), csFrom = (contacts || []).map(c => toXY(c.from));
     let fromA = null;
     let nA = null, nB = null, vA = null, vB = null, openA = false, openB = false, route;
-    if (cs.length >= 2) {
-        let bi = 0, bj = 1, bd = -1;
-        for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
-            const d = Math.hypot(cs[i][0] - cs[j][0], cs[i][1] - cs[j][1]);
+    /* 接点の位置が近いもの（同じ側の隣）は1つにまとめる */
+    const keep = [];
+    cs.forEach((c, i) => { if (!keep.some(k => Math.hypot(cs[k][0] - c[0], cs[k][1] - c[1]) < Math.max(3, 2 * medianW))) keep.push(i); });
+    const extras = [];      /* 入口・出口以外の接点（交差点の筆で、3方向以上に隣がある場合）。これらもすべてつなぐ */
+    if (keep.length >= 2) {
+        let bi = keep[0], bj = keep[1], bd = -1;
+        for (let a = 0; a < keep.length; a++) for (let b = a + 1; b < keep.length; b++) {
+            const i = keep[a], j = keep[b], d = Math.hypot(cs[i][0] - cs[j][0], cs[i][1] - cs[j][1]);
             if (d > bd) { bd = d; bi = i; bj = j; }
         }
-        if (bd >= Math.max(3, 2 * medianW)) { vA = cs[bi]; vB = cs[bj]; nA = snap(vA); nB = snap(vB); }
-        else { vA = cs[0]; fromA = csFrom[0]; }    /* 接点が1か所に固まっている → 片側だけの接点として扱う */
-    } else if (cs.length === 1) { vA = cs[0]; fromA = csFrom[0]; }
+        vA = cs[bi]; vB = cs[bj]; nA = snap(vA); nB = snap(vB);
+        keep.forEach(i => { if (i !== bi && i !== bj) extras.push(cs[i]); });
+    } else if (keep.length === 1) { vA = cs[keep[0]]; fromA = csFrom[keep[0]]; }
     if (vA && !vB) {
         nA = snap(vA);
         /* 反対側の出口：接点付近と同じくらいの道幅が続く範囲（＝本道）の中で、最も遠い所。細い枝には入らない */
@@ -5059,6 +5063,13 @@ function _trimRoadPolygon(rings, contacts) {
         nB = d1.far; openB = true;
         if (d1.fd < Math.max(6, 3 * medianW)) return null;    /* 隣の筆が無く、細長くもない形（敷地など）はそのまま */
     }
+    /* 接点の近くで道幅のある中心線上の点を選ぶ（外周の角に近い細かい点を避ける） */
+    const widestNear = (p) => {
+        let bn = snap(p), br = cc[bn].r;
+        best.forEach(n => { const c = cc[n]; if (Math.hypot(c.x - p[0], c.y - p[1]) <= 5 && c.r > br) { br = c.r; bn = n; } });
+        return bn;
+    };
+    if (vB) { nA = widestNear(vA); nB = widestNear(vB); }
     const dd = dijkstra(nA, (vA && !vB) || openA ? ((v) => true) : null);
     const nodes = [];
     for (let n = nB; n !== undefined; n = dd.prev.get(n)) nodes.push(n);
@@ -5087,18 +5098,37 @@ function _trimRoadPolygon(rings, contacts) {
         if (!last || i === full.length - 1 || Math.hypot(c.x - last.x, c.y - last.y) >= 1) line.push(c);
     });
     if (line.length < 2) return null;
+    /* 入口・出口以外の接点があれば、それぞれから経路（本道）までの最短経路も加える */
+    const polylines = [line];
+    const tree = new Set(nodes);
+    extras.forEach(ev => {
+        const ne = widestNear(ev), de = dijkstra(ne);
+        let bn = null, bdist = Infinity;
+        tree.forEach(n => { const d = de.dist.get(n); if (d !== undefined && d < bdist) { bdist = d; bn = n; } });
+        if (bn === null) return;
+        const pn = [];
+        for (let n = bn; n !== undefined; n = de.prev.get(n)) pn.push(n);   /* 経路上の点 → 接点側 */
+        pn.reverse();                                                        /* 接点側 → 経路上の点 */
+        pn.forEach(n => tree.add(n));
+        const pl = [{ x: ev[0], y: ev[1], r: cc[pn[0]].r }].concat(pn.map(n => ({ x: cc[n].x, y: cc[n].y, r: cc[n].r })));
+        const thin = [];
+        pl.forEach((c, k) => { const last = thin[thin.length - 1]; if (!last || k === pl.length - 1 || Math.hypot(c.x - last.x, c.y - last.y) >= 1) thin.push(c); });
+        if (thin.length >= 2) polylines.push(thin);
+    });
     /* 5) 経路を区間に分け、区間ごとの道幅に合わせた帯（バッファ）を作ってつなぐ */
-    let total = 0;
-    for (let i = 1; i < line.length; i++) total += Math.hypot(line[i].x - line[i - 1].x, line[i].y - line[i - 1].y);
-    const chunkLen = Math.max(20, total / 30);
     const chunks = [];
-    let cur = [line[0]], acc = 0;
-    for (let i = 1; i < line.length; i++) {
-        acc += Math.hypot(line[i].x - line[i - 1].x, line[i].y - line[i - 1].y);
-        cur.push(line[i]);
-        if (acc >= chunkLen && i < line.length - 1) { chunks.push(cur); cur = [line[i]]; acc = 0; }
-    }
-    if (cur.length >= 2) chunks.push(cur); else if (chunks.length && cur.length === 1) chunks[chunks.length - 1].push(cur[0]);
+    polylines.forEach(pl => {
+        let total = 0;
+        for (let k = 1; k < pl.length; k++) total += Math.hypot(pl[k].x - pl[k - 1].x, pl[k].y - pl[k - 1].y);
+        const chunkLen = Math.max(20, total / 30);
+        let cur = [pl[0]], acc = 0;
+        for (let k = 1; k < pl.length; k++) {
+            acc += Math.hypot(pl[k].x - pl[k - 1].x, pl[k].y - pl[k - 1].y);
+            cur.push(pl[k]);
+            if (acc >= chunkLen && k < pl.length - 1) { chunks.push(cur); cur = [pl[k]]; acc = 0; }
+        }
+        if (cur.length >= 2) chunks.push(cur); else if (cur.length === 1 && chunks.length) chunks[chunks.length - 1].push(cur[0]);
+    });
     /* 帯を作って元の形と重ねる。図形の端の数値の誤差で失敗することがあるので、帯の太さをわずかに変えて数回試す */
     const buildSwath = (mult) => {
         let swath = null;
