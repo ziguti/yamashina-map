@@ -4911,207 +4911,37 @@ function buildDisplayGeometryForChibanFeatures(features) {
 }
 
 /* =====================================================================
-   古道ポリゴンの「余計な分岐・輪」を除く（処理仕様どおり）
-   1) 筆ごとに、隣の筆との頂点どうしの距離が最も短い組を求め、この筆側の頂点（接点）を取る。
-      隣が2つ以上あれば、接点は隣の数だけできる。
-   2) 筆の中心線（内側の骨格線）上で、接点どうしを最短経路で結ぶ。
-      ・接点が1つ（隣が1つ）のときは、接点から中心線上でいちばん遠い点までの最短経路を残す。
-      ・接点が2つ以上のときは、全組の接点どうしを結ぶ最短経路をすべて残す。
-   3) 残した経路の帯と元の筆の形との共通部分だけを表示する。経路以外の中心線（枝・輪）は消える。
-   ・隣が1つもない筆、計算に失敗した筆は、元の形のまま返す（消えない）。
+   古道ポリゴンから、本道（両端の筆を結ぶ最短経路）以外を消す。筆ごとの個別計算はしない。
+   1) 隣の判定：筆どうしの間隔が5m以内、または重なっていれば隣。
+   2) 両端の筆：隣が1つしかない筆。その筆の接点（隣の筆に最も近い頂点）を、両端の接点とする。
+   3) 中心線の網：古道の全筆の境界点から1本のネットワークを作る（筆の内側の骨格線）。
+      隣り合う筆の間（5m以内）は、両側の中心線どうしを結んでつながっているとみなす。
+   4) 両端の接点どうしを、中心線の網の上で最短経路で結ぶ。この経路だけを残し、それ以外（枝・輪・他の筆）は消す。
+   ・両端の筆が2つ見つからない場合（輪のみ、または端が3つ以上）は、元の形のまま返す。
+     端が3つ以上の場合は、接点どうしがもっとも離れた2つを使う。
    ===================================================================== */
-function _trimRoadPolygon(rings, contacts) {
-    if (!contacts || contacts.length === 0) return null;
-    const lng0 = rings[0][0][0], lat0 = rings[0][0][1];
-    const kx = 111320 * Math.cos(lat0 * Math.PI / 180), ky = 110540;
-    const toXY = c => [(c[0] - lng0) * kx, (c[1] - lat0) * ky];
-    const loc = rings.map(r => r.map(toXY));
-    let per = 0;
-    loc.forEach(r => { for (let i = 0; i < r.length - 1; i++) per += Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]); });
-    if (per < 4) return null;
-    /* 外周を細かい点に分ける */
-    const step = Math.min(2, Math.max(0.3, per / 2500));
-    const pts = [], ringOf = [], ringLen = [];
-    loc.forEach((r, ri) => {
-        const s0 = pts.length;
-        for (let i = 0; i < r.length - 1; i++) {
-            const a = r[i], b = r[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-            if (len < 1e-6) continue;
-            const n = Math.max(1, Math.ceil(len / step));
-            for (let k = 0; k < n; k++) { pts.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); ringOf.push(ri); }
-        }
-        ringLen[ri] = pts.length - s0;
-    });
-    if (pts.length < 8) return null;
-    const inside = (x, y) => {
-        let c = false;
-        for (let ri = 0; ri < loc.length; ri++) {
-            const r = loc[ri];
-            for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
-                const xi = r[i][0], yi = r[i][1], xj = r[j][0], yj = r[j][1];
-                if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
-            }
-        }
-        return c;
-    };
-    /* 三角形分割 → 外周の点から等距離の点（＝中心線の候補）を求める */
-    const del = Delaunator.from(pts), T = del.triangles, H = del.halfedges;
-    const nT = T.length / 3, cc = new Array(nT);
-    for (let t = 0; t < nT; t++) {
-        const A = pts[T[3 * t]], B = pts[T[3 * t + 1]], C = pts[T[3 * t + 2]];
-        const d = 2 * (A[0] * (B[1] - C[1]) + B[0] * (C[1] - A[1]) + C[0] * (A[1] - B[1]));
-        if (Math.abs(d) < 1e-9) { cc[t] = null; continue; }
-        const a2 = A[0] * A[0] + A[1] * A[1], b2 = B[0] * B[0] + B[1] * B[1], c2 = C[0] * C[0] + C[1] * C[1];
-        const x = (a2 * (B[1] - C[1]) + b2 * (C[1] - A[1]) + c2 * (A[1] - B[1])) / d;
-        const y = (a2 * (C[0] - B[0]) + b2 * (A[0] - C[0]) + c2 * (B[0] - A[0])) / d;
-        cc[t] = inside(x, y) ? { x, y, r: Math.hypot(x - A[0], y - A[1]) } : null;
-    }
-    /* 中心線のグラフ（外周に沿って隣どうしの点が作る線は除く） */
-    const adjacent = (i, j) => {
-        if (ringOf[i] !== ringOf[j]) return false;
-        const n = ringLen[ringOf[i]], d = Math.abs(i - j);
-        return Math.min(d, n - d) <= 2;
-    };
-    const adj = new Map();
-    const link = (a, b, w) => {
-        if (!adj.has(a)) adj.set(a, []);
-        if (!adj.has(b)) adj.set(b, []);
-        adj.get(a).push([b, w]); adj.get(b).push([a, w]);
-    };
-    for (let e = 0; e < H.length; e++) {
-        const o = H[e];
-        if (o < e) continue;
-        const t1 = (e / 3) | 0, t2 = (o / 3) | 0, c1 = cc[t1], c2 = cc[t2];
-        if (!c1 || !c2) continue;
-        if (adjacent(T[e], T[e % 3 === 2 ? e - 2 : e + 1])) continue;
-        link(t1, t2, Math.hypot(c1.x - c2.x, c1.y - c2.y));
-    }
-    if (adj.size < 2) return null;
-    const nodeIds = [...adj.keys()];
-    /* 最短経路（ダイクストラ法） */
-    const dijkstra = (src) => {
-        const dist = new Map([[src, 0]]), prev = new Map();
-        const heap = [[0, src]];
-        const push = (it) => { heap.push(it); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
-        const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let l = 2 * i + 1, r = l + 1, m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
-        while (heap.length) {
-            const [d, u] = pop();
-            if (d > dist.get(u)) continue;
-            adj.get(u).forEach(([v, w]) => { const nd = d + w; if (!dist.has(v) || nd < dist.get(v)) { dist.set(v, nd); prev.set(v, u); push([nd, v]); } });
-        }
-        return { dist, prev };
-    };
-    /* 接点（XY）に最も近い中心線上の点を選ぶ。道幅の大きい点を優先する */
-    const snap = (p) => {
-        let bn = null, bd = Infinity;
-        for (const n of nodeIds) { const c = cc[n], d = Math.hypot(c.x - p[0], c.y - p[1]); if (d < bd - 0.5 || (Math.abs(d - bd) <= 0.5 && bn !== null && c.r > cc[bn].r)) { bd = d; bn = n; } }
-        return bn;
-    };
-    const traceTo = (prev, from, to) => {      /* from→to の経路（from 側から並ぶ） */
-        const p = [];
-        for (let n = to; n !== undefined; n = prev.get(n)) { p.push(n); if (n === from) break; }
-        return p.reverse();
-    };
-    const cs = contacts.map(c => ({ xy: toXY(c) }));
-    cs.forEach(c => { c.node = snap(c.xy); });
-    const uniq = [];
-    cs.forEach(c => { if (c.node !== null && !uniq.some(u => u.node === c.node)) uniq.push(c); });
-    if (uniq.length === 0) return null;
-    /* 経路を集める。各経路は [接点の頂点, 中心線上の点…] の列 */
-    const paths = [];
-    const cache = new Map();
-    const getD = (n) => { if (!cache.has(n)) cache.set(n, dijkstra(n)); return cache.get(n); };
-    if (uniq.length === 1) {
-        /* 隣が1つ：接点から中心線上で最も遠い点までの経路 */
-        const a = uniq[0].node, d = getD(a);
-        let far = a, fd = 0;
-        d.dist.forEach((v, n) => { if (v > fd) { fd = v; far = n; } });
-        if (far === a) return null;
-        paths.push({ start: uniq[0].xy, nodes: traceTo(d.prev, a, far) });
-    } else {
-        /* 隣が2つ以上：接点どうしの全組を、中心線上の最短経路で結ぶ */
-        for (let i = 0; i < uniq.length; i++) for (let j = i + 1; j < uniq.length; j++) {
-            const a = uniq[i].node, b = uniq[j].node, d = getD(a);
-            if (!d.dist.has(b)) continue;      /* 経路でつながらない組は結べない */
-            paths.push({ start: uniq[i].xy, end: uniq[j].xy, nodes: traceTo(d.prev, a, b) });
-        }
-    }
-    if (paths.length === 0) return null;
-    /* 経路を線にする（約1m間隔に間引き、両端は接点の頂点まで延ばす） */
-    const polylines = [];
-    paths.forEach(pth => {
-        const raw = pth.nodes.map(n => ({ x: cc[n].x, y: cc[n].y, r: cc[n].r }));
-        const pl = [];
-        if (pth.start) pl.push({ x: pth.start[0], y: pth.start[1], r: raw[0].r });
-        raw.forEach(c => pl.push(c));
-        if (pth.end) pl.push({ x: pth.end[0], y: pth.end[1], r: raw[raw.length - 1].r });
-        const thin = [];
-        pl.forEach((c, k) => { const last = thin[thin.length - 1]; if (!last || k === pl.length - 1 || Math.hypot(c.x - last.x, c.y - last.y) >= 1) thin.push(c); });
-        if (thin.length >= 2) polylines.push(thin);
-    });
-    if (polylines.length === 0) return null;
-    /* 区間ごとの道幅に合わせた帯（バッファ）を作り、つなぐ */
-    const chunks = [];
-    polylines.forEach(pl => {
-        let total = 0;
-        for (let k = 1; k < pl.length; k++) total += Math.hypot(pl[k].x - pl[k - 1].x, pl[k].y - pl[k - 1].y);
-        const chunkLen = Math.max(20, total / 30);
-        let cur = [pl[0]], acc = 0;
-        for (let k = 1; k < pl.length; k++) {
-            acc += Math.hypot(pl[k].x - pl[k - 1].x, pl[k].y - pl[k - 1].y);
-            cur.push(pl[k]);
-            if (acc >= chunkLen && k < pl.length - 1) { chunks.push(cur); cur = [pl[k]]; acc = 0; }
-        }
-        if (cur.length >= 2) chunks.push(cur); else if (cur.length === 1 && chunks.length) chunks[chunks.length - 1].push(cur[0]);
-    });
-    const buildSwath = (mult) => {
-        let swath = null;
-        chunks.forEach(ch => {
-            const rr = ch.map(p => p.r).sort((x, y) => x - y);
-            const R = (rr[Math.min(rr.length - 1, Math.floor(rr.length * 0.9))] * 1.35 + 0.5) * mult;
-            const coords = ch.map(p => [p.x / kx + lng0, p.y / ky + lat0]);
-            if (coords.length < 2) return;
-            const b = turf.buffer(turf.lineString(coords), R / 1000, { units: 'kilometers', steps: 8 });
-            if (!b) return;
-            if (!swath) swath = b; else { const u = turf.union(swath, b); if (u) swath = u; }
-        });
-        return swath;
-    };
-    const poly = turf.polygon(rings);
-    const polyT = turf.truncate(poly, { precision: 7 });
-    for (const mult of [1, 1.013, 0.987, 1.04]) {
-        try {
-            const sw = buildSwath(mult);
-            if (!sw) continue;
-            let res = null;
-            try { res = turf.intersect(poly, sw); }
-            catch (e) { res = turf.intersect(polyT, turf.truncate(sw, { precision: 7 })); }
-            if (res && res.geometry) return res;
-        } catch (e) { /* 次の太さで再挑戦 */ }
-    }
-    return null;
-}
-/* 筆（ポリゴン）の一覧を受け取り、余計な分岐・輪を除いた筆の一覧を返す */
 function trimOldRoadParcels(features) {
     if (typeof Delaunator === 'undefined' || typeof turf === 'undefined' || !features || !features.length) return features;
-    const parts = [];
+    const parts = [], others = [];
     features.forEach(f => {
         const g = f && f.geometry;
         const polys = !g ? null : (g.type === 'Polygon' ? [g.coordinates] : (g.type === 'MultiPolygon' ? g.coordinates : null));
-        if (!polys) { parts.push({ other: f }); return; }
+        if (!polys) { others.push(f); return; }
         polys.forEach(rings => parts.push({ rings, props: f.properties || {} }));
     });
-    const geo = parts.filter(p => p.rings);
-    if (!geo.length) return features;
-    const lng0 = geo[0].rings[0][0][0], lat0 = geo[0].rings[0][0][1];
+    if (parts.length < 2) return features;
+    const lng0 = parts[0].rings[0][0][0], lat0 = parts[0].rings[0][0][1];
     const kx = 111320 * Math.cos(lat0 * Math.PI / 180), ky = 110540;
-    geo.forEach(p => {
-        p.xy = p.rings[0].map(c => [(c[0] - lng0) * kx, (c[1] - lat0) * ky]);
+    const toXY = c => [(c[0] - lng0) * kx, (c[1] - lat0) * ky];
+    const fromXY = p => [p[0] / kx + lng0, p[1] / ky + lat0];
+    parts.forEach(p => {
+        p.loc = p.rings.map(r => r.map(toXY));
+        p.xy = p.loc[0];
         let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
         p.xy.forEach(q => { if (q[0] < a) a = q[0]; if (q[1] < b) b = q[1]; if (q[0] > c) c = q[0]; if (q[1] > d) d = q[1]; });
         p.bb = [a, b, c, d];
     });
-    const TOL = 4;       /* この距離（m）以内なら隣り合う筆とみなす */
+    const GAP = 5;
     const segDist = (px, py, ring) => {
         let m = Infinity;
         for (let i = 0; i < ring.length - 1; i++) {
@@ -5123,7 +4953,6 @@ function trimOldRoadParcels(features) {
         }
         return m;
     };
-    /* 2つの筆が重なっている（面積がある）かどうか */
     const polyOverlap = (a, b) => {
         try {
             if (!a.tp) a.tp = turf.polygon(a.rings);
@@ -5132,31 +4961,180 @@ function trimOldRoadParcels(features) {
             return !!(r && r.geometry && turf.area(r) > 0.5);
         } catch (e) { return false; }
     };
+    /* 筆の頂点のうち、相手の境界線にいちばん近い頂点（同距離が複数あれば両端の中点）を接点とする */
+    const contactOf = (i, j) => {
+        const dv = parts[i].xy.map(v => segDist(v[0], v[1], parts[j].xy));
+        const mn = Math.min.apply(null, dv);
+        const tied = [];
+        dv.forEach((d, k) => { if (d <= mn + 0.3) tied.push(parts[i].xy[k]); });
+        let A = tied[0], B = tied[0], bd = 0;
+        for (let x = 0; x < tied.length; x++) for (let y = x + 1; y < tied.length; y++) { const d = Math.hypot(tied[x][0] - tied[y][0], tied[x][1] - tied[y][1]); if (d > bd) { bd = d; A = tied[x]; B = tied[y]; } }
+        return { mn, p: [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2] };
+    };
+    /* 隣どうしの判定（間隔5m以内、または重なり） */
+    const nb = parts.map(() => []);
+    for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+        const a = parts[i], b = parts[j];
+        if (b.bb[0] > a.bb[2] + GAP || b.bb[2] < a.bb[0] - GAP || b.bb[1] > a.bb[3] + GAP || b.bb[3] < a.bb[1] - GAP) continue;
+        const ci = contactOf(i, j), cj = contactOf(j, i);
+        if (!(Math.min(ci.mn, cj.mn) <= GAP) && !polyOverlap(a, b)) continue;
+        nb[i].push({ j, own: ci.p, other: cj.p });
+        nb[j].push({ j: i, own: cj.p, other: ci.p });
+    }
+    /* 両端の筆（隣が1つだけ） */
+    const ends = [];
+    nb.forEach((list, i) => { if (list.length === 1) ends.push(i); });
+    if (ends.length < 2) return features;
+    let e1 = ends[0], e2 = ends[1], bestD = -1;
+    for (let x = 0; x < ends.length; x++) for (let y = x + 1; y < ends.length; y++) {
+        const p = nb[ends[x]][0].own, q = nb[ends[y]][0].own, d = Math.hypot(p[0] - q[0], p[1] - q[1]);
+        if (d > bestD) { bestD = d; e1 = ends[x]; e2 = ends[y]; }
+    }
+    /* 古道全体の境界点（間引き）から、中心線の網を作る */
+    let perAll = 0;
+    parts.forEach(p => p.loc.forEach(r => { for (let i = 0; i < r.length - 1; i++) perAll += Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]); }));
+    if (perAll < 4) return features;
+    const step = Math.min(2, Math.max(0.3, perAll / 4000));
+    const pts = [], ptRing = [], ptSeq = [], ringLenOf = [];
+    let ringId = 0;
+    parts.forEach((p, pi) => {
+        p.loc.forEach(r => {
+            const rid = ringId++;
+            const seq0 = pts.length;
+            for (let i = 0; i < r.length - 1; i++) {
+                const a = r[i], b = r[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+                if (len < 1e-6) continue;
+                const n = Math.max(1, Math.ceil(len / step));
+                for (let k = 0; k < n; k++) { pts.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); ptRing.push(rid); ptSeq.push(pts.length - 1 - seq0); }
+            }
+            ringLenOf[rid] = pts.length - seq0;
+        });
+    });
+    if (pts.length < 8) return features;
+    const labelOf = (x, y) => {
+        const hit = [];
+        parts.forEach((p, pi) => {
+            let c = false;
+            for (const r of p.loc) for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+                const xi = r[i][0], yi = r[i][1], xj = r[j][0], yj = r[j][1];
+                if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+            }
+            if (c) hit.push(pi);
+        });
+        return hit;
+    };
+    const del = Delaunator.from(pts), T = del.triangles, H = del.halfedges;
+    const nT = T.length / 3;
+    const cc = new Array(nT);
+    for (let t = 0; t < nT; t++) {
+        const A = pts[T[3 * t]], B = pts[T[3 * t + 1]], C = pts[T[3 * t + 2]];
+        const d = 2 * (A[0] * (B[1] - C[1]) + B[0] * (C[1] - A[1]) + C[0] * (A[1] - B[1]));
+        if (Math.abs(d) < 1e-9) { cc[t] = null; continue; }
+        const a2 = A[0] * A[0] + A[1] * A[1], b2 = B[0] * B[0] + B[1] * B[1], c2 = C[0] * C[0] + C[1] * C[1];
+        const x = (a2 * (B[1] - C[1]) + b2 * (C[1] - A[1]) + c2 * (A[1] - B[1])) / d;
+        const y = (a2 * (C[0] - B[0]) + b2 * (A[0] - C[0]) + c2 * (B[0] - A[0])) / d;
+        const lab = labelOf(x, y);
+        cc[t] = lab.length ? { x, y, r: Math.hypot(x - A[0], y - A[1]), lab } : null;
+    }
+    const adjacentBoundary = (i, j) => {
+        if (ptRing[i] !== ptRing[j]) return false;
+        const n = ringLenOf[ptRing[i]], d = Math.abs(ptSeq[i] - ptSeq[j]);
+        return Math.min(d, n - d) <= 2;
+    };
+    const adj = new Map();
+    const link = (a, b, w) => {
+        if (!adj.has(a)) adj.set(a, []);
+        if (!adj.has(b)) adj.set(b, []);
+        adj.get(a).push([b, w]); adj.get(b).push([a, w]);
+    };
+    for (let e = 0; e < H.length; e++) {
+        const o = H[e];
+        if (o < e) continue;
+        const t1 = (e / 3) | 0, t2 = (o / 3) | 0;
+        if (!cc[t1] || !cc[t2]) continue;
+        if (adjacentBoundary(T[e], T[e % 3 === 2 ? e - 2 : e + 1])) continue;
+        link(t1, t2, Math.hypot(cc[t1].x - cc[t2].x, cc[t1].y - cc[t2].y));
+    }
+    const nodeIds = [...adj.keys()];
+    const nodesOf = (pi) => nodeIds.filter(n => cc[n].lab.includes(pi));
+    const snapIn = (pi, p) => {      /* 筆 pi の中心線上で、点 p に最も近い点 */
+        let bn = null, bd = Infinity;
+        for (const n of nodesOf(pi)) { const c = cc[n], d = Math.hypot(c.x - p[0], c.y - p[1]); if (d < bd) { bd = d; bn = n; } }
+        return bn;
+    };
+    /* 5m 以内の隣どうしは、両側の中心線を結んでつながっているとみなす */
+    nb.forEach((list, i) => list.forEach(({ j, own, other }) => {
+        if (j < i) return;
+        const a = snapIn(i, own), b = snapIn(j, other);
+        if (a === null || b === null || a === b) return;
+        link(a, b, Math.hypot(cc[a].x - cc[b].x, cc[a].y - cc[b].y));
+    }));
+    /* 両端の接点どうしを、網の上で最短経路で結ぶ */
+    const s = snapIn(e1, nb[e1][0].own), t = snapIn(e2, nb[e2][0].own);
+    if (s === null || t === null || !adj.has(s) || !adj.has(t)) return features;
+    const dist = new Map([[s, 0]]), prev = new Map();
+    const heap = [[0, s]];
+    const push = (it) => { heap.push(it); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let l = 2 * i + 1, r = l + 1, m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+    while (heap.length) {
+        const [d, u] = pop();
+        if (d > dist.get(u)) continue;
+        if (u === t) break;
+        adj.get(u).forEach(([v, w]) => { const nd = d + w; if (!dist.has(v) || nd < dist.get(v)) { dist.set(v, nd); prev.set(v, u); push([nd, v]); } });
+    }
+    if (!dist.has(t)) return features;
+    const nodes = [];
+    for (let n = t; n !== undefined; n = prev.get(n)) nodes.push(n);
+    nodes.reverse();
+    /* 経路を線にする（約1m間隔に間引き、両端は接点まで延ばす） */
+    const pl = [{ x: nb[e1][0].own[0], y: nb[e1][0].own[1], r: cc[s].r }];
+    nodes.forEach(n => pl.push({ x: cc[n].x, y: cc[n].y, r: cc[n].r }));
+    pl.push({ x: nb[e2][0].own[0], y: nb[e2][0].own[1], r: cc[t].r });
+    const line = [];
+    pl.forEach((c, k) => { const last = line[line.length - 1]; if (!last || k === pl.length - 1 || Math.hypot(c.x - last.x, c.y - last.y) >= 1) line.push(c); });
+    if (line.length < 2) return features;
+    /* 区間ごとの道幅に合わせた帯（バッファ）を作る */
+    let total = 0;
+    for (let k = 1; k < line.length; k++) total += Math.hypot(line[k].x - line[k - 1].x, line[k].y - line[k - 1].y);
+    const chunkLen = Math.max(20, total / 30);
+    const chunks = [];
+    let cur = [line[0]], acc = 0;
+    for (let k = 1; k < line.length; k++) {
+        acc += Math.hypot(line[k].x - line[k - 1].x, line[k].y - line[k - 1].y);
+        cur.push(line[k]);
+        if (acc >= chunkLen && k < line.length - 1) { chunks.push(cur); cur = [line[k]]; acc = 0; }
+    }
+    if (cur.length >= 2) chunks.push(cur); else if (cur.length === 1 && chunks.length) chunks[chunks.length - 1].push(cur[0]);
+    const buildSwath = (mult) => {
+        let swath = null;
+        chunks.forEach(ch => {
+            const rr = ch.map(p => p.r).sort((x, y) => x - y);
+            const R = (rr[Math.min(rr.length - 1, Math.floor(rr.length * 0.9))] * 1.35 + 0.5) * mult;
+            const coords = ch.map(p => fromXY([p.x, p.y]));
+            if (coords.length < 2) return;
+            const b = turf.buffer(turf.lineString(coords), R / 1000, { units: 'kilometers', steps: 8 });
+            if (!b) return;
+            if (!swath) swath = b; else { const u = turf.union(swath, b); if (u) swath = u; }
+        });
+        return swath;
+    };
+    let swath = null;
+    for (const mult of [1, 1.013, 0.987, 1.04]) {
+        try { swath = buildSwath(mult); if (swath) break; } catch (e) { swath = null; }
+    }
+    if (!swath) return features;
+    /* 各筆を、経路の帯と重ねる。経路に入らない筆は消える */
     const out = [];
     parts.forEach(p => {
-        if (!p.rings) { out.push(p.other); return; }
-        /* 隣の筆ごとに、頂点どうしの距離が最も短い組を求め、この筆側の頂点（接点）を取る */
-        const contacts = [];
-        geo.forEach(q => {
-            if (q === p) return;
-            if (q.bb[0] > p.bb[2] + TOL || q.bb[2] < p.bb[0] - TOL || q.bb[1] > p.bb[3] + TOL || q.bb[3] < p.bb[1] - TOL) return;
-            /* この筆の各頂点から、隣の筆の境界線までの距離 */
-            const dmin = p.xy.map(v => segDist(v[0], v[1], q.xy));
-            const mn = Math.min.apply(null, dmin);
-            /* 4m 以内に近づいている、または重なっている場合に隣とみなす */
-            if (!(mn <= TOL) && !polyOverlap(p, q)) return;
-            /* 境界線を共有して同じ距離の頂点が複数ある場合は、その両端の中点を接点にする */
-            const tied = [];
-            dmin.forEach((d, i) => { if (d <= mn + 0.3) tied.push(p.xy[i]); });
-            let A = tied[0], B = tied[0], bd = 0;
-            for (let i = 0; i < tied.length; i++) for (let j = i + 1; j < tied.length; j++) { const d = Math.hypot(tied[i][0] - tied[j][0], tied[i][1] - tied[j][1]); if (d > bd) { bd = d; A = tied[i]; B = tied[j]; } }
-            contacts.push([((A[0] + B[0]) / 2) / kx + lng0, ((A[1] + B[1]) / 2) / ky + lat0]);
-        });
         let res = null;
-        try { res = _trimRoadPolygon(p.rings, contacts); } catch (e) { res = null; }
-        out.push({ type: 'Feature', properties: p.props, geometry: (res && res.geometry) ? res.geometry : { type: 'Polygon', coordinates: p.rings } });
+        try {
+            const poly = turf.polygon(p.rings);
+            try { res = turf.intersect(poly, swath); }
+            catch (e) { res = turf.intersect(turf.truncate(poly, { precision: 7 }), turf.truncate(swath, { precision: 7 })); }
+        } catch (e) { res = null; }
+        if (res && res.geometry && turf.area(res) > 0.5) out.push({ type: 'Feature', properties: p.props, geometry: res.geometry });
     });
-    return out;
+    return out.concat(others);
 }
 
 /* 地番キー（カンマ区切り可）からデータ用のポリゴンを作る。統合結果とラベル位置は、同じ地番キー・同じ読み込み状況の間は使い回す。
@@ -5168,7 +5146,7 @@ function chibanDataGeometry(rawKeys, trimRoad) {
     const ck = currentChibanDatasetId + '|' + String(rawKeys) + '|' + src.length + (trimRoad ? '|road' : '');
     let hit = _chibanDataGeomCache.get(ck);
     if (hit) return hit;
-    /* 古道：筆ごとに、余計な分岐・輪を除いてから1つのポリゴンにまとめる */
+    /* 古道：両端の筆を結ぶ最短経路だけを残す */
     const features = buildDisplayGeometryForChibanFeatures(trimRoad ? trimOldRoadParcels(src) : src);
     const polys = [];
     features.forEach(f => {
