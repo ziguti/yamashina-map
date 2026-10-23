@@ -5111,7 +5111,27 @@ function trimOldRoadParcels(features) {
         p.xy.forEach(q => { if (q[0] < a) a = q[0]; if (q[1] < b) b = q[1]; if (q[0] > c) c = q[0]; if (q[1] > d) d = q[1]; });
         p.bb = [a, b, c, d];
     });
-    const TOL = 1.5;     /* この距離（m）以内の頂点があれば隣り合う筆とみなす */
+    const TOL = 4;       /* この距離（m）以内なら隣り合う筆とみなす */
+    const segDist = (px, py, ring) => {
+        let m = Infinity;
+        for (let i = 0; i < ring.length - 1; i++) {
+            const ax = ring[i][0], ay = ring[i][1], bx = ring[i + 1][0], by = ring[i + 1][1];
+            const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+            let t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0; t = Math.max(0, Math.min(1, t));
+            const d = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+            if (d < m) m = d;
+        }
+        return m;
+    };
+    /* 2つの筆が重なっている（面積がある）かどうか */
+    const polyOverlap = (a, b) => {
+        try {
+            if (!a.tp) a.tp = turf.polygon(a.rings);
+            if (!b.tp) b.tp = turf.polygon(b.rings);
+            const r = turf.intersect(a.tp, b.tp);
+            return !!(r && r.geometry && turf.area(r) > 0.5);
+        } catch (e) { return false; }
+    };
     const out = [];
     parts.forEach(p => {
         if (!p.rings) { out.push(p.other); return; }
@@ -5120,13 +5140,11 @@ function trimOldRoadParcels(features) {
         geo.forEach(q => {
             if (q === p) return;
             if (q.bb[0] > p.bb[2] + TOL || q.bb[2] < p.bb[0] - TOL || q.bb[1] > p.bb[3] + TOL || q.bb[3] < p.bb[1] - TOL) return;
-            const dmin = p.xy.map(v => {
-                let m = Infinity;
-                for (const w of q.xy) { const d = Math.hypot(v[0] - w[0], v[1] - w[1]); if (d < m) m = d; }
-                return m;
-            });
+            /* この筆の各頂点から、隣の筆の境界線までの距離 */
+            const dmin = p.xy.map(v => segDist(v[0], v[1], q.xy));
             const mn = Math.min.apply(null, dmin);
-            if (!(mn <= TOL)) return;
+            /* 4m 以内に近づいている、または重なっている場合に隣とみなす */
+            if (!(mn <= TOL) && !polyOverlap(p, q)) return;
             /* 境界線を共有して同じ距離の頂点が複数ある場合は、その両端の中点を接点にする */
             const tied = [];
             dmin.forEach((d, i) => { if (d <= mn + 0.3) tied.push(p.xy[i]); });
