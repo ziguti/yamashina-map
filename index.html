@@ -578,6 +578,9 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
 .meta-info-list dd.mdd-has-toggle { flex-wrap: wrap; }
 .mdd-toggle { flex-basis: 100%; margin-top: 6px; padding: 2px 0; background: transparent; border: none; color: var(--accent-gold); font-family: var(--font-sans); font-size: 0.74rem; letter-spacing: 0.06em; text-align: left; cursor: pointer; }
 .mdd-toggle:hover { text-decoration: underline; }
+.iiif-text-line.book-mode, .iiif-text-line.book-mode:hover { color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; }
+.iiif-side-label { position: absolute; color: #000; -webkit-text-fill-color: #000; text-shadow: 1px 1px 2px rgba(0,0,0,0.6); font-family: var(--font-serif); white-space: nowrap; line-height: 1; pointer-events: none; }
+.iiif-side-label.vertical { writing-mode: vertical-rl; }
 .viewer-page-badge { position: absolute; top: 10px; left: 10px; z-index: 50; pointer-events: none; background: rgba(26,17,11,0.78); color: #f3ead6; font-family: var(--font-sans); font-size: 0.8rem; letter-spacing: 0.08em; padding: 4px 10px; border: 1px solid rgba(168,135,76,0.5); font-variant-numeric: tabular-nums; }
 .mini-map-label { white-space: nowrap; transform: translate(10px, -50%); font-family: var(--font-sans); font-size: 11px; line-height: 1.3; background: rgba(255,252,240,0.94); color: #2a2622; padding: 1px 5px; border: 1px solid rgba(58,42,35,0.25); box-shadow: 0 1px 3px rgba(0,0,0,0.2); pointer-events: none; }
 .toc-source-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 8px 10px; margin-bottom: 4px; font-size: 0.78rem; color: #8d7a63; border-bottom: 1px solid rgba(168,135,76,0.25); }
@@ -3241,6 +3244,7 @@ const PinHub = {
 
     /* 画面上の位置(px,py)にあるピン（いちばん手前）を探す */
     _find: function (px, py) {
+        if (window._measure && window._measure.active) return null;   /* 距離・面積の計測中は、ピンへの当たり判定をしない */
         for (let i = this._n - 1; i >= 0; i--) {
             const dx = px - this._hx[i], dy = py - this._hy[i], r = this._hr[i];
             if (dx * dx + dy * dy <= r * r) return this._hit[i];
@@ -3416,6 +3420,7 @@ const PinHubGL = {
         gl.getSource(g._src).setData({ type: 'FeatureCollection', features: feats });
     },
     _find: function (px, py) {
+        if (window._measure && window._measure.active) return null;   /* 距離・面積の計測中は、ピンへの当たり判定をしない */
         const gl = this.gl, ids = [];
         this.groups.forEach(g => { if (g._glIds) g._glIds.forEach(id => { if (/^pins-[cp]/.test(id) && gl.getLayer(id)) ids.push(id); }); });
         if (!ids.length) return null;
@@ -3527,6 +3532,7 @@ const GLGeoHub = {
         this._host = host;
     },
     _hoverAt: function (pt) {
+        if (window._measure && window._measure.active) { this._setHoverNid(null); return; }   /* 計測中は地番・データのポリゴンに反応しない */
         const gl = GLMaster.gl;
         if (!gl || !gl.getLayer('geo-fill') || gl.isMoving()) { this._setHoverNid(null); return; }
         if (PinHub._find && PinHub._find(pt.x, pt.y)) { this._setHoverNid(null); return; }     /* ピンの上ではピンを優先 */
@@ -3638,6 +3644,7 @@ const GLGeoHub = {
         this._syncLines();
     },
     _click: function (e) {
+        if (window._measure && window._measure.active) return;   /* 計測中は地番・データのポリゴンのクリックを無視する */
         if (PinHub._find && PinHub._find(e.point.x, e.point.y)) { this.setSelected(null); return; }   /* ピンの上のクリックはピンが処理する */
         const fs = GLMaster.gl.queryRenderedFeatures(e.point, { layers: ['geo-fill'] });
         for (let i = 0; i < fs.length; i++) {
@@ -6496,6 +6503,7 @@ const ChibanGL = {
     },
 
     _hoverAt(pt) {
+        if (window._measure && window._measure.active) { this._setHover(null, null, null); return; }   /* 計測中は反応しない */
         const gl = this.gl;
         if (!this.isShowing() || !this._shown() || gl.isMoving()) { this._setHover(null, null, null); return; }
         if (typeof GLGeoHub !== 'undefined' && GLGeoHub._hoverNid != null) { this._setHover(null, null, null); return; }
@@ -10479,11 +10487,7 @@ function openDataDetailPanel(row, type, isOrigin) {
     const familyRows = tree ? findFamilyRowsForRow(tree, row.id) : null;
     const displayRows = (familyRows && familyRows.length > 1) ? familyRows : [row];
 
-    let allFeatures = [];
-    displayRows.forEach(r => { allFeatures = allFeatures.concat(findChibanFeatures(r.chibanKey)); });
-    if (allFeatures.length > 0) {
-        try { map.fitBounds(L.geoJSON({ type: 'FeatureCollection', features: allFeatures }).getBounds(), { padding: [50, 50] }); } catch (e) {}
-    }
+    /* ポリゴンをクリックしても地図は動かさない（画角は現在のまま） */
 
     let mediaHtml, thumbGalleryHtml = '', kokumeiHtml = '';
     if (type === 'td') {
@@ -11563,21 +11567,60 @@ function iiifLineRect(st, cv, box) {
     return new OpenSeadragon.Rect(x1, y1, x2 - x1, y2 - y1);
 }
 
+/* 画像の大きさ（OpenSeadragonが使う座標の基準）を取得する */
+function iiifImageSize(st, cv) {
+    let W = 0, H = 0;
+    try { const c = st.osd.world.getItemAt(0).getContentSize(); W = c.x; H = c.y; } catch (e) {}
+    if (!(W > 0 && H > 0)) { W = Number(cv && cv.width) || 0; H = Number(cv && cv.height) || 0; }
+    return { W, H };
+}
+/* OCRの各行を、画像上の矩形（画像の画素の単位）に直す。
+   ・0〜1の割合で書かれていれば、画像の大きさを掛ける
+   ・画素で書かれていて、画像より大きな値があれば、座標の基準が違うとみなして画像の大きさに合わせる */
+function iiifLinesToImageRects(st, cv, lines) {
+    const { W, H } = iiifImageSize(st, cv);
+    if (!(W > 0 && H > 0)) return [];
+    const valid = lines.filter(l => l && l.text && Array.isArray(l.box) && l.box.length >= 4 && l.box.slice(0, 4).every(v => typeof v === 'number' && isFinite(v)));
+    const norm = valid.length > 0 && valid.every(l => l.box.slice(0, 4).every(v => v >= 0 && v <= 1.001));
+    let sx = norm ? W : 1, sy = norm ? H : 1;
+    if (!norm && valid.length) {
+        const maxX = Math.max(...valid.map(l => l.box[2]));
+        const maxY = Math.max(...valid.map(l => l.box[3]));
+        if (maxX > W * 1.02) sx = W / maxX;
+        if (maxY > H * 1.02) sy = H / maxY;
+    }
+    const out = [];
+    valid.forEach(l => {
+        const x1 = l.box[0] * sx, y1 = l.box[1] * sy, x2 = l.box[2] * sx, y2 = l.box[3] * sy;
+        if (x2 > x1 && y2 > y1) out.push({ line: l, box: { x: x1, y: y1, w: x2 - x1, h: y2 - y1 } });
+    });
+    return out;
+}
+/* 行の重ね表示。
+   ・図書：文字の上に重ね、文字は透明（選択・コピー用）
+   ・文書：文字の横（右側）に、黒い文字で表示 */
 function iiifRenderSelectableTextLayer(lines, cv) {
     const st = window._docViewer.iiif;
     if (!st || !st.osd || !lines) return;
-    lines.forEach(line => {
-        if (!line.text || !line.box) return;
+    const isBook = window._docViewer.source === 'book';
+    iiifLinesToImageRects(st, cv, lines).forEach(({ line, box }) => {
+        const vert = !!line.vertical;
         const el = document.createElement('div');
-        el.className = 'iiif-text-line' + (line.vertical ? ' vertical' : '');
+        let rect;
+        if (isBook) {
+            el.className = 'iiif-text-line book-mode' + (vert ? ' vertical' : '');
+            rect = new OpenSeadragon.Rect(box.x, box.y, box.w, box.h);
+        } else {
+            el.className = 'iiif-side-label' + (vert ? ' vertical' : '');
+            rect = new OpenSeadragon.Rect(box.x + box.w + box.w * 0.2, box.y, box.w, box.h);
+        }
         el.textContent = line.text;
-        const imgRect = iiifLineRect(st, cv, line.box);
-        if (!imgRect) return;
-        const rect = st.osd.viewport.imageToViewportRectangle(imgRect);
-        st.osd.addOverlay({ element: el, location: rect });
+        el.style.fontSize = '6px';   /* 位置が決まるまでの仮の大きさ（大きな文字が一瞬出ないように） */
+        st.osd.addOverlay({ element: el, location: st.osd.viewport.imageToViewportRectangle(rect) });
         st.textOverlayEls.push(el);
     });
-    iiifFitTextLayerFonts();
+    /* 位置が確定してから文字の大きさを合わせる（確定前に測ると大きさが狂う） */
+    requestAnimationFrame(() => requestAnimationFrame(iiifFitTextLayerFonts));
     if (!st.textLayerHandlerBound) {
         st.osd.addHandler('update-viewport', iiifFitTextLayerFonts);
         st.textLayerHandlerBound = true;
