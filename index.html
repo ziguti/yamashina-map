@@ -30,6 +30,7 @@
 <script src="https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js"></script>
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/delaunator@5.0.1/delaunator.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/openseadragon@5.0.1/build/openseadragon/openseadragon.min.js"></script>
@@ -425,7 +426,16 @@ body.panels-split #chiban-panel-wrapper { top: calc(var(--header-height) + var(-
 #spot-master-toggle:hover { background: #4a362c; }
 .spot-results-block { margin: 18px 0 6px; }
 .spot-results-block h4 { font-family: var(--font-sans); font-size: 0.88rem; font-weight: 600; letter-spacing: 0.04em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; color: var(--primary-brown); }
-#spot-results { max-height: 340px; overflow-y: auto; padding-right: 2px; }
+#spot-results { padding-right: 2px; }
+#spot-results-pager.pagination-container { margin-top: 10px; gap: 6px; }
+.spot-result-card { display: flex; gap: 12px; align-items: center; width: 100%; margin: 0 0 8px; padding: 10px; text-align: left; background: #fff; border: 1px solid var(--paper-line); color: var(--text-dark); cursor: pointer; font-family: var(--font-sans); transition: border-color .2s, background .2s, box-shadow .2s; }
+.spot-result-card:hover, .spot-result-card.hl { border-color: var(--accent-gold); background: #fffaf0; box-shadow: 0 4px 14px rgba(25,16,9,0.12); }
+.spot-result-card .src-thumb { width: 104px; height: 78px; flex-shrink: 0; background: #ece4d1; display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--accent-gold); font-size: 1.5rem; }
+.spot-result-card .src-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.spot-result-card .src-text { min-width: 0; flex: 1; }
+.spot-result-card .src-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.98rem; font-weight: 600; line-height: 1.4; }
+.spot-result-card .src-sub { display: block; color: var(--text-muted); font-size: 0.8rem; margin-top: 4px; }
+#spot-results .spot-results-kind { font-size: 0.92rem; margin: 14px 0 6px; }
 .spot-results-hint { font-family: var(--font-sans); font-size: 0.76rem; color: var(--text-muted); line-height: 1.6; margin: 4px 0; }
 .spot-results-kind { display: flex; align-items: center; gap: 6px; margin: 10px 0 4px; font-family: var(--font-sans); font-size: 0.78rem; font-weight: 600; color: var(--primary-brown); }
 .spot-results-kind .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -563,6 +573,13 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
     font-size: 0.92rem; color: var(--text-dark); line-height: 1.65; margin: 0;
     padding: 12px 0; border-bottom: 1px solid rgba(168,135,76,0.2); display: flex; align-items: flex-start;
 }
+.mdd-text { flex: 1 1 auto; min-width: 0; }
+.mdd-text.mdd-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.meta-info-list dd.mdd-has-toggle { flex-wrap: wrap; }
+.mdd-toggle { flex-basis: 100%; margin-top: 6px; padding: 2px 0; background: transparent; border: none; color: var(--accent-gold); font-family: var(--font-sans); font-size: 0.74rem; letter-spacing: 0.06em; text-align: left; cursor: pointer; }
+.mdd-toggle:hover { text-decoration: underline; }
+.viewer-page-badge { position: absolute; top: 10px; left: 10px; z-index: 50; pointer-events: none; background: rgba(26,17,11,0.78); color: #f3ead6; font-family: var(--font-sans); font-size: 0.8rem; letter-spacing: 0.08em; padding: 4px 10px; border: 1px solid rgba(168,135,76,0.5); font-variant-numeric: tabular-nums; }
+.mini-map-label { white-space: nowrap; transform: translate(10px, -50%); font-family: var(--font-sans); font-size: 11px; line-height: 1.3; background: rgba(255,252,240,0.94); color: #2a2622; padding: 1px 5px; border: 1px solid rgba(58,42,35,0.25); box-shadow: 0 1px 3px rgba(0,0,0,0.2); pointer-events: none; }
 .toc-source-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 8px 10px; margin-bottom: 4px; font-size: 0.78rem; color: #8d7a63; border-bottom: 1px solid rgba(168,135,76,0.25); }
 .toc-source-bar button { font: inherit; padding: 3px 10px; border: 1px solid rgba(168,135,76,0.55); background: transparent; color: var(--primary-brown); border-radius: 2px; cursor: pointer; }
 .toc-source-bar button.on { background: var(--primary-brown); color: #f3ead6; border-color: var(--primary-brown); }
@@ -613,7 +630,9 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
     cursor: grab; transition: transform 0.15s ease-out;
     box-shadow: 0 30px 90px rgba(0,0,0,0.6);
 }
-#full-screen-img:active { cursor: grabbing; }
+#full-screen-img:active, #full-screen-img.fs-dragging { cursor: grabbing; }
+#full-screen-img.fs-dragging { transition: none; }
+#full-screen-img { user-select: none; -webkit-user-drag: none; }
 #fs-iiif-osd { display: none; position: absolute; inset: 0; width: 100%; height: 100%; }
 .gallery-zoom-badge {
     position: absolute; left: 10px; bottom: 10px; z-index: 3; pointer-events: none;
@@ -639,7 +658,7 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
 
 /* ===== OCRテキストレイヤー ===== */
 .iiif-text-line {
-    color: transparent; -webkit-text-fill-color: transparent;
+    color: #000; -webkit-text-fill-color: #000; text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
     -webkit-user-select: text; user-select: text; cursor: text;
     white-space: nowrap; line-height: 1; overflow: hidden;
 }
@@ -859,6 +878,10 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
 .empty-state i { font-size: 2.2rem; color: var(--accent-gold); margin-bottom: 16px; display: block; }
 
 .pagination-container { display: flex; justify-content: center; gap: 8px; margin-top: 40px; flex-wrap: wrap; }
+.pagination-container.pager-top { margin: 0 0 24px; }
+.pagination-btn.pagination-arrow { min-width: 36px; display: inline-flex; align-items: center; justify-content: center; }
+.pagination-btn.pagination-arrow:disabled { opacity: 0.35; cursor: default; }
+.pagination-btn.pagination-arrow:disabled:hover { border-color: inherit; color: inherit; }
 .pagination-btn {
     width: 40px; height: 40px; border-radius: 0; border: 1px solid var(--paper-line); background: transparent;
     cursor: pointer; font-family: var(--font-sans); font-size: 0.88rem; color: var(--text-muted); transition: var(--transition);
@@ -1290,6 +1313,12 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
 .kokumei-cell-wrapper:hover { transform: translateY(-3px); box-shadow: 0 16px 36px rgba(18,10,5,0.3); }
 .kokumei-label { background: transparent !important; border-bottom: 1px solid rgba(201,161,92,0.35) !important; color: #c9a15c !important; letter-spacing: 0.3em !important; padding: 8px 0 6px !important; }
 .kokumei-box-3to1 { background: linear-gradient(160deg, #2b211a, #1f1712) !important; color: #efe6d4 !important; min-height: 170px; padding: 16px 10px !important; font-family: var(--font-serif); }
+
+/* ---- 四方刻銘：横一列。長方形の高さは固定。文字が長いときは文字を小さくし、改行の数だけ横に広がる（幅・文字の大きさはJSで指定） ---- */
+.kokumei-table, .kokumei-table[style] { display: flex !important; flex-wrap: nowrap !important; justify-content: center !important; align-items: flex-start !important; gap: 8px !important; height: auto !important; overflow-x: auto !important; overflow-y: visible !important; background: transparent !important; border: none !important; margin-top: 14px; padding-bottom: 2px; }
+.kokumei-cell-wrapper, .kokumei-cell-wrapper:hover { display: flex !important; flex-direction: column !important; flex: 0 0 auto !important; height: auto !important; background: #d4d4d4 !important; border: none !important; box-shadow: none !important; transform: none !important; transition: none !important; }
+.kokumei-label, .kokumei-label:hover { flex: 0 0 auto !important; text-align: center !important; font-family: var(--font-sans) !important; font-size: 0.78rem !important; font-weight: 600 !important; letter-spacing: 0.1em !important; color: #444 !important; background: #c6c6c6 !important; padding: 6px 0 !important; border-bottom: 1px solid #b5b5b5 !important; }
+.kokumei-box-3to1, .kokumei-box-3to1:hover { box-sizing: border-box !important; display: flex !important; align-items: center !important; justify-content: center !important; writing-mode: vertical-rl !important; text-orientation: upright !important; white-space: pre-wrap !important; text-align: center !important; width: 100% !important; height: 260px !important; min-height: 0 !important; padding: 12px 8px !important; font-family: var(--font-serif) !important; line-height: 1.5 !important; letter-spacing: 0.08em !important; color: #2b2b2b !important; background: transparent !important; overflow: hidden !important; }
 
 /* ---- 自動生成クロノロジー（年表） ---- */
 .timeline-wrap { position: relative; max-width: 1020px; margin: 44px auto 90px; padding: 6px 0 0; }
@@ -1982,7 +2011,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
 <div id="full-screen-overlay" onclick="closeFullScreenImage()">
     <div class="close-btn" onclick="closeFullScreenImage()"><i class="fa-solid fa-xmark"></i></div>
     <button class="carousel-nav-btn prev" id="fs-prev-btn" style="display:none;" onclick="event.stopPropagation(); fsChangeImage(-1)"><i class="fa-solid fa-chevron-left"></i></button>
-    <img id="full-screen-img" onclick="event.stopPropagation()">
+    <img id="full-screen-img" draggable="false" onclick="event.stopPropagation()" ondragstart="return false">
     <div id="fs-iiif-osd" onclick="event.stopPropagation()"></div>
     <button class="carousel-nav-btn next" id="fs-next-btn" style="display:none;" onclick="event.stopPropagation(); fsChangeImage(1)"><i class="fa-solid fa-chevron-right"></i></button>
 </div>
@@ -2156,7 +2185,8 @@ let chibanStore = null;        /* 現在のデータセットの索引＋ジオ�
 let chibanActiveGroup = null;  /* クリックした地番を強調表示する一時レイヤ */
 window.chibanMap = {};
 
-let archiveData = [];   // 古写真
+let archiveData = [];   // 古写真（位置情報あり。地図に出すもの）
+let archiveAllData = [];   // 古写真（スプレッドシートの全件。古写真データベースの検索用）
 let models = [];        // 石造物
 let buildingData = [];  // 歴史的建造物
 let natureData = [];    // 自然系
@@ -4615,6 +4645,7 @@ function onMapSearchInput() {
 }
 function runMapSearchNow() {
     clearTimeout(_mapSearchT);
+    window._spotResultPage = 1;
     const q = (document.getElementById('spot-search-input').value || '').trim();
     const was = !!window._spotSearchActive;
     window._spotSearchActive = !!q;
@@ -4725,7 +4756,7 @@ function addPhotoMarkersToMainMap(data) {
         }
         const marker = makePin([p.lat, p.lng], { k: 'photo', color: color, angle: angle },
             (() => { const y = String(p.year == null ? '' : p.year).trim(); return (!y || isUnknownValue(y)) ? '' : (y.indexOf('年') >= 0 ? y : y + '年'); })());   /* ピン横の文字：撮影年（未登録なら表示しない） */
-        marker.on('click', () => openPhotoDetailPanel(p, angle, color));
+        marker._rowKey = 'photo:' + p.id; marker.on('click', () => openPhotoDetailPanel(p, angle, color));
         markers.push(marker);
     });
     photoClusterGroup.addLayers(markers);
@@ -4849,7 +4880,7 @@ function add3DMarkersToMap(filteredModels) {
             marker._pinColor = color;
             marker._pinGlyph = pinGlyphFor(m.category);
             marker._recordId = m.id;
-            marker.on('click', () => openDataDetailPanel(m, 'td'));
+            marker._rowKey = 'td:' + m.id; marker.on('click', () => openDataDetailPanel(m, 'td'));
             markers.push(marker);
 
             let originMarker = null;
@@ -4860,7 +4891,7 @@ function add3DMarkersToMap(filteredModels) {
                 originMarker._pinColor = originColor;
                 originMarker._pinGlyph = 'location-crosshairs';
                 originMarker._recordId = m.id;
-                originMarker.on('click', () => openDataDetailPanel(m, 'td', true));
+                originMarker._rowKey = 'td:' + m.id; originMarker.on('click', () => openDataDetailPanel(m, 'td', true));
                 markers.push(originMarker);
             }
 
@@ -4898,7 +4929,7 @@ function renderTDPolygons(filteredModels) {
         const color = get3DPinColor(m.condition, false);
         const layer = makeChibanDataLayer(m.chibanKey, { style: { color, weight: 1, fillColor: color, fillOpacity: 0.3 } }, m.name);
         if (!layer) { console.warn(`Match Warning: Key [${m.chibanKey}] not found in GeoJSON`); return; }
-        layer.on('click', () => openDataDetailPanel(m, 'td'));
+        layer._rowKey = 'td:' + m.id; layer.on('click', () => openDataDetailPanel(m, 'td'));
         layer.addTo(modelClusterGroup);
     });
 }
@@ -4983,10 +5014,32 @@ function computeChibanLookupKeys(props) {
    見やすさのため統合(dissolve)した形で、地番レベルまでズームしていれば
    個々の地番境界のまま表示する。件数が少ない（データ1件あたりの紐づけ数）ため
    メインスレッドで同期的に計算しても問題ない。 */
+/* 地番の筆を1回の一括計算で結合する（polygon-clipping）。
+   1件ずつ turf.union を繰り返すと、筆が増えるほど計算が重くなり画面が固まっていた。
+   使えない・失敗した場合は null を返し、呼び出し側が従来の方法で結合する。 */
+function chibanFastUnion(features) {
+    if (typeof polygonClipping === 'undefined' || !features || !features.length) return null;
+    const geoms = [];
+    features.forEach(f => {
+        const g = f && f.geometry;
+        if (g && (g.type === 'Polygon' || g.type === 'MultiPolygon')) geoms.push(g.coordinates);
+    });
+    if (!geoms.length) return null;
+    try {
+        const out = polygonClipping.union.apply(null, geoms);
+        if (!out || !out.length) return null;
+        return out.length === 1
+            ? { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: out[0] } }
+            : { type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates: out } };
+    } catch (e) { return null; }
+}
+
 function buildDisplayGeometryForChibanFeatures(features) {
     /* 地番ポリゴンの表示・非表示やズームに関係なく、常に1つのポリゴンに統合して返す（内部の境界線は描かない）。
        地番ポリゴン表示時の内部の境界線・地番テキストは、地番レイヤ自身が下から透けて見える。 */
     if (!features || features.length <= 1) return features;
+    const fastU = chibanFastUnion(features);
+    if (fastU) return [fastU];
     let merged = null;
     const rest = [];
     for (let i = 0; i < features.length; i++) {
@@ -5264,7 +5317,9 @@ function makeChibanDataLayer(rawKeys, opts, labelText) {
     const o = Object.assign({}, opts);
     delete o.trimRoad;
     if (labelText) o.label = { text: String(labelText), anchors: g.anchors, lines: g.lines };
-    return makeGeo({ type: 'FeatureCollection', features: g.features }, o);
+    const lay = makeGeo({ type: 'FeatureCollection', features: g.features }, o);
+    lay._baseStyle = o.style;
+    return lay;
 }
 
 /* =====================================================================
@@ -5281,9 +5336,12 @@ function chibanUnionCached(key, features) {
     const ck = currentChibanDatasetId + '|' + String(key) + '|' + features.length;
     const hit = _chibanUnionCache.get(ck);
     if (hit) return hit;
-    let unionGeom = features[0];
-    for (let i = 1; i < features.length; i++) {
-        try { const u = turf.union(unionGeom, features[i]); if (u) unionGeom = u; } catch (e) {}
+    let unionGeom = chibanFastUnion(features);
+    if (!unionGeom) {
+        unionGeom = features[0];
+        for (let i = 1; i < features.length; i++) {
+            try { const u = turf.union(unionGeom, features[i]); if (u) unionGeom = u; } catch (e) {}
+        }
     }
     let areaVal = 0, bb = null;
     try { areaVal = unionGeom ? turf.area(unionGeom) : 0; } catch (e) { areaVal = 0; }
@@ -5611,8 +5669,18 @@ function transEval(it, T, Tn) {
     return Math.min(st, en);
 }
 
+/* 時代スライダーのポリゴン色は、通常表示と同じ種別の色にそろえる（消失の有無にかかわらず基本の色） */
+function transNormalColor(it) {
+    const getter = it.db === 'nature' ? getNatureStyle : it.db === 'oldroad' ? getOldRoadStyle : it.db === 'building' ? getBuildingStyle : null;
+    if (getter && it.row) {
+        const c = getter(Object.assign({}, it.row, { status: '' }));
+        if (c && c.fillColor) return c.fillColor;
+    }
+    return transColorOf(it.key);
+}
+
 function transStyleFor(it, st) {
-    const color = transColorOf(it.key);
+    const color = transNormalColor(it);
     if (st === 2) return { color, weight: 1, fillColor: color, fillOpacity: 0.62, dashArray: null, opacity: 0.9 };
     if (st === 1) return { color, weight: 1.5, fillColor: color, fillOpacity: 0.25, dashArray: '4,3', opacity: 0.9 };
     return { color, weight: 1, fillColor: color, fillOpacity: 0.1, dashArray: '2,4', opacity: 0.6 };
@@ -5638,7 +5706,7 @@ function transPhotoPin(p) {
         const y = String(p.year == null ? '' : p.year).trim();
         const label = (!y || isUnknownValue(y)) ? '' : (y.indexOf('年') >= 0 ? y : y + '年');
         const m = makePin([p.lat, p.lng], { k: 'photo', color: color, angle: angle }, label);
-        m.on('click', () => openPhotoDetailPanel(p, angle, color));
+        m._rowKey = 'photo:' + p.id; m.on('click', () => openPhotoDetailPanel(p, angle, color));
         p._transPin = m;
     }
     return p._transPin;
@@ -5806,7 +5874,7 @@ function renderNatureMapLayers(searchQuery) {
         if (row.chibanKey && vm.poly) {
             const layer = makeChibanDataLayer(row.chibanKey, { style: polyStyleFor(row, getNatureStyle) }, row.name);
             if (layer) {
-                layer.on('click', () => openDataDetailPanel(row, 'nature'));
+                layer._rowKey = 'nature:' + row.id; layer.on('click', () => openDataDetailPanel(row, 'nature'));
                 layer.addTo(natureLayerGroup);
                 drawn = true;
             }
@@ -5814,7 +5882,7 @@ function renderNatureMapLayers(searchQuery) {
         if ((vm.pin || (vm.poly && !drawn)) && row.coords && row.coords[0]) {
             const marker = makePin(row.coords, stySpec(style.color, style.icon), row.name);
             marker._ctype = typeKeyOf(row);
-            marker.on('click', () => openDataDetailPanel(row, 'nature'));
+            marker._rowKey = 'nature:' + row.id; marker.on('click', () => openDataDetailPanel(row, 'nature'));
             marker.addTo(natureLayerGroup);
             drawn = true;
         }
@@ -5849,7 +5917,7 @@ function renderOldRoadMapLayers(searchQuery) {
         if (row.chibanKey && vm.poly) {
             const layer = makeChibanDataLayer(row.chibanKey, { trimRoad: true, style: polyStyleFor(row, getOldRoadStyle) }, row.name);
             if (layer) {
-                layer.on('click', () => openDataDetailPanel(row, 'oldroad'));
+                layer._rowKey = 'oldroad:' + row.id; layer.on('click', () => openDataDetailPanel(row, 'oldroad'));
                 layer.addTo(oldRoadLayerGroup);
                 drawn = true;
             }
@@ -5857,7 +5925,7 @@ function renderOldRoadMapLayers(searchQuery) {
         if ((vm.pin || (vm.poly && !drawn)) && row.coords && row.coords[0]) {
             const marker = makePin(row.coords, stySpec(style.color, style.icon), row.name);
             marker._ctype = typeKeyOf(row);
-            marker.on('click', () => openDataDetailPanel(row, 'oldroad'));
+            marker._rowKey = 'oldroad:' + row.id; marker.on('click', () => openDataDetailPanel(row, 'oldroad'));
             marker.addTo(oldRoadLayerGroup);
             drawn = true;
         }
@@ -5902,7 +5970,7 @@ function renderBuildingMapLayers(searchQuery) {
         if (row.chibanKey && vm.poly) {
             const layer = makeChibanDataLayer(row.chibanKey, { style: polyStyleFor(row, getBuildingStyle) }, row.name);
             if (layer) {
-                layer.on('click', () => openDataDetailPanel(row, 'building'));
+                layer._rowKey = 'building:' + row.id; layer.on('click', () => openDataDetailPanel(row, 'building'));
                 layer.addTo(buildingLayerGroup);
                 drawn = true;
             }
@@ -5910,7 +5978,7 @@ function renderBuildingMapLayers(searchQuery) {
         if ((vm.pin || (vm.poly && !drawn)) && row.coords && row.coords[0]) {
             const marker = makePin(row.coords, stySpec(style.color, style.icon), row.name);
             marker._ctype = typeKeyOf(row);
-            marker.on('click', () => openDataDetailPanel(row, 'building'));
+            marker._rowKey = 'building:' + row.id; marker.on('click', () => openDataDetailPanel(row, 'building'));
             marker.addTo(buildingLayerGroup);
             drawn = true;
         }
@@ -5932,7 +6000,7 @@ function renderDocMapLayers(searchQuery) {
         if (!row.chibanKey) return;
         const layer = makeChibanDataLayer(row.chibanKey, { style: { color: '#1a2a4a', fillColor: '#1a2a4a', fillOpacity: 0.35, weight: 1.5 } }, row.subject || row.sub || row.id);
         if (!layer) return;
-        layer.on('click', () => openDocDetailPanel(row));
+        layer._rowKey = 'doc:' + row.id; layer.on('click', () => openDocDetailPanel(row));
         layer.addTo(docLayerGroup);
         shown.push(row);
     });
@@ -5959,14 +6027,14 @@ function renderBookMapLayers(searchQuery) {
             if (row.chibanKey) {
                 const layer = makeChibanDataLayer(row.chibanKey, { style: { color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book, fillOpacity: 0.35, weight: 1.5 } }, row.entryLabel || row.h3 || row.h2 || row.h1 || b.title);
                 if (layer) {
-                    layer.on('click', () => openDataDetailPanel(mergedRow, 'book'));
+                    layer._rowKey = 'book:' + mergedRow.id; layer.on('click', () => openDataDetailPanel(mergedRow, 'book'));
                     layer.addTo(bookLayerGroup);
                     drawn = true;
                 }
             }
             if (!drawn && row.coords && row.coords[0]) {
                 const marker = makePin(row.coords, stySpec(TYPE_COLORS.book, 'book'), row.entryLabel || row.h3 || row.h2 || row.h1 || b.title);
-                marker.on('click', () => openDataDetailPanel(mergedRow, 'book'));
+                marker._rowKey = 'book:' + mergedRow.id; marker.on('click', () => openDataDetailPanel(mergedRow, 'book'));
                 marker.addTo(bookLayerGroup);
                 drawn = true;
             }
@@ -8055,8 +8123,9 @@ async function loadPhotoData() {
         const res = await fetch(CSV_PHOTO_URL);
         const text = await res.text();
         const rows = parseCSV(text).slice(1);
-        archiveData = rows.filter(r => r.length > 6 && r[6] && r[6].trim() !== '').map((cols, index) => {
+        archiveAllData = rows.filter(r => r.some(c => (c || '').trim() !== '')).map((cols, index) => {
             const coordParts = (cols[6] || '').split(/[\s,]+/).map(Number);
+            const hasCoord = !!(cols[6] || '').trim() && isFinite(coordParts[0]) && isFinite(coordParts[1]) && coordParts[0] !== 0;
             /* IDは行番号（index）ではなく、台帳の整理番号（cols[17]）を優先的に使う。
                行番号ベースだとスプレッドシートの行の並べ替え・追加・削除で
                既存の共有リンクやブックマークが指す先が変わってしまうため。 */
@@ -8067,8 +8136,8 @@ async function loadPhotoData() {
                 imgFull: getImgFull(cols[2]),
                 title: (cols[4] || '無題').replace(/\.[a-zA-Z0-9]+$/, ''),
                 desc: cols[5] || '',
-                lat: coordParts[0] || 0,
-                lng: coordParts[1] || 0,
+                lat: hasCoord ? coordParts[0] : null,
+                lng: hasCoord ? coordParts[1] : null,
                 era: cols[7] || '',
                 year: cols[8] || '',
                 explanation: cols[9] || '',
@@ -8083,8 +8152,9 @@ async function loadPhotoData() {
                 fov: cols[19] || '',
                 currentDirectLink: getImg(cols[21]) || ''
             };
-        }).filter(p => p.lat !== 0);
-        ensureUniqueIds(archiveData);
+        });
+        ensureUniqueIds(archiveAllData);
+        archiveData = archiveAllData.filter(p => p.lat);   /* 地図に出すのは位置情報ありのもの */
 
         if (map) addPhotoMarkersToMainMap(archiveData);
         const list = document.getElementById('photo-list');
@@ -8659,14 +8729,7 @@ function filterDB() {
     const storage = document.getElementById('db-storage').value.trim().toLowerCase();
     const seiri = document.getElementById('db-seiri').value.trim();
 
-    if (q === '' && era === '' && place === '' && yStart === 0 && yEnd === 9999 && author === '' && storage === '' && seiri === '') {
-        document.getElementById('photo-list').innerHTML = '<div class="empty-state"><i class="fa-solid fa-magnifying-glass"></i>検索条件を指定し、「検索する」ボタンを押してください。</div>';
-        document.getElementById('pagination-container').innerHTML = '';
-        document.getElementById('search-result-map-container').style.display = 'none';
-        return;
-    }
-
-    pagedFilteredData = archiveData.filter(p => {
+    pagedFilteredData = archiveAllData.filter(p => {
         const matchQ = !q || [p.title, p.desc, p.explanation, p.author, p.storage, p.source].join(' ').toLowerCase().includes(q);
         const matchEra = !era || (p.era || '').includes(era);
         const matchPlace = !place || (p.desc || '').toLowerCase().includes(place);
@@ -8711,17 +8774,10 @@ function renderPhotosPage() {
 }
 
 function renderPaginationControls() {
-    const container = document.getElementById('pagination-container');
-    container.innerHTML = '';
-    const totalPages = Math.ceil(pagedFilteredData.length / itemsPerPage);
-    if (totalPages <= 1) return;
-    for (let i = 1; i <= totalPages; i++) {
-        const btn = document.createElement('button');
-        btn.className = `pagination-btn ${i === currentPage ? 'active' : ''}`;
-        btn.innerText = i;
-        btn.onclick = () => { currentPage = i; renderPhotosPage(); document.getElementById('photo-list').scrollIntoView({ behavior: 'smooth' }); };
-        container.appendChild(btn);
-    }
+    renderGenericPagination(document.getElementById('pagination-container'), pagedFilteredData.length, currentPage, (i) => {
+        currentPage = i; renderPhotosPage();
+        document.getElementById('photo-list').scrollIntoView({ behavior: 'smooth' });
+    }, itemsPerPage);
 }
 
 let resultMap = null;
@@ -8735,7 +8791,15 @@ function updateResultMap(data) {
             L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '地理院タイル' }).addTo(resultMap);
         }
         if (window._resultMarkersLayer) resultMap.removeLayer(window._resultMarkersLayer);
-        const markers = data.filter(p => p.lat).map(p => L.marker([p.lat, p.lng]).bindPopup(`<b>${escapeHtml(p.title)}</b>`));
+        /* メインマップと同じ古写真ピン（色・向き）を使い、クリックで詳細モーダルを開く */
+        const markers = data.filter(p => p.lat).map(p => {
+            const angle = getDirectionAngle(p.direction);
+            const sp = PinSprites.get({ k: 'photo', color: getDistanceColor(p.distanceRaw), angle: angle });
+            const icon = L.icon({ iconUrl: sp.c.toDataURL(), iconSize: [sp.w, sp.h], iconAnchor: [sp.ax, sp.ay] });
+            const m = L.marker([p.lat, p.lng], { icon: icon, title: p.title || '' });
+            m.on('click', () => openDetail(p.id));
+            return m;
+        });
         window._resultMarkersLayer = L.layerGroup(markers).addTo(resultMap);
         if (markers.length > 0) resultMap.fitBounds(L.featureGroup(markers).getBounds(), { padding: [30, 30] });
         resultMap.invalidateSize();
@@ -8923,14 +8987,32 @@ function filterTD() {
         }
         return matchAll && matchName && matchInsc && matchId && matchCat && matchDate && matchMat && matchCond && matchInfo && matchEra && matchYear;
     });
+    currentTDPage = 1;
     renderTDList(filtered);
     add3DMarkersToMap(filtered);
 }
 
+let currentTDPage = 1;
+/* 石造物の一覧の下に、ページネーション用の場所を用意する（なければ作る） */
+function getTDPager() {
+    let p = document.getElementById('td-pagination-container');
+    const grid = document.getElementById('td-grid');
+    if (!p && grid) {
+        p = document.createElement('div');
+        p.id = 'td-pagination-container';
+        p.className = 'pagination-container';
+        grid.insertAdjacentElement('afterend', p);
+    }
+    return p;
+}
 function renderTDList(data) {
     const grid = document.getElementById('td-grid');
-    if (data.length === 0) { grid.innerHTML = '<div class="empty-state"><i class="fa-solid fa-cube"></i>条件に一致する石造物データが見つかりませんでした。</div>'; return; }
-    grid.innerHTML = data.map(m => `
+    if (data.length === 0) { grid.innerHTML = '<div class="empty-state"><i class="fa-solid fa-cube"></i>条件に一致する石造物データが見つかりませんでした。</div>'; const pg0 = getTDPager(); if (pg0) renderGenericPagination(pg0, 0, 1, () => {}); return; }
+    const tdPager = getTDPager();
+    const tdTotal = Math.max(1, Math.ceil(data.length / galleryItemsPerPage));
+    if (currentTDPage > tdTotal) currentTDPage = tdTotal;
+    const tdStart = (currentTDPage - 1) * galleryItemsPerPage;
+    grid.innerHTML = data.slice(tdStart, tdStart + galleryItemsPerPage).map(m => `
         <div class="doc-list-card" onclick="open3DDetail('${escapeJsAttr(m.id)}')">
             <img class="dlc-thumb" src="${escapeHtml(m.thumbnail) || 'https://placehold.co/120x150/2e7d32/ffffff?text=3D'}" onerror="this.src='https://placehold.co/120x150/2e7d32/ffffff?text=3D'">
             <div class="dlc-body">
@@ -8939,22 +9021,65 @@ function renderTDList(data) {
                 <span class="dlc-year">建立年：${escapeHtml(m.builtYear) || '不明'}</span>
             </div>
         </div>`).join('');
+    if (tdPager) renderGenericPagination(tdPager, data.length, currentTDPage, (i) => { currentTDPage = i; renderTDList(data); });
 }
 
 /* =====================================================================
    汎用ページネーション（自然系/古道/建造物/古地図 共通）
    ===================================================================== */
-function renderGenericPagination(container, totalItems, currentPageNum, onClick) {
+/* 上の段（一覧の直前）にも同じページネーションを作り、上下どちらを押しても同じページへ移る */
+function ensurePagerTop(pager) {
+    if (!pager) return null;
+    if (pager._topPager) return pager._topPager;
+    const top = document.createElement('div');
+    top.id = pager.id + '-top';
+    top.className = 'pagination-container pager-top';
+    const list = pager.previousElementSibling;
+    if (list && list.parentNode) list.parentNode.insertBefore(top, list);
+    else if (pager.parentNode) pager.parentNode.insertBefore(top, pager);
+    /* 下側の中身が変わったら、上側にも同じボタンを写す */
+    new MutationObserver(() => { top.innerHTML = pager.innerHTML; }).observe(pager, { childList: true });
+    /* ボタンのクリックは上下どちらも、同じ処理（_onPage）へつなぐ */
+    const onPageClick = (e) => {
+        const b = e.target.closest && e.target.closest('.pagination-btn');
+        if (!b || !pager._onPage) return;
+        pager._onPage(parseInt(b.dataset.page, 10));
+    };
+    top.addEventListener('click', onPageClick);
+    pager.addEventListener('click', onPageClick);
+    pager._topPager = top;
+    return top;
+}
+function renderGenericPagination(container, totalItems, currentPageNum, onClick, perPage) {
+    if (!container) return;
+    ensurePagerTop(container);
+    container._onPage = onClick;
     container.innerHTML = '';
-    const totalPages = Math.ceil(totalItems / galleryItemsPerPage);
+    const totalPages = Math.ceil(totalItems / (perPage || galleryItemsPerPage));
     if (totalPages <= 1) return;
+    const cur = Math.min(Math.max(1, currentPageNum), totalPages);
+    /* 先頭・前へ・次へ・末尾の矢印（端にいるときは押せないように無効にする） */
+    const arrow = (cls, icon, title, target) => {
+        const btn = document.createElement('button');
+        btn.className = 'pagination-btn pagination-arrow';
+        btn.title = title;
+        btn.setAttribute('aria-label', title);
+        btn.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+        if (target === null) btn.disabled = true;
+        else btn.dataset.page = target;
+        container.appendChild(btn);
+    };
+    arrow('first', 'fa-angles-left', '最初のページ', cur > 1 ? 1 : null);
+    arrow('prev', 'fa-chevron-left', '前のページ', cur > 1 ? cur - 1 : null);
     for (let i = 1; i <= totalPages; i++) {
         const btn = document.createElement('button');
-        btn.className = `pagination-btn ${i === currentPageNum ? 'active' : ''}`;
+        btn.className = `pagination-btn ${i === cur ? 'active' : ''}`;
         btn.innerText = i;
-        btn.onclick = () => onClick(i);
+        btn.dataset.page = i;
         container.appendChild(btn);
     }
+    arrow('next', 'fa-chevron-right', '次のページ', cur < totalPages ? cur + 1 : null);
+    arrow('last', 'fa-angles-right', '最後のページ', cur < totalPages ? totalPages : null);
 }
 
 function renderGenericResultMap(mapId, containerId, items, styleFn) {
@@ -9929,7 +10054,11 @@ function relatedItemsFor(record, type) {
 
 /* DB詳細モーダル用（各モーダルは relatedAssetsBlockHTML() を置き、描画後に renderRelatedAssets を呼ぶ） */
 function renderRelatedAssets(record, type) {
-    relFill('modal-related-assets-body', () => relatedItemsFor(record, type));
+    miniMapFamilyBlock(record, type);
+    relFill('modal-related-assets-body', () => Promise.resolve(relatedItemsFor(record, type)).then(items => {
+        miniMapShowExtras(record, type, items || []);
+        return items;
+    }).catch(() => { miniMapShowExtras(record, type, []); return []; }));
 }
 function relatedAssetsBlockHTML() {
     return relatedBlockHtml('modal-related-assets-body');
@@ -9939,7 +10068,7 @@ function relatedAssetsBlockHTML() {
    ■72 古写真詳細モーダル機能（openDetail）
    ===================================================================== */
 function openDetail(id) {
-    const p = archiveData.find(x => String(x.id) === String(id));
+    const p = archiveAllData.find(x => String(x.id) === String(id));
     if (!p) return;
 
     const compareBtnHTML = (p.currentDirectLink && p.currentDirectLink.trim() !== '' && p.currentDirectLink.trim() !== '-')
@@ -9985,7 +10114,7 @@ function openDetail(id) {
         if (!p.lat || isNaN(p.lat) || p.lat === 0) {
             mapDiv.innerHTML = '<div style="width:100%;height:100%;background:#eee;display:flex;align-items:center;justify-content:center;color:#999;"><i class="fa-solid fa-map-marked-alt" style="margin-right:6px;"></i>位置情報がありません</div>';
         } else {
-            const inlineMap = L.map('modal-inline-map', { zoomControl: false, attributionControl: false }).setView([p.lat, p.lng], 15);
+            const inlineMap = window._miniMap = L.map('modal-inline-map', { zoomControl: false, attributionControl: false }).setView([p.lat, p.lng], 15);
             L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(inlineMap);
             const angle = getDirectionAngle(p.direction);
             const color = getDistanceColor(p.distanceRaw);
@@ -10057,7 +10186,7 @@ function open3DDetail(id) {
     const directionEntries = [['北', m.north], ['東', m.east], ['南', m.south], ['西', m.west]];
     const kokumeiHTML = `
         <div class="kokumei-table">
-            ${directionEntries.map(([label, text]) => `<div class="kokumei-cell-wrapper"><div class="kokumei-label">${label}</div><div class="kokumei-box-3to1">${escapeHtml(text) || ''}</div></div>`).join('')}
+            ${kokumeiCellsHtml(directionEntries)}
         </div>`;
 
     document.getElementById('modal-body').innerHTML = `
@@ -10094,7 +10223,7 @@ function open3DDetail(id) {
         if (!m.coords || !m.coords[0]) {
             mapDiv.innerHTML = '<div style="width:100%;height:100%;background:#eee;display:flex;align-items:center;justify-content:center;color:#999;"><i class="fa-solid fa-map-marked-alt" style="margin-right:6px;"></i>位置情報がありません</div>';
         } else {
-            const inlineMap = L.map('modal-inline-map', { zoomControl: false, attributionControl: false }).setView(m.coords, 16);
+            const inlineMap = window._miniMap = L.map('modal-inline-map', { zoomControl: false, attributionControl: false }).setView(m.coords, 16);
             L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(inlineMap);
             L.marker(m.coords, { icon: make3DIcon(get3DPinColor(m.condition, false), false, pinGlyphFor(m.category)) }).addTo(inlineMap);
             const bounds = [m.coords];
@@ -10143,11 +10272,11 @@ function applyTextureToggle(mv, isOff) {
                     };
                 }
                 m.pbrMetallicRoughness.setBaseColorFactor([0.7, 0.7, 0.7, 1.0]);
-                if (m.pbrMetallicRoughness.baseColorTexture) m.pbrMetallicRoughness.setTexture(null);
+                if (m.pbrMetallicRoughness.baseColorTexture) m.pbrMetallicRoughness.setBaseColorTexture(null);
             } else {
                 if (m.userData && m.userData.originalColorFactor) {
                     m.pbrMetallicRoughness.setBaseColorFactor(m.userData.originalColorFactor);
-                    if (m.pbrMetallicRoughness.baseColorTexture && m.userData.originalTexture) m.pbrMetallicRoughness.setTexture(m.userData.originalTexture);
+                    if (m.pbrMetallicRoughness.baseColorTexture && m.userData.originalTexture) m.pbrMetallicRoughness.setBaseColorTexture(m.userData.originalTexture);
                     else mv.src = mv.src;
                 } else { mv.src = mv.src; }
             }
@@ -10200,7 +10329,7 @@ function renderInlineMiniMap(coords, chibanKey, styleColor, name, trimRoad) {
             mapDiv.innerHTML = '<div style="width:100%;height:100%;background:#eee;display:flex;align-items:center;justify-content:center;color:#999;"><i class="fa-solid fa-map-marked-alt" style="margin-right:6px;"></i>位置情報がありません</div>';
             return;
         }
-        const inlineMap = L.map('modal-inline-map', { zoomControl: false, attributionControl: false }).setView(coords && coords[0] ? coords : [34.992, 135.813], 16);
+        const inlineMap = window._miniMap = L.map('modal-inline-map', { zoomControl: false, attributionControl: false }).setView(coords && coords[0] ? coords : [34.992, 135.813], 16);
         L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(inlineMap);
         let bounds = [];
         const nameLabel = escapeHtml(name || '');
@@ -10375,7 +10504,7 @@ function openDataDetailPanel(row, type, isOrigin) {
             thumbGalleryHtml = `<div style="width:100%;height:160px;margin:14px 0;border-radius:6px;overflow:hidden;border:1px solid var(--accent-light);">${buildImageGalleryHTML(row.thumbnails, row.name)}</div>`;
         }
         const directionEntries = [['北', row.north], ['東', row.east], ['南', row.south], ['西', row.west]];
-        kokumeiHtml = `<div class="kokumei-table" style="height:180px;">${directionEntries.map(([label, text]) => `<div class="kokumei-cell-wrapper"><div class="kokumei-label">${label}</div><div class="kokumei-box-3to1">${escapeHtml(text) || ''}</div></div>`).join('')}</div>`;
+        kokumeiHtml = `<div class="kokumei-table" style="height:180px;">${kokumeiCellsHtml(directionEntries)}</div>`;
     } else if (type === 'book') {
         const bookUrl = (row.book && row.book.url) || '';
         const images = isIiifUrl(bookUrl) ? [bookUrl] : [];
@@ -11416,6 +11545,24 @@ function iiifClearTextOverlays() {
 }
 
 /* 通常OCR（ndlocr）：文字ごとの位置に、色を持たない選択可能なテキストを重ねる（PDFのテキスト層と同じ考え方） */
+/* OCRの行の範囲 box（[左,上,右,下]）を、画像上の矩形（OpenSeadragonの座標）へ変換する。
+   ・box が 0〜1 の割合ならば、画像の縦横を掛けて画素に直す
+   ・基準の大きさは、マニフェストの幅・高さではなく、実際に表示している画像の大きさを使う（ずれ・未設定による位置ずれを防ぐ）
+   ・数値が読めない・範囲が空の行は null を返し、表示しない */
+function iiifLineRect(st, cv, box) {
+    if (!st || !st.osd || !Array.isArray(box) || box.length < 4) return null;
+    if (!box.slice(0, 4).every(v => typeof v === 'number' && isFinite(v))) return null;
+    let W = 0, H = 0;
+    try { const c = st.osd.world.getItemAt(0).getContentSize(); W = c.x; H = c.y; } catch (e) {}
+    if (!(W > 0 && H > 0)) { W = Number(cv && cv.width) || 0; H = Number(cv && cv.height) || 0; }
+    if (!(W > 0 && H > 0)) return null;
+    const norm = box.slice(0, 4).every(v => v >= 0 && v <= 1.001);
+    const sx = norm ? W : 1, sy = norm ? H : 1;
+    const x1 = box[0] * sx, y1 = box[1] * sy, x2 = box[2] * sx, y2 = box[3] * sy;
+    if (!(x2 > x1 && y2 > y1)) return null;
+    return new OpenSeadragon.Rect(x1, y1, x2 - x1, y2 - y1);
+}
+
 function iiifRenderSelectableTextLayer(lines, cv) {
     const st = window._docViewer.iiif;
     if (!st || !st.osd || !lines) return;
@@ -11424,9 +11571,9 @@ function iiifRenderSelectableTextLayer(lines, cv) {
         const el = document.createElement('div');
         el.className = 'iiif-text-line' + (line.vertical ? ' vertical' : '');
         el.textContent = line.text;
-        const x = line.box[0] * cv.width, y = line.box[1] * cv.height;
-        const w = (line.box[2] - line.box[0]) * cv.width, h = (line.box[3] - line.box[1]) * cv.height;
-        const rect = st.osd.viewport.imageToViewportRectangle(new OpenSeadragon.Rect(x, y, w, h));
+        const imgRect = iiifLineRect(st, cv, line.box);
+        if (!imgRect) return;
+        const rect = st.osd.viewport.imageToViewportRectangle(imgRect);
         st.osd.addOverlay({ element: el, location: rect });
         st.textOverlayEls.push(el);
     });
@@ -11455,9 +11602,9 @@ function iiifRenderTranslitOverlay(lines, cv) {
         const el = document.createElement('div');
         el.className = 'iiif-translit-label';
         el.textContent = line.text;
-        const px = line.box[2] * cv.width;
-        const py = (line.box[1] + line.box[3]) / 2 * cv.height;
-        const pt = st.osd.viewport.imageToViewportCoordinates(px, py);
+        const r = iiifLineRect(st, cv, line.box);
+        if (!r) return;
+        const pt = st.osd.viewport.imageToViewportCoordinates(r.x + r.width, r.y + r.height / 2);
         st.osd.addOverlay({ element: el, location: pt, placement: OpenSeadragon.Placement.RIGHT });
         st.translitOverlayEls.push(el);
     });
@@ -12134,16 +12281,19 @@ function updateImageTransform() {
 
         overlay.addEventListener('mousedown', (e) => {
             if (e.target === fullImg || e.target === overlay) {
+                if (e.button !== 0) return;      /* 左ボタンだけで掴む */
+                e.preventDefault();
                 isDragging = true; startX = e.clientX - translateX; startY = e.clientY - translateY;
+                fullImg.classList.add('fs-dragging');
             }
         });
         overlay.addEventListener('mousemove', (e) => {
             if (isDragging) { translateX = e.clientX - startX; translateY = e.clientY - startY; updateImageTransform(); }
         });
-        window.addEventListener('mouseup', () => { isDragging = false; });
+        window.addEventListener('mouseup', () => { isDragging = false; fullImg.classList.remove('fs-dragging'); });
 
         overlay.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 1) { isDragging = true; startX = e.touches[0].clientX - translateX; startY = e.touches[0].clientY - translateY; }
+            if (e.touches.length === 1) { isDragging = true; startX = e.touches[0].clientX - translateX; startY = e.touches[0].clientY - translateY; fullImg.classList.add('fs-dragging'); }
             else if (e.touches.length === 2) {
                 isDragging = false;
                 initialPinchDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
@@ -12162,7 +12312,7 @@ function updateImageTransform() {
                 e.preventDefault();
             }
         }, { passive: false });
-        overlay.addEventListener('touchend', () => { isDragging = false; });
+        overlay.addEventListener('touchend', () => { isDragging = false; fullImg.classList.remove('fs-dragging'); });
 
         overlay.addEventListener('wheel', (e) => {
             e.preventDefault();
@@ -12747,44 +12897,117 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
         } catch (e) {}
         if (inf.ll) map.flyTo(inf.ll, Math.max(map.getZoom(), 17), { duration: 0.8 });
     }
+    const SPOT_PER_PAGE = 12;
+    const THUMB_ICON = { photo: 'camera', td: 'cube', oldroad: 'route', nature: 'leaf', building: 'landmark', doc: 'scroll', book: 'book' };
+    const thumbOf = (kind, row) => (kind === 'photo' ? row.img : (row.thumbnail || (row.book && row.book.thumbnail) || '')) || '';
+    function cardHTML(i, kind, row, inf) {
+        const th = thumbOf(kind, row);
+        const img = th ? '<img src="' + escapeHtml(th) + '" loading="lazy" alt="">' : '<i class="fa-solid fa-' + (THUMB_ICON[kind] || 'image') + '"></i>';
+        return '<button type="button" class="spot-result-card" data-i="' + i + '"><span class="src-thumb">' + img + '</span>'
+            + '<span class="src-text"><span class="src-title">' + escapeHtml(String(inf.t || '（無題）')) + '</span>'
+            + (inf.s ? '<span class="src-sub">' + escapeHtml(String(inf.s)) + '</span>' : '') + '</span></button>';
+    }
+    function getSpotResultPager() {
+        let p = $('spot-results-pager');
+        const el = $('spot-results');
+        if (!p && el) { p = document.createElement('div'); p.id = 'spot-results-pager'; p.className = 'pagination-container'; el.insertAdjacentElement('afterend', p); }
+        return p;
+    }
+
+    /* ---- 検索結果カードにホバーしたとき、地図上の同じ対象のピン・ポリゴンを強調する ---- */
+    const HOVER_GROUPS = () => ({ photo: [photoClusterGroup], td: [modelClusterGroup], nature: [natureLayerGroup], oldroad: [oldRoadLayerGroup], building: [buildingLayerGroup], doc: [docLayerGroup], book: [bookLayerGroup] });
+    let hoverKey = null, hoverPin = null, hoverLayers = [], hoverCardEl = null;
+    const spotEmphasize = (st) => Object.assign({}, st, { weight: (st.weight || 1.5) + 2, fillOpacity: Math.min(0.8, (st.fillOpacity != null ? st.fillOpacity : 0.35) + 0.3) });
+    function spotUnhover() {
+        hoverLayers.forEach(l => { try { if (l._baseStyle) l.setStyle(l._baseStyle); } catch (e) {} });
+        hoverLayers = [];
+        if (hoverPin && typeof PinHub !== 'undefined') { try { PinHub._setHover(null); } catch (e) {} }
+        hoverPin = null; hoverKey = null;
+    }
+    function spotHover(kind, row) {
+        const key = kind + ':' + row.id;
+        if (hoverKey === key) return;
+        spotUnhover();
+        hoverKey = key;
+        ((HOVER_GROUPS()[kind]) || []).forEach(g => {
+            if (!g) return;
+            (g._pins || []).forEach(p => { if (!hoverPin && p._rowKey === key) hoverPin = p; });
+            g.eachLayer(l => {
+                if (l._rowKey === key && l._baseStyle) { hoverLayers.push(l); try { l.setStyle(spotEmphasize(l._baseStyle)); } catch (e) {} }
+            });
+        });
+        if (hoverPin && typeof PinHub !== 'undefined') { try { PinHub._setHover(hoverPin); } catch (e) {} }
+    }
+
     window.renderSpotSearchResults = function () {
         const el = $('spot-results'), cnt = $('spot-results-count'), m = $('spot-search-input');
         if (!el) return;
+        spotUnhover();
+        hoverCardEl = null;
         const q = m ? (m.value || '').trim() : '';
         const items = window._spotResultItems = [];
+        const pager = getSpotResultPager();
         if (!q) {
             el.innerHTML = '<p class="spot-results-hint">上の検索ボックスにキーワードを入れてEnterを押すと、検索結果がここに一覧で出ます。</p>';
             if (cnt) cnt.textContent = '';
+            if (pager) renderGenericPagination(pager, 0, 1, () => {}, SPOT_PER_PAGE);
             return;
         }
         const shown = window._spotShown || {};
-        let html = '', total = 0;
+        const flat = [], kindCount = {};
         ORDER.forEach(kind => {
             const rows = shown[kind];
             if (!rows || !rows.length) return;
             if (KINDS[kind]) { const v = window.spotViewMode(kind); if (!v.pin && !v.poly) return; }   /* 非表示にしている種類は載せない */
-            total += rows.length;
-            html += '<div class="spot-results-kind"><span class="dot" style="background:' + ((typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[kind]) || '#888') + '"></span>' + LABEL[kind] + '（' + rows.length + '件）</div>';
-            rows.slice(0, PER_KIND).forEach(row => {
-                const inf = info(kind, row);
-                const i = items.push({ kind: kind, row: row, inf: inf }) - 1;
-                html += '<button type="button" class="spot-result-item" data-i="' + i + '">' + escapeHtml(String(inf.t || '（無題）'))
-                    + (inf.s ? '<small>' + escapeHtml(String(inf.s)) + '</small>' : '') + '</button>';
-            });
-            if (rows.length > PER_KIND) html += '<p class="spot-results-hint">ほか ' + (rows.length - PER_KIND) + ' 件。キーワードを足すと絞り込めます。</p>';
+            kindCount[kind] = rows.length;
+            rows.forEach(row => flat.push({ kind: kind, row: row }));
+        });
+        const total = flat.length;
+        const totalPages = Math.max(1, Math.ceil(total / SPOT_PER_PAGE));
+        if (!window._spotResultPage || window._spotResultPage < 1) window._spotResultPage = 1;
+        if (window._spotResultPage > totalPages) window._spotResultPage = totalPages;
+        const page = window._spotResultPage;
+        const start = (page - 1) * SPOT_PER_PAGE;
+        let html = '', lastKind = null;
+        flat.slice(start, start + SPOT_PER_PAGE).forEach(({ kind, row }) => {
+            if (kind !== lastKind) {
+                html += '<div class="spot-results-kind"><span class="dot" style="background:' + ((typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[kind]) || '#888') + '"></span>' + LABEL[kind] + '（' + kindCount[kind] + '件）</div>';
+                lastKind = kind;
+            }
+            const inf = info(kind, row);
+            const i = items.push({ kind: kind, row: row, inf: inf }) - 1;
+            html += cardHTML(i, kind, row, inf);
         });
         el.innerHTML = html || '<p class="spot-results-hint">該当するデータはありません（非表示にしている種類は含まれません）。</p>';
         if (cnt) cnt.textContent = total ? '（' + total + '件）' : '';
+        if (pager) renderGenericPagination(pager, total, page, (i) => {
+            window._spotResultPage = i;
+            window.renderSpotSearchResults();
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, SPOT_PER_PAGE);
     };
     const resEl = $('spot-results');
     if (resEl) {
         resEl.addEventListener('click', (e) => {
-            const b = e.target.closest && e.target.closest('.spot-result-item');
+            const b = e.target.closest && e.target.closest('.spot-result-card');
             if (!b) return;
             const it = (window._spotResultItems || [])[+b.dataset.i];
             if (!it) return;
             focusItem(it.inf);
             try { openItem(it.kind, it.row); } catch (err) { console.warn(err); }
+        });
+        resEl.addEventListener('mouseover', (e) => {
+            const c = e.target.closest && e.target.closest('.spot-result-card');
+            if (!c || c === hoverCardEl) return;
+            if (hoverCardEl) hoverCardEl.classList.remove('hl');
+            hoverCardEl = c; c.classList.add('hl');
+            const it = (window._spotResultItems || [])[+c.dataset.i];
+            if (it) spotHover(it.kind, it.row);
+        });
+        resEl.addEventListener('mouseleave', () => {
+            if (hoverCardEl) hoverCardEl.classList.remove('hl');
+            hoverCardEl = null;
+            spotUnhover();
         });
         window.renderSpotSearchResults();
     }
@@ -12998,17 +13221,8 @@ function measureCandidates() {
 
 /* 近くの点（自分の置いた点・ピン）に吸着させた位置を返す */
 function measureSnap(ll) {
-    const M = window._measure;
-    const p0 = map.latLngToContainerPoint(ll);
-    let best = null, bd = MEASURE_SNAP_PX;
-    const test = (cand) => {
-        const p = map.latLngToContainerPoint(cand);
-        const d = Math.hypot(p.x - p0.x, p.y - p0.y);
-        if (d < bd) { bd = d; best = cand; }
-    };
-    M.pts.forEach(test);
-    measureCandidates().forEach(test);
-    return best ? L.latLng(best.lat, best.lng) : ll;
+    /* 吸着（近くの点・ピンへの当たり判定）は行わず、クリックした位置をそのまま使う */
+    return ll;
 }
 
 function fmtMeasureLen(m) {
@@ -13140,6 +13354,7 @@ function toggleMeasureMode() {
     if (M.active) { measureDeactivate(); return; }
     if (!map) return;
     M.active = true; M.mode = 'distance'; M.pts = []; M.closed = false;
+    document.body.classList.add('measure-mode');
     M.layer = L.layerGroup().addTo(map);
     M.line = L.polyline([], { color: '#c62828', weight: 2.5, dashArray: '6 5' }).addTo(M.layer);
     M.poly = L.polygon([], { color: '#c62828', weight: 2.5, fillColor: '#e53935', fillOpacity: 0.18 }).addTo(M.layer);
@@ -13158,6 +13373,7 @@ function measureDeactivate() {
     const M = window._measure;
     if (!M.active) return;
     M.active = false;
+    document.body.classList.remove('measure-mode');
     if (map) { map.off('click', measureOnClick); map.off('mousemove', measureOnMove); }
     document.removeEventListener('keydown', measureKey);
     if (M.layer && map) map.removeLayer(M.layer);
@@ -13170,7 +13386,8 @@ function measureDeactivate() {
 
 (function () {
     const st = document.createElement('style');
-    st.textContent = '#measure-panel{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:4000;background:#fffdf7;border:1px solid #a8874c;box-shadow:0 8px 24px rgba(0,0,0,0.25);padding:10px 12px;min-width:280px;max-width:92vw;border-radius:4px;font-family:var(--font-sans,sans-serif);font-size:0.82rem;color:#3a2e2b;}'
+    st.textContent = '.measure-mode .leaflet-interactive,.measure-mode .leaflet-marker-icon{pointer-events:none!important;}'
+        + '#measure-panel{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:4000;background:#fffdf7;border:1px solid #a8874c;box-shadow:0 8px 24px rgba(0,0,0,0.25);padding:10px 12px;min-width:280px;max-width:92vw;border-radius:4px;font-family:var(--font-sans,sans-serif);font-size:0.82rem;color:#3a2e2b;}'
         + '#measure-panel .mp-row{display:flex;gap:6px;justify-content:center;margin:4px 0;flex-wrap:wrap;}'
         + '#measure-panel .mp-row button{border:1px solid #a8874c;background:#fff;color:#3a2e2b;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:0.78rem;}'
         + '#measure-panel .mp-row button:disabled{opacity:0.4;cursor:default;}'
@@ -13250,6 +13467,200 @@ function measureDeactivate() {
     if (portal) new MutationObserver(update).observe(portal, { attributes: true, attributeFilter: ['class'] });
     setTimeout(update, 2500);
 })();
+</script>
+<script>
+/* 詳細パネル・モーダルのメタデータ：3行を超える値は折りたたみ、「続きを表示／閉じる」で展開できるようにする */
+(function () {
+    function fold(dd) {
+        if (dd.classList.contains('mdd-done')) return;
+        if (!dd.clientWidth) return;                       /* 非表示の間は高さを測れないので、表示されてから処理する */
+        let span = dd.querySelector(':scope > .mdd-text');
+        if (!span) {
+            span = document.createElement('span');
+            span.className = 'mdd-text';
+            while (dd.firstChild) span.appendChild(dd.firstChild);   /* 中身は移動するだけなので、ボタン等の動きはそのまま */
+            dd.appendChild(span);
+        }
+        span.classList.add('mdd-clamp');
+        if (span.scrollHeight - span.clientHeight > 2) {
+            dd.classList.add('mdd-has-toggle');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mdd-toggle';
+            btn.textContent = '続きを表示 ▼';
+            dd.appendChild(btn);
+        } else {
+            span.classList.remove('mdd-clamp');
+        }
+        dd.classList.add('mdd-done');
+    }
+    function scan() {
+        queued = false;
+        document.querySelectorAll('.meta-info-list dd').forEach(dd => {
+            if (dd.classList.contains('mdd-done') && !dd.querySelector(':scope > .mdd-text')) dd.classList.remove('mdd-done', 'mdd-has-toggle');
+            fold(dd);
+        });
+    }
+    let queued = false;
+    function queue() { if (queued) return; queued = true; requestAnimationFrame(scan); }
+    new MutationObserver(queue).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    /* 展開・閉じる（ほかの処理より先に受け取り、パネルの閉じる動きなどに邪魔させない） */
+    document.addEventListener('click', (e) => {
+        const b = e.target.closest && e.target.closest('.mdd-toggle');
+        if (!b) return;
+        e.stopPropagation(); e.preventDefault();
+        const span = b.parentElement && b.parentElement.querySelector(':scope > .mdd-text');
+        if (!span) return;
+        const clamped = span.classList.toggle('mdd-clamp');
+        b.textContent = clamped ? '続きを表示 ▼' : '閉じる ▲';
+    }, true);
+    queue();
+})();
+</script>
+<script>
+/* 画像ビュアーの左上に「コマ/全体」を表示する（文書・図書ビュアーのPDF／IIIF、全画面の画像ビュアー） */
+(function () {
+    function updateBadges() {
+        /* 文書・図書ビュアー：下のコマ表示（pdf-page-counter）の値を、左上へ写す */
+        const c = document.getElementById('pdf-page-counter');
+        const txt = c ? (c.textContent || '').replace(/\s*\/\s*/, '/').trim() : '';
+        document.querySelectorAll('.pdf-viewer-scroll').forEach(scroll => {
+            const host = scroll.parentElement;
+            if (!host || !host.offsetWidth) return;
+            if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+            let badge = host.querySelector(':scope > .viewer-page-badge');
+            if (!badge) { badge = document.createElement('div'); badge.className = 'viewer-page-badge'; host.appendChild(badge); }
+            if (badge.textContent !== txt) badge.textContent = txt;
+        });
+        /* 全画面の画像ビュアー：今表示している画像の番号 / 全体（1枚だけのときは 1/1） */
+        const ov = document.getElementById('full-screen-overlay');
+        if (ov && getComputedStyle(ov).display !== 'none') {
+            let idx = 0, total = 1;
+            if (typeof fsItems !== 'undefined' && fsItems) { total = fsItems.length; idx = fsItemIndex; }
+            else if (typeof fsGalleryImages !== 'undefined' && fsGalleryImages) { total = fsGalleryImages.length; idx = fsGalleryIndex; }
+            let badge = document.getElementById('fs-page-badge');
+            if (!badge) { badge = document.createElement('div'); badge.id = 'fs-page-badge'; badge.className = 'viewer-page-badge'; ov.appendChild(badge); }
+            const t = (idx + 1) + '/' + total;
+            if (badge.textContent !== t) badge.textContent = t;
+        }
+    }
+    let queued = false;
+    function queue() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; updateBadges(); }); }
+    new MutationObserver(queue).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'src'] });
+    queue();
+})();
+</script>
+<script>
+/* 四方刻銘の4つの欄。長方形の高さは固定。文字が長いときは文字を小さくする。改行は縦書きの列になり、列の数だけ横へ広がる */
+function kokumeiCellsHtml(entries) {
+    const H = 260, MAX_FS = 15, MIN_FS = 5, BASE_W = 90;
+    return entries.map(([label, text]) => {
+        const t = String(text || '');
+        const lines = t.split(/\r\n|\r|\n/);
+        const maxLen = Math.max(0, ...lines.map(l => Array.from(l).length));
+        let fs = MAX_FS;
+        if (maxLen > 0) fs = Math.floor((H - 24) / (maxLen * 1.1));
+        fs = Math.max(MIN_FS, Math.min(MAX_FS, fs));
+        const colW = Math.ceil(fs * 1.5);
+        const wrapW = Math.max(BASE_W, lines.length * colW + 20);
+        return `<div class="kokumei-cell-wrapper" style="width:${wrapW}px"><div class="kokumei-label">${label}</div><div class="kokumei-box-3to1" style="font-size:${fs}px">${escapeHtml(t)}</div></div>`;
+    }).join('');
+}
+</script>
+<script>
+/* ===== 詳細モーダル：「さらに詳しく」（詳細パネルと同じ同一系統の一覧）と、埋め込み地図の名称ラベル ===== */
+function miniMapRowOf(type, id) {
+    const sid = String(id);
+    const pick = (arr) => (arr || []).find(r => r && String(r.id) === sid) || null;
+    switch (type) {
+        case 'nature': return pick(natureData);
+        case 'oldroad': return pick(oldRoadData);
+        case 'building': return pick(buildingData);
+        case 'td': return pick(models);
+        case 'doc': return pick(docData);
+        case 'book': return pick(bookData);
+        case 'map': return pick(mapData);
+        case 'photo': return pick(archiveAllData);
+        default: return null;
+    }
+}
+const MINI_FAMILY_TYPES = ['nature', 'oldroad', 'building', 'td'];
+/* 同じ親子階層（家族）に属する、自分以外のデータ */
+function familyRowsOf(record, type) {
+    if (!MINI_FAMILY_TYPES.includes(type)) return [];
+    try {
+        ensureHierarchyBuilt(type);
+        const tree = window._spotHierarchyTrees[type];
+        const fam = tree ? findFamilyRowsForRow(tree, record.id) : null;
+        return (fam || []).filter(r => String(r.id) !== String(record.id));
+    } catch (e) { return []; }
+}
+/* 「さらに詳しく」：詳細パネルと同じく、家族のデータをカードで並べる。カードを押すと、そのデータの詳細へ切り替わる */
+function miniMapFamilyBlock(record, type) {
+    const body = document.getElementById('modal-related-assets-body');
+    const host = body && body.closest('.modal-related-assets');
+    if (!host || !host.parentNode) return;
+    const old = document.getElementById('modal-family-block');
+    if (old) old.remove();
+    const fam = familyRowsOf(record, type);
+    if (!fam.length) return;
+    const div = document.createElement('div');
+    div.id = 'modal-family-block';
+    div.className = 'modal-related-assets';
+    div.innerHTML = `<h4><i class="fa-solid fa-diagram-project"></i> さらに詳しく（全${fam.length + 1}件）</h4>
+        <div class="mdp-gallery-grid">${fam.map(r => `
+            <div class="gallery-card" onclick="openDataDetailModalFromPanel('${escapeJsAttr(type)}', '${escapeJsAttr(String(r.id))}')">
+                <img src="${escapeHtml((r.images && r.images[0]) || r.thumbnail || '') || 'https://placehold.co/300x200/ccc/fff?text=No+Image'}" onerror="this.src='https://placehold.co/300x200/ccc/fff?text=No+Image'" style="height:100px;">
+                <h3 style="font-size:0.8rem;margin:6px 8px;">${escapeHtml(r.name || '')}</h3>
+            </div>`).join('')}</div>`;
+    host.parentNode.insertBefore(div, host);
+}
+/* 埋め込み地図に、対象を形（ポリゴン）と点で示し、横に名称ラベルを付ける。すべてが入るように表示範囲を合わせる */
+function miniMapPlotExtras(items) {
+    const map = [window._miniMap, window._docDetailMap].find(m => m && m._container && m._container.isConnected);
+    if (!map) return;
+    if (map._miniExtra) { try { map.removeLayer(map._miniExtra); } catch (e) {} }
+    const group = map._miniExtra = L.layerGroup().addTo(map);
+    (items || []).forEach(it => {
+        const row = miniMapRowOf(it.type, it.id);
+        if (!row) return;
+        const title = String(it.title || row.name || row.subject || row.entryLabel || (row.book && row.book.title) || row.title || '').trim();
+        const color = (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[it.type]) || '#4e342e';
+        let anchor = null;
+        if (row.chibanKey) {
+            const feats = findChibanFeatures(row.chibanKey);
+            if (feats.length) {
+                const lay = L.geoJSON({ type: 'FeatureCollection', features: feats }, { style: { color, fillColor: color, fillOpacity: 0.25, weight: 1.5, dashArray: '4,3' } }).addTo(group);
+                try { const b = lay.getBounds(); if (b.isValid()) anchor = b.getCenter(); } catch (e) {}
+            }
+        }
+        if (!anchor) {
+            if (row.coords && row.coords[0]) anchor = L.latLng(row.coords[0], row.coords[1]);
+            else if (row.lat) anchor = L.latLng(row.lat, row.lng);
+        }
+        if (!anchor) return;
+        L.circleMarker(anchor, { radius: 5, color: '#fff', weight: 1.5, fillColor: color, fillOpacity: 1, interactive: false }).addTo(group);
+        if (title) L.marker(anchor, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'mini-map-label', html: escapeHtml(title), iconSize: null }) }).addTo(group);
+    });
+    /* 表示範囲：ポリゴン・点・ラベルのすべてが入るように合わせる（地図タイルは含めない） */
+    const all = L.latLngBounds([]);
+    const collect = (l) => {
+        if (!l || l._url) return;
+        try {
+            if (l.getBounds) { const b = l.getBounds(); if (b && b.isValid()) all.extend(b); }
+            else if (l.getLatLng) all.extend(l.getLatLng());
+            else if (l.eachLayer) l.eachLayer(collect);
+        } catch (e) {}
+    };
+    map.eachLayer(collect);
+    if (all.isValid()) { try { map.fitBounds(all, { padding: [24, 24], maxZoom: 17 }); } catch (e) {} }
+    try { map.invalidateSize(); } catch (e) {}
+}
+function miniMapShowExtras(record, type, relItems) {
+    const fam = familyRowsOf(record, type).map(r => ({ type: type, id: r.id, title: r.name }));
+    const rel = (relItems || []).filter(it => !(it.type === type && String(it.id) === String(record.id)));
+    miniMapPlotExtras(fam.concat(rel));
+}
 </script>
 </body>
 </html>
