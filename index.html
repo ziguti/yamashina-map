@@ -10857,7 +10857,155 @@ window._iiifManifestCache = window._iiifManifestCache || {};
 
 /* 資料URLが IIIF Manifest かどうか */
 function isIiifUrl(url) {
-    return /\/manifest(\.json)?\/?(\?.*)?$/i.test((url || '').trim());
+    const u = (url || '').trim();
+    if (/\/(manifest(\.json)?|collection(\.json)?|info\.json)\/?(\?.*)?$/i.test(u)) return true;
+    /* 拡張子の無いURLで、パスに /iiif/ を含むもの（Manifest・Collection・画像サービス）もIIIFとして扱う */
+    return /\/iiif\//i.test(u) && !/\.(pdf|jpe?g|png|gif|webp|tiff?|bmp|html?)(\?.*)?$/i.test(u);
+}
+
+/* 画像1枚のIIIF（Image API の info.json）を、1コマのManifestと同じ形に整える。
+   info.json の手前までが画像の場所（serviceId）になる。目次・メタデータは無いので空にし、
+   タイトルや説明はスプレッドシートの値をそのまま使う。 */
+function iiifServiceFromInfoUrl(url) {
+    return String(url || '').trim().replace(/\/info\.json(\?.*)?$/i, '').replace(/\/+$/, '');
+}
+function normalizeImageInfoJson(info, url) {
+    const serviceId = iiifServiceFromInfoUrl(url);
+    const canvas = {
+        id: serviceId, width: Number(info.width) || undefined, height: Number(info.height) || undefined,
+        serviceId, thumb: serviceId + '/full/!400,400/0/default.jpg'
+    };
+    return {
+        canvases: [canvas], rtl: false,
+        title: '', desc: '', meta: [], attribution: '', license: '', links: [],
+        guess: iiifGuessFields([], '', '', 1),
+        tocRows: [], tocOutline: [], ocr: [], searchService: ''
+    };
+}
+/* ---------- IIIFの入口の振り分け ----------
+   受け付けるもの：Presentation API 2.x / 3.0 の Manifest、Collection（入れ子可）、
+   Image API の info.json（画像1枚）。Collection は中のManifestを順に1つの資料として並べる。 */
+function iiifKindOf(j) {
+    if (!j || typeof j !== 'object') return 'unknown';
+    const t = String(j.type || j['@type'] || '');
+    if (/Collection$/.test(t)) return 'collection';
+    if (/Manifest$/.test(t)) return 'manifest';
+    if (Array.isArray(j.items) || Array.isArray(j.sequences)) return 'manifest';
+    if (j.width && j.height && !j.items) return 'image';
+    if (Array.isArray(j.manifests) || Array.isArray(j.collections) || Array.isArray(j.members)) return 'collection';
+    return 'unknown';
+}
+async function fetchIiifJson(url, depth) {
+    const r = await fetch(url, { mode: 'cors' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return iiifResolveAny(await r.json(), url, depth);
+}
+async function iiifResolveAny(j, url, depth) {
+    const kind = iiifKindOf(j);
+    if (kind === 'collection') return iiifResolveCollection(j, url, depth);
+    if (kind === 'image') return normalizeImageInfoJson(j, url);
+    if (kind === 'manifest') return normalizeIiifManifest(j);
+    throw new Error('IIIFとして読めない形式です');
+}
+
+/* Collectionのメタデータ（Manifestと同じ項目を取り出す） */
+function iiifMetaOf(m) {
+    const meta = (Array.isArray(m.metadata) ? m.metadata : [])
+        .map(p => ({ label: iiifText(p && p.label), value: iiifText(p && p.value) }))
+        .filter(p => p.label && p.value);
+    const attribution = iiifText(m.attribution) || iiifText(m.requiredStatement && m.requiredStatement.value);
+    const provider = (Array.isArray(m.provider) ? m.provider : []).map(p => iiifText(p && p.label)).filter(Boolean).join(' / ');
+    const license = _iiifId(m.license) || _iiifId(m.rights);
+    return {
+        title: iiifText(m.label), desc: iiifText(m.description) || iiifText(m.summary), meta,
+        attribution: attribution || provider,
+        license: /^https?:\/\//i.test(license) ? license : '',
+        links: iiifCollectLinks(m)
+    };
+}
+
+/* Collection：中のManifest（入れ子のCollectionも含む）を順に読み、1つの資料として連結する。
+   ページ番号・目次・埋め込みOCRは、前の資料のコマ数の分だけずらして合わせる。 */
+async function iiifResolveCollection(col, url, depth) {
+    if (depth > 4) throw new Error('Collectionの入れ子が深すぎます');
+    const refs = [];
+    const push = x => { const id = _iiifId(x); if (id) refs.push(id); };
+    (col.items || []).forEach(it => { if (/^(Manifest|Collection)$/.test(String(it.type || ''))) push(it); });
+    (col.manifests || []).forEach(push);
+    (col.collections || []).forEach(push);
+    (col.members || []).forEach(x => { if (/(Manifest|Collection)$/.test(String(x.type || x['@type'] || ''))) push(x); });
+    const list = [...new Set(refs)].slice(0, 300);
+    const parts = []; let skipped = 0;
+    for (let i = 0; i < list.length; i += 6) {
+        const res = await Promise.all(list.slice(i, i + 6).map(u =>
+            fetchIiifJson(u, depth + 1).catch(e => { console.warn('取得できない資料:', u, e); return null; })));
+        res.forEach(p => { if (p) parts.push(p); else skipped++; });
+    }
+    if (!parts.length) throw new Error('Collectionの中に読めるManifestがありません');
+
+    const c0 = iiifMetaOf(col);
+    const out = { canvases: [], ocr: [], tocRows: [], tocOutline: [] };
+    let off = 0;
+    parts.forEach((p, i) => {
+        const partTitle = p.title || '';
+        const rowMap = new Map();
+        (p.tocRows || []).forEach(r => {
+            const nr = Object.assign({}, r, {
+                startPage: r.startPage + off, endPage: r.endPage + off,
+                chain: [partTitle].concat(r.chain || []).filter(Boolean)
+            });
+            rowMap.set(r, nr); out.tocRows.push(nr);
+        });
+        const remap = nodes => (nodes || []).map(nd => ({
+            label: nd.label, row: nd.row ? (rowMap.get(nd.row) || null) : null, children: remap(nd.children)
+        }));
+        out.tocOutline.push({ label: partTitle || ('資料 ' + (i + 1)), row: null, children: remap(p.tocOutline) });
+        out.canvases.push(...p.canvases);
+        (p.ocr || []).forEach(o => out.ocr.push({ page: o.page + off, text: o.text }));
+        off += p.canvases.length;
+    });
+    out.tocRows.sort((a, b) => a.startPage - b.startPage || (b._depth || 0) - (a._depth || 0));
+
+    const first = parts[0];
+    const title = c0.title || (parts.length === 1 ? first.title : '') || first.title || '';
+    let desc = c0.desc || '';
+    if (skipped) desc = (desc ? desc + '\n' : '') + '※取得できなかった資料が' + skipped + '件あります。';
+    const meta = c0.meta.length ? c0.meta : (first.meta || []);
+    return {
+        canvases: out.canvases, rtl: !!first.rtl,
+        title, desc, meta,
+        attribution: c0.attribution || first.attribution || '',
+        license: c0.license || first.license || '',
+        links: c0.links,
+        guess: iiifGuessFields(meta, title, desc, out.canvases.length),
+        tocRows: out.tocRows, tocOutline: out.tocOutline,
+        ocr: out.ocr, searchService: ''
+    };
+}
+
+/* コマの画像（IIIF画像サービス、または画像ファイルそのもの）を探す。Presentation 3.0 / 2.x の両対応 */
+function iiifCanvasImage(cv) {
+    let serviceId = '', imageUrl = '';
+    const useBody = body => {
+        if (!body || typeof body !== 'object') return;
+        if (body.type && body.type !== 'Image' && !body.service && !body.services) return;
+        const svc = _iiifId(body.service || body.services);
+        if (svc && !serviceId) serviceId = svc;
+        const bid = _iiifId(body);
+        if (bid && !imageUrl) imageUrl = bid;
+    };
+    if (Array.isArray(cv.items)) {
+        cv.items.forEach(page => (page.items || []).forEach(anno => [].concat(anno.body || []).forEach(useBody)));
+    }
+    if (Array.isArray(cv.images)) {
+        cv.images.forEach(im => {
+            const res = im && im.resource;
+            if (!res) return;
+            if (res.service) { const s = _iiifId(res.service); if (s && !serviceId) serviceId = s; }
+            const rid = _iiifId(res); if (rid && !imageUrl) imageUrl = rid;
+        });
+    }
+    return { serviceId, imageUrl };
 }
 
 function _iiifFirst(v) { return Array.isArray(v) ? v[0] : v; }
@@ -11055,28 +11203,17 @@ function iiifFindSearchService(m) {
    画像のコマ情報に加えて、メタデータ・説明・提供元・ライセンス・目次（structures）も取り出す。 */
 function normalizeIiifManifest(m) {
     const canvases = [];
-    if (Array.isArray(m.items)) {
-        m.items.forEach(cv => {
-            let serviceId = '';
-            try {
-                const anno = cv.items[0].items[0];
-                const body = _iiifFirst(anno.body);
-                serviceId = _iiifId(body.service || body.services);
-            } catch (e) {}
-            canvases.push({ id: cv.id || cv['@id'] || '', width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail), ocrText: iiifInlineText(cv) });
-        });
-    } else if (m.sequences && m.sequences[0]) {
-        (m.sequences[0].canvases || []).forEach(cv => {
-            let serviceId = '';
-            try { serviceId = _iiifId(cv.images[0].resource.service); } catch (e) {}
-            canvases.push({ id: cv['@id'] || cv.id || '', width: cv.width, height: cv.height, serviceId, thumb: _iiifId(cv.thumbnail), ocrText: iiifInlineText(cv) });
-        });
-    }
+    const list = Array.isArray(m.items) ? m.items : ((m.sequences && m.sequences[0] && m.sequences[0].canvases) || []);
+    list.forEach(cv => {
+        const img = iiifCanvasImage(cv);
+        canvases.push({ id: cv.id || cv['@id'] || '', width: cv.width, height: cv.height,
+            serviceId: img.serviceId, imageUrl: img.imageUrl, thumb: _iiifId(cv.thumbnail), ocrText: iiifInlineText(cv) });
+    });
     const ocr = [];
     canvases.forEach((c, i) => { if (c.ocrText) ocr.push({ page: i + 1, text: c.ocrText }); delete c.ocrText; });
     canvases.forEach(c => {
-        c.serviceId = (c.serviceId || '').replace(/\/+$/, '');
-        if (!c.thumb && c.serviceId) c.thumb = c.serviceId + '/full/!400,400/0/default.jpg';
+        c.serviceId = iiifServiceFromInfoUrl(c.serviceId || '');
+        c.thumb = c.thumb || (c.serviceId ? c.serviceId + '/full/!400,400/0/default.jpg' : (c.imageUrl || ''));
     });
 
     const title = iiifText(m.label);
@@ -11184,10 +11321,7 @@ function iiifApplyManifestToModal(v, mf) {
 function getIiifManifestCached(url) {
     const cache = window._iiifManifestCache;
     if (!cache[url]) {
-        cache[url] = fetch(url, { mode: 'cors' })
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-            .then(normalizeIiifManifest)
-            .catch(e => { delete cache[url]; throw e; });
+        cache[url] = fetchIiifJson(url, 0).catch(e => { delete cache[url]; throw e; });
     }
     return cache[url];
 }
@@ -11488,7 +11622,7 @@ function iiifOpenPage(n) {
     if (!st || !st.osd) return;
     const cv = st.canvases[n - 1];
     const status = document.getElementById('iiif-status');
-    if (!cv || !cv.serviceId) {
+    if (!cv || !(cv.serviceId || cv.imageUrl)) {
         if (status) { status.textContent = 'このコマの画像情報がありません。'; status.style.display = 'flex'; }
         return;
     }
@@ -11496,11 +11630,11 @@ function iiifOpenPage(n) {
     iiifClearTextOverlays();
     st.pageText = null; st.pendingTranslitLines = null; st.translitVisible = false;
     const myGen = ++st.pageGen;
-    st.osd.open(cv.serviceId + '/info.json');
+    st.osd.open(cv.serviceId ? cv.serviceId + '/info.json' : { type: 'image', url: cv.imageUrl });
     /* OCR結果（text.json）は、画像が開き終わってから読み込む（addOverlayに正しい座標系が必要なため） */
     st.osd.addOnceHandler('open', () => {
         if (st.pageGen !== myGen) return; /* その間に別のページへ切り替わっていたら何もしない */
-        getPageTextCached(cv.serviceId).then(data => {
+        (cv.serviceId ? getPageTextCached(cv.serviceId) : Promise.resolve(null)).then(data => {
             if (st.pageGen !== myGen || !data) return;
             st.pageText = data;
             if (data.engine === 'ndlocr') {
@@ -11697,8 +11831,8 @@ function renderDocImageGridIiif(book) {
 function iiifResolveGalleryItem(url) {
     return getIiifManifestCached(url).then(mf => {
         const c = mf.canvases[0];
-        if (!c || !c.serviceId) throw new Error('コマがありません');
-        return { type: 'iiif', url, serviceId: c.serviceId, thumb: c.thumb || (c.serviceId + '/full/!400,400/0/default.jpg') };
+        if (!c || !(c.serviceId || c.imageUrl)) throw new Error('コマがありません');
+        return { type: 'iiif', url, serviceId: c.serviceId, imageUrl: c.imageUrl, thumb: c.thumb };
     });
 }
 
@@ -11781,7 +11915,7 @@ function fsShowItem(idx) {
             gestureSettingsMouse: { clickToZoom: false, dblClickToZoom: true },
             gestureSettingsTouch: { pinchToZoom: true, dblClickToZoom: true, flickEnabled: true }
         });
-        fsOsd.open(item.serviceId + '/info.json');
+        fsOsd.open(item.serviceId ? item.serviceId + '/info.json' : { type: 'image', url: item.imageUrl });
     } else {
         osdBox.style.display = 'none';
         img.style.display = '';
