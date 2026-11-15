@@ -582,6 +582,11 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
 .iiif-side-label { position: absolute; color: #000; -webkit-text-fill-color: #000; text-shadow: 1px 1px 2px rgba(0,0,0,0.6); font-family: var(--font-serif); white-space: nowrap; line-height: 1; pointer-events: none; }
 .iiif-side-label.vertical { writing-mode: vertical-rl; }
 .viewer-page-badge { position: absolute; top: 10px; left: 10px; z-index: 50; pointer-events: none; background: rgba(26,17,11,0.78); color: #f3ead6; font-family: var(--font-sans); font-size: 0.8rem; letter-spacing: 0.08em; padding: 4px 10px; border: 1px solid rgba(168,135,76,0.5); font-variant-numeric: tabular-nums; }
+/* IIIF対応資料の目印（一覧・ギャラリー・ビュアーの角に付く青いラベル） */
+.iiif-mark { position: absolute; top: 6px; right: 6px; z-index: 20; background: #0b4f8a; color: #fff; font-family: var(--font-sans); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 2px; pointer-events: none; line-height: 1.2; box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+.iiif-mark-viewer { top: auto; bottom: 10px; left: 10px; right: auto; }
+.iiif-thumb-wrap { position: relative; display: block; flex-shrink: 0; }
+.doc-list-card .dlc-thumb { position: relative; }
 .mini-map-label { white-space: nowrap; transform: translate(10px, -50%); font-family: var(--font-sans); font-size: 11px; line-height: 1.3; background: rgba(255,252,240,0.94); color: #2a2622; padding: 1px 5px; border: 1px solid rgba(58,42,35,0.25); box-shadow: 0 1px 3px rgba(0,0,0,0.2); pointer-events: none; }
 .toc-source-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 8px 10px; margin-bottom: 4px; font-size: 0.78rem; color: #8d7a63; border-bottom: 1px solid rgba(168,135,76,0.25); }
 .toc-source-bar button { font: inherit; padding: 3px 10px; border: 1px solid rgba(168,135,76,0.55); background: transparent; color: var(--primary-brown); border-radius: 2px; cursor: pointer; }
@@ -8856,13 +8861,30 @@ function renderMapDbGallery() {
     renderGenericPagination(pager, pagedFilteredMapData.length, currentMapDbPage, (i) => { currentMapDbPage = i; renderMapDbGallery(); });
 }
 /* 一覧サムネイルがIIIF Manifestの場合、1コマ目のサムネイル画像に差し替える */
+/* IIIF資料の目印：枠（div）に付ける */
+function iiifMarkContainer(id) {
+    const box = document.getElementById(id);
+    if (!box || box.querySelector(':scope > .iiif-mark')) return;
+    box.insertAdjacentHTML('beforeend', '<span class="iiif-mark">IIIF</span>');
+}
+/* IIIF資料の目印：画像（img）に付ける。画像を包んで、その角に付ける */
+function iiifWrapMark(el) {
+    if (!el || !el.parentNode) return;
+    if (el.parentElement && el.parentElement.classList.contains('iiif-thumb-wrap')) return;
+    const w = document.createElement('span');
+    w.className = 'iiif-thumb-wrap';
+    el.parentNode.insertBefore(w, el);
+    w.appendChild(el);
+    w.insertAdjacentHTML('beforeend', '<span class="iiif-mark">IIIF</span>');
+}
 async function iiifFillListThumb(imgId, manifestUrl) {
     try {
         const mf = await getIiifManifestCached(manifestUrl);
         const url = mf.canvases[0] && mf.canvases[0].thumb;
         const el = document.getElementById(imgId);
         if (el && url) el.src = url;
-    } catch (e) { /* 失敗時はimgのonerrorがプレースホルダを出す */ }
+        iiifWrapMark(el);
+    } catch (e) { iiifWrapMark(document.getElementById(imgId)); /* 失敗時はimgのonerrorがプレースホルダを出す */ }
 }
 /* レイヤ選択一覧の「詳細」ボタンから、名称で該当する古地図データを開く */
 function openMapDetailModalById(id) {
@@ -11420,12 +11442,13 @@ async function iiifFillThumb(row, containerId, manifestUrl, kind) {
             const box = document.getElementById(containerId);
             if (!box) return;
             box.innerHTML = ''; box.classList.add('loaded'); box.appendChild(img);
+            iiifMarkContainer(containerId);
         };
-        img.onerror = () => { const box = document.getElementById(containerId); if (box) box.innerHTML = failIcon; };
+        img.onerror = () => { const box = document.getElementById(containerId); if (box) { box.innerHTML = failIcon; iiifMarkContainer(containerId); } };
         img.src = url;
     } catch (e) {
         const box = document.getElementById(containerId);
-        if (box) box.innerHTML = failIcon;
+        if (box) { box.innerHTML = failIcon; iiifMarkContainer(containerId); }
     }
 }
 
@@ -11449,6 +11472,7 @@ async function initDocIiif(row, manifestUrl) {
     scroll.innerHTML = `
         <div class="iiif-wrap">
             <div class="iiif-osd" id="iiif-osd"></div>
+            <span class="iiif-mark iiif-mark-viewer">IIIF</span>
             <div class="iiif-tools">
                 <button type="button" title="拡大" onclick="iiifZoomBy(1.6)"><i class="fa-solid fa-plus"></i></button>
                 <button type="button" title="縮小" onclick="iiifZoomBy(1/1.6)"><i class="fa-solid fa-minus"></i></button>
@@ -11863,6 +11887,7 @@ function renderGalleryHTML(uid, items, altName) {
              onload="this.closest('.media-loading-wrap').classList.add('loaded')"
              onerror="this.closest('.media-loading-wrap').classList.add('loaded');this.src='https://placehold.co/800x600/999/fff?text=No+Image'">`;
     if (items[0].type === 'iiif') html += `<div class="gallery-zoom-badge"><i class="fa-solid fa-magnifying-glass-plus"></i> 拡大表示</div>`;
+    if (items.some(it => it.type === 'iiif')) html += `<span class="iiif-mark">IIIF</span>`;
     if (items.length > 1) {
         html += `<button class="carousel-nav-btn prev" style="width:40px;height:40px;" onclick='changeGalleryImage2("${uid}", -1, ${itemsJson})'><i class="fa-solid fa-chevron-left"></i></button>
         <button class="carousel-nav-btn next" style="width:40px;height:40px;" onclick='changeGalleryImage2("${uid}", 1, ${itemsJson})'><i class="fa-solid fa-chevron-right"></i></button>
@@ -11906,6 +11931,9 @@ function fsShowItem(idx) {
     const img = document.getElementById('full-screen-img');
     const osdBox = document.getElementById('fs-iiif-osd');
     if (fsOsd) { try { fsOsd.destroy(); } catch (e) {} fsOsd = null; }
+    let fsMark = document.getElementById('fs-iiif-mark');
+    if (!fsMark) { fsMark = document.createElement('span'); fsMark.id = 'fs-iiif-mark'; fsMark.className = 'iiif-mark iiif-mark-viewer'; fsMark.textContent = 'IIIF'; document.getElementById('full-screen-overlay').appendChild(fsMark); }
+    fsMark.style.display = item.type === 'iiif' ? '' : 'none';
     if (item.type === 'iiif') {
         img.style.display = 'none';
         osdBox.style.display = 'block';
