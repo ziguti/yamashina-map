@@ -583,8 +583,14 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
 .iiif-side-label.vertical { writing-mode: vertical-rl; }
 .viewer-page-badge { position: absolute; top: 10px; left: 10px; z-index: 50; pointer-events: none; background: rgba(26,17,11,0.78); color: #f3ead6; font-family: var(--font-sans); font-size: 0.8rem; letter-spacing: 0.08em; padding: 4px 10px; border: 1px solid rgba(168,135,76,0.5); font-variant-numeric: tabular-nums; }
 /* IIIF対応資料の目印（一覧・ギャラリー・ビュアーの角に付く青いラベル） */
-.iiif-mark { position: absolute; top: 6px; right: 6px; z-index: 20; width: 32px; height: 32px; padding: 0; background: #fff url("data:image/png;base64,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") center / contain no-repeat; color: transparent; font-size: 0; line-height: 0; border-radius: 2px; pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
-.iiif-mark-viewer { top: auto; bottom: 10px; left: 10px; right: auto; }
+.iiif-mark { position: absolute; top: 6px; left: 6px; right: auto; z-index: 20; padding: 0; background: none; border: none; line-height: 0; cursor: pointer; pointer-events: auto; user-select: none; filter: drop-shadow(0 0 2px rgba(0,0,0,0.85)); }
+.iiif-mark img { display: block; width: 24px; height: 24px; pointer-events: none; }
+.iiif-mark-viewer { top: 10px; left: 10px; right: auto; bottom: auto; }
+.iiif-mark-viewer img { width: 32px; height: 32px; }
+.iiif-mark:hover { color: var(--accent-gold); }
+.iiif-mark-inline { position: static; display: inline-block; vertical-align: middle; margin-left: 8px; filter: none; }
+.iiif-mark-inline img { width: 16px; height: 16px; }
+#fs-iiif-tools { top: 64px; right: 12px; }
 .iiif-thumb-wrap { position: relative; display: block; flex-shrink: 0; }
 .doc-list-card .dlc-thumb { position: relative; }
 .mini-map-label { white-space: nowrap; transform: translate(10px, -50%); font-family: var(--font-sans); font-size: 11px; line-height: 1.3; background: rgba(255,252,240,0.94); color: #2a2622; padding: 1px 5px; border: 1px solid rgba(58,42,35,0.25); box-shadow: 0 1px 3px rgba(0,0,0,0.2); pointer-events: none; }
@@ -1403,6 +1409,10 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
 .leaflet-marker-icon:hover .marker-wrapper { scale: 1.2; }
 .map-zooming .leaflet-marker-icon { pointer-events: none !important; }
 .map-zooming .marker-wrapper, .map-zooming .marker-3d-pin-circle { transition: none !important; }
+.help-q { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; border:1px solid currentColor; font-size:11px; line-height:1; margin-left:6px; cursor:pointer; opacity:.75; vertical-align:middle; color:inherit; font-family:var(--font-sans); font-weight:600; flex:0 0 auto; }
+.help-q:hover { opacity:1; }
+#help-pop { position:fixed; z-index:4000; max-width:300px; background:#241a13; color:#f3ead6; border:1px solid rgba(168,135,76,.6); padding:10px 12px; font-size:.8rem; line-height:1.7; border-radius:2px; box-shadow:var(--shadow-lift); display:none; white-space:pre-line; font-family:var(--font-sans); }
+#help-pop.show { display:block; }
 </style>
 </head>
 <body>
@@ -1447,7 +1457,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
     <div id="slider-box" style="display:flex;">
         <button class="slider-arrow-btn" onclick="stepEra(-1)"><i class="fa-solid fa-chevron-left"></i></button>
         <div class="era-range"><input type="range" id="era-slider" min="0" max="13" step="1" value="0"><span id="era-year-label"></span></div>
-        <button class="slider-arrow-btn" onclick="stepEra(1)"><i class="fa-solid fa-chevron-right"></i></button>
+        <button class="slider-arrow-btn" onclick="stepEra(1)"><i class="fa-solid fa-chevron-right"></i></button><span class="help-q" data-help="古地図を年代ごとに並べ、中世～現代までの数々の地図を直感的に遡ることができます。" onclick="event.stopPropagation();event.preventDefault();toggleHelpPop(this)">？</span>
     </div>
     <div id="map-search-wrap">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -1456,12 +1466,12 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
     </div>
     <div class="control-group">
         <button class="sub-nav-btn" id="m-btn-chiban" onclick="toggleChibanPanelMode()">
-            <i class="fa-solid fa-map-location"></i><span>地番ポリゴン</span>
+            <i class="fa-solid fa-map-location"></i><span>地番ポリゴン</span><span class="help-q" data-help="土地の形を見る" onclick="event.stopPropagation();event.preventDefault();toggleHelpPop(this)">？</span>
         </button>
-        <button class="sub-nav-btn" id="m-btn-trans" onclick="toggleTransitionMode()" title="土地利用の変遷（中世〜1945年）">
-            <i class="fa-solid fa-clock-rotate-left"></i><span>変遷</span>
+        <button class="sub-nav-btn" id="m-btn-trans" onclick="toggleTransitionMode()">
+            <i class="fa-solid fa-clock-rotate-left"></i><span>変遷</span><span class="help-q" data-help="土地利用の変遷（中世〜1945年）" onclick="event.stopPropagation();event.preventDefault();toggleHelpPop(this)">？</span>
         </button>
-        <button class="sub-nav-btn" id="m-btn-measure" onclick="toggleMeasureMode()" title="距離・面積を測る（点に吸着）"><i class="fa-solid fa-ruler-combined"></i><span>距離・面積</span></button>
+        <button class="sub-nav-btn" id="m-btn-measure" onclick="toggleMeasureMode()"><i class="fa-solid fa-ruler-combined"></i><span>距離・面積</span><span class="help-q" data-help="地図上に点を打ち、距離・面積をはかります。" onclick="event.stopPropagation();event.preventDefault();toggleHelpPop(this)">？</span></button>
         <div class="map-ui-slot" id="map-ui-slot-tile"></div>
         <div class="map-ui-slot" id="map-ui-slot-doc"></div>
     </div>
@@ -1516,7 +1526,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
                 <p class="spatial-status" id="spatial-status">地図上をクリックしてターゲットピンを立てると、その地点を視野扇形に収めている古写真のみを厳密に抽出します。</p>
             </div>
             <div class="spot-section">
-                <h4><i class="fa-solid fa-eye text-blue-500"></i> 見通し距離から絞り込み</h4>
+                <h4><i class="fa-solid fa-eye text-blue-500"></i> 見通し距離から絞り込み<span class="help-q" data-help="古写真が見通す距離ごとに絞り込めます。" onclick="event.stopPropagation();event.preventDefault();toggleHelpPop(this)">？</span></h4>
                 <label><input type="checkbox" class="chk-dist-filter" value="10,20,50" checked onchange="applyMapFilters()"> 近景 (10~50m)</label>
                 <label><input type="checkbox" class="chk-dist-filter" value="100,200,300,400,500" checked onchange="applyMapFilters()"> 中景 (100~500m)</label>
                 <label><input type="checkbox" class="chk-dist-filter" value="600,700,800,900,1000,1500,2000,2500,3000" checked onchange="applyMapFilters()"> 遠景 (600~3000m)</label>
@@ -1524,7 +1534,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
                 <label><input type="checkbox" class="chk-dist-filter" value="4500,5000,6000,7000,8000" checked onchange="applyMapFilters()"> 広角・空撮 (4.5~8km〜)</label>
             </div>
             <div class="spot-section">
-                <h4><i class="fa-solid fa-calendar-days text-blue-500"></i> 年代から絞り込み</h4>
+                <h4><i class="fa-solid fa-calendar-days text-blue-500"></i> 年代から絞り込み<span class="help-q" data-help="古写真の撮影年代で絞り込めます。" onclick="event.stopPropagation();event.preventDefault();toggleHelpPop(this)">？</span></h4>
                 <div class="year-range-inputs">
                     <input type="number" id="filter-year-start" placeholder="開始年" oninput="applyMapFilters()">
                     <span>〜</span>
@@ -1575,7 +1585,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
 
             <div class="spot-group-title"><i class="fa-solid fa-book"></i> 図書</div>
             <div class="spot-section">
-                <label><input type="checkbox" id="chk-book-pins" checked onchange="toggleMapPins('book')"> 図書データを表示</label>
+                <label><input type="checkbox" id="chk-book-pins" onchange="toggleMapPins('book')"> 図書データを表示</label>
             </div>
             <div class="spot-results-block" id="spot-results-block">
                 <h4><i class="fa-solid fa-list-ul"></i> 検索結果一覧 <span id="spot-results-count"></span></h4>
@@ -1612,8 +1622,8 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
             <h3><i class="fa-solid fa-map-location"></i> 地番ポリゴン検索</h3>
             <div class="spot-section" style="margin-bottom:12px;">
                 <h4><i class="fa-solid fa-layer-group"></i> 地番データの種類</h4>
-                <label><input type="radio" name="chiban-dataset" value="yamashina" checked onchange="switchChibanDataset(this.value)"> 従来の地番ポリゴン</label>
-                <label><input type="radio" name="chiban-dataset" value="kyoto" onchange="switchChibanDataset(this.value)"> 京都市地番図（高精度）</label>
+                <label><input type="radio" name="chiban-dataset" value="yamashina" checked onchange="switchChibanDataset(this.value)"> 登記所備付地図データ<span class="help-q" data-help="法務省「登記所備付地図データ」（G空間情報センター,2026年）をもとに作成。精度は劣りますが、住居地のポリゴンのみの京都市地番図に対して、道・川などの昔の地形を読み取ることができます。ポリゴンの変形加工は行っておりませんので、現代地図との整合性がとれない部分はありますが、形状は公図に描かれた通りのままです。" onclick="event.stopPropagation();event.preventDefault();toggleHelpPop(this)">？</span></label>
+                <label><input type="radio" name="chiban-dataset" value="kyoto" onchange="switchChibanDataset(this.value)"> 京都市地番図（高精度）<span class="help-q" data-help="京都市「京都市固定資産税（土地）地番図データ（令和6年1月1日時点）」をもとに作成。京都市地番図のうち、山科区のみを抽出したもので、住居地のみのポリゴンとなります。川や道などのポリゴンがないため、こちらに切り替えると一部データポリゴンは非表示となります。また、ポリゴンの形状については、現代地図と合致するように整形されているので、地番を調べる際に最適です。" onclick="event.stopPropagation();event.preventDefault();toggleHelpPop(this)">？</span></label>
             </div>
             <div class="spot-section" style="margin-bottom:14px;">
                 <label><input type="checkbox" id="chk-chiban-layer-visible" checked onchange="toggleChibanLayerVisibility()"> 地番ポリゴン全体をメインマップに表示（ズームに応じて大字/小字/地番が自動切替）</label>
@@ -1649,8 +1659,8 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
             <div class="portal-omni-search animate-on-scroll"><i class="fa-solid fa-magnifying-glass"></i><input id="portal-omni-input" type="text" placeholder="古写真・古地図・史料・図書・石造物を横断して検索…" onkeydown="if(event.key==='Enter')portalOmniGo()"><button onclick="portalOmniGo()"><i class="fa-solid fa-arrow-right"></i> 検索</button></div>
 
             <div class="portal-description animate-on-scroll">
-                <p><strong>山科歴史デジタルアーカイブ</strong>は、京都府京都市山科区に伝わる古地図・古写真・史料・歴史的建造物・自然環境・石造物などを、地理情報システム（GIS）と3Dモデリング技術を用いて体系的に保存・公開するプラットフォームです。明治期以降の地籍図のジオリファレンス（歪み補正・座標付与）を行い、時代ごとの歴史地図をメインマップ上にオーバーレイ表示するとともに、失われた建築物や石造物を3Dモデルとしてデジタル復元し、誰もが自由に空間的な視点から山科の歴史を探索できることを目指しています。</p>
-                <p>本アーカイブの構築にあたり、<strong>山科を語り継ぐ会</strong>様より、戦前から高度経済成長期にかけて撮影された古写真約700点をはじめとする貴重な史料をご提供いただきました。地域の記憶を未来へ継承するため、ここに深く感謝申し上げます。</p>
+                <p><strong>山科歴史デジタルアーカイブ</strong>は、京都府京都市山科区に伝わる古写真・古地図などの史料、自然環境や歴史的建造物などの遺産をGIS技術を用いて体系的に記録・保存するプラットフォームです。古写真・古地図など、山科の歴史の全てを、地図上及びデータベースとして表示し、復元することで、誰もが空間的・直感的な探索を可能とすることを目指しています。</p>
+                <p>これらの史料を収集するにあたり、京都府立歴彩館・京都市・山科を語り継ぐ会様など、様々な機関からご提供いただきました。薄れゆく地域の記憶を未来へ継承するため、ここに深く御礼申し上げます。</p>
             </div>
 
             <h2 class="portal-section-title animate-on-scroll">地図から探索</h2>
@@ -1709,7 +1719,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
         <div id="map"></div>
         <div class="map-overlay-panel" id="map-overlay-controls">
             <div class="opacity-head">
-                <div class="control-label" id="opacity-target">調整：未選択</div>
+                <div class="control-label" id="opacity-target">調整：未選択</div><span class="help-q" data-help="重ねた地図の透明度を調整" onclick="event.stopPropagation();event.preventDefault();toggleHelpPop(this)">？</span>
                 <button class="layer-detail-btn" id="opacity-era-info-btn" title="詳細を見る" style="display:none;"><i class="fa-solid fa-circle-info"></i></button>
             </div>
             <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="1.0">
@@ -1723,7 +1733,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
             <div class="db-search-panel">
                 <div class="search-tabs">
                     <div class="search-tab active" id="tab-omni-simple" onclick="toggleOmniMode('simple')">簡易検索</div>
-                    <div class="search-tab" id="tab-omni-detail" onclick="toggleOmniMode('detail')">詳細検索</div>
+                    <div class="search-tab" id="tab-omni-detail" onclick="toggleOmniMode('detail')">詳細検索</div><span class="help-q" data-help="キーワードで検索／条件を指定して検索" onclick="event.stopPropagation();event.preventDefault();toggleHelpPop(this)">？</span>
                 </div>
                 <div id="omni-simple-ui">
                     <div class="search-row">
@@ -2029,6 +2039,13 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
     <button class="carousel-nav-btn prev" id="fs-prev-btn" style="display:none;" onclick="event.stopPropagation(); fsChangeImage(-1)"><i class="fa-solid fa-chevron-left"></i></button>
     <img id="full-screen-img" draggable="false" onclick="event.stopPropagation()" ondragstart="return false">
     <div id="fs-iiif-osd" onclick="event.stopPropagation()"></div>
+    <div id="fs-iiif-tools" class="iiif-tools" style="display:none;" onclick="event.stopPropagation()">
+        <button type="button" title="拡大" onclick="fsIiifZoom(1.6)"><i class="fa-solid fa-plus"></i></button>
+        <button type="button" title="縮小" onclick="fsIiifZoom(1/1.6)"><i class="fa-solid fa-minus"></i></button>
+        <button type="button" title="全体を表示" onclick="fsIiifHome()"><i class="fa-solid fa-expand"></i></button>
+        <button type="button" title="左に90°回転" onclick="fsIiifRotate(-90)"><i class="fa-solid fa-rotate-left"></i></button>
+        <button type="button" title="右に90°回転" onclick="fsIiifRotate(90)"><i class="fa-solid fa-rotate-right"></i></button>
+    </div>
     <button class="carousel-nav-btn next" id="fs-next-btn" style="display:none;" onclick="event.stopPropagation(); fsChangeImage(1)"><i class="fa-solid fa-chevron-right"></i></button>
 </div>
 
@@ -2488,6 +2505,7 @@ function resetSpotSettingsFilters() {
     setChecked('chk-oldroad-pins', true);
     setChecked('chk-building-pins', true);
     setChecked('chk-doc-pins', true);
+    setChecked('chk-book-pins', false);
     document.querySelectorAll('.chk-dist-filter').forEach(c => c.checked = true);
     document.querySelectorAll('.chk-era-filter').forEach(c => c.checked = true);
     const ys = document.getElementById('filter-year-start'); if (ys) ys.value = '';
@@ -5011,8 +5029,31 @@ function parseChibanKeyList(raw) {
     if (!raw) return [];
     return String(raw).split(',').map(s => s.trim()).filter(Boolean);
 }
+/* 地番キーが「大字名」「小字名」「大字名＋小字名」だけの場合、その大字・小字に含まれる地番ポリゴンをすべて集める。
+   まだ読み込んでいない小字は背景で読み込み、終わったら地図側が描き直される。 */
+function chibanFeaturesByGroupKey(key) {
+    const st = chibanStore;
+    if (!st || !key || !st.koaza) return [];
+    const out = [];
+    st.koaza.forEach((kz, ki) => {
+        if (!(kz.o === key || kz.k === key || (kz.o + kz.k) === key)) return;
+        const start = kz.r[0], n = kz.r[1];
+        for (let u = start; u < start + n; u++) {
+            const f = st.featureOf(u);
+            if (f) out.push(f);
+        }
+        if (!st.loaded.has(ki)) st.requestKoaza(ki);
+    });
+    return out;
+}
 function findChibanFeatures(rawKeys) {
-    return parseChibanKeyList(rawKeys).map(k => findChibanFeature(k)).filter(Boolean);
+    const out = [];
+    parseChibanKeyList(rawKeys).forEach(k => {
+        const f = findChibanFeature(k);
+        if (f) { out.push(f); return; }
+        chibanFeaturesByGroupKey(k).forEach(x => out.push(x));
+    });
+    return out;
 }
 
 function buildChibanKeyIndex() {
@@ -6770,7 +6811,17 @@ async function switchChibanDataset(id) {
     syncChibanDatasetRadios();
 }
 
+/* 地番キー索引が今のデータと合っているかを判定する用の件数 */
+function chibanMapSignature() {
+    const bookRows = (bookData || []).reduce((n, b) => n + ((b && b.rows) ? b.rows.length : 0), 0);
+    return [models.length, buildingData.length, natureData.length, oldRoadData.length, docData.length, bookRows].join('|');
+}
+/* データの読込が後から終わった場合に備えて、件数が変わっていたら索引を作り直す */
+function ensureChibanMap() {
+    if (!window.chibanMap || window._chibanMapSig !== chibanMapSignature()) buildChibanMap();
+}
 function buildChibanMap() {
+    window._chibanMapSig = chibanMapSignature();
     window.chibanMap = {};
     const register = (arr, type, titleField, thumbField) => {
         arr.forEach(row => {
@@ -7692,6 +7743,7 @@ function gatherChibanLinkedItems(feature, level) {
         seen.add(dedupeKey);
         items.push(it);
     };
+    ensureChibanMap();
     keysToMatch.forEach(key => { if (window.chibanMap[key]) window.chibanMap[key].forEach(pushItem); });
 
     /* このポリゴンの範囲内に実際に座標が含まれるデータ（chibanKey欄の手入力に
@@ -8868,7 +8920,7 @@ function renderMapDbGallery() {
         <div class="doc-list-card" onclick='openMapDetailModal(${JSON.stringify(m).replace(/'/g, "&#39;")})'>
             <img class="dlc-thumb" id="${thumbId}" src="${escapeHtml(isIiif ? '' : (first || 'https://placehold.co/120x150/bda06d/2c1e1a?text=Map'))}" onerror="this.src='https://placehold.co/120x150/bda06d/2c1e1a?text=Map'">
             <div class="dlc-body">
-                <div class="dlc-title">${escapeHtml(m.name)}</div>
+                <div class="dlc-title">${escapeHtml(m.name)}${iiifTitleMark(first)}</div>
                 <div class="dlc-meta">${escapeHtml(m.creator)} ／ ${escapeHtml(m.publisher)}</div>
                 <span class="dlc-year">内容年代：${escapeHtml(m.yearContent) || '不明'}</span>
             </div>
@@ -8876,22 +8928,53 @@ function renderMapDbGallery() {
     }).join('');
     renderGenericPagination(pager, pagedFilteredMapData.length, currentMapDbPage, (i) => { currentMapDbPage = i; renderMapDbGallery(); });
 }
+/* IIIFマーク（マニフェストURLを持ち、クリックでURLをコピー） */
+const IIIF_ICON_SRC = 'data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjxzdmcKICAgdmVyc2lvbj0iMS4xIgogICB3aWR0aD0iNDAwIgogICBoZWlnaHQ9IjQwMCIKICAgaWQ9InN2ZzQyMyIKICAgc29kaXBvZGk6ZG9jbmFtZT0iaWlpZi5zdmciCiAgIGlua3NjYXBlOnZlcnNpb249IjEuMi4yIChiMGE4NDg2NTQxLCAyMDIyLTEyLTAxKSIKICAgeG1sbnM6aW5rc2NhcGU9Imh0dHA6Ly93d3cuaW5rc2NhcGUub3JnL25hbWVzcGFjZXMvaW5rc2NhcGUiCiAgIHhtbG5zOnNvZGlwb2RpPSJodHRwOi8vc29kaXBvZGkuc291cmNlZm9yZ2UubmV0L0RURC9zb2RpcG9kaS0wLmR0ZCIKICAgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIgogICB4bWxuczpzdmc9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcwogICAgIGlkPSJkZWZzNDI3IiAvPgogIDxzb2RpcG9kaTpuYW1lZHZpZXcKICAgICBpZD0ibmFtZWR2aWV3NDI1IgogICAgIHBhZ2Vjb2xvcj0iI2ZmZmZmZiIKICAgICBib3JkZXJjb2xvcj0iIzAwMDAwMCIKICAgICBib3JkZXJvcGFjaXR5PSIwLjI1IgogICAgIGlua3NjYXBlOnNob3dwYWdlc2hhZG93PSIyIgogICAgIGlua3NjYXBlOnBhZ2VvcGFjaXR5PSIwLjAiCiAgICAgaW5rc2NhcGU6cGFnZWNoZWNrZXJib2FyZD0iMCIKICAgICBpbmtzY2FwZTpkZXNrY29sb3I9IiNkMWQxZDEiCiAgICAgc2hvd2dyaWQ9ImZhbHNlIgogICAgIGlua3NjYXBlOnpvb209IjAuNTkiCiAgICAgaW5rc2NhcGU6Y3g9IjIwMCIKICAgICBpbmtzY2FwZTpjeT0iMjAwLjg0NzQ2IgogICAgIGlua3NjYXBlOndpbmRvdy13aWR0aD0iMTg1NCIKICAgICBpbmtzY2FwZTp3aW5kb3ctaGVpZ2h0PSIxMTMxIgogICAgIGlua3NjYXBlOndpbmRvdy14PSI2NiIKICAgICBpbmtzY2FwZTp3aW5kb3cteT0iMzIiCiAgICAgaW5rc2NhcGU6d2luZG93LW1heGltaXplZD0iMSIKICAgICBpbmtzY2FwZTpjdXJyZW50LWxheWVyPSJzdmc0MjMiIC8+CiAgPHBhdGgKICAgICBkPSJNMCAwIEMxLjYyNzQyODgyIDAuMDA0NTk5ODQgMS42Mjc0Mjg4MiAwLjAwNDU5OTg0IDMuMjg3NzM0OTkgMC4wMDkyOTI2IEM0LjExNjk1OTY5IDAuMDEzMjM1MzIgNC45NDYxODQzOSAwLjAxNzE3ODA0IDUuODAwNTM3MTEgMC4wMjEyNDAyMyBDNS44MjM2ODM2MyA3LjU0ODk1MTgxIDUuODQxNDY0MDIgMTUuMDc2NjU5NyA1Ljg1MjM0OTI4IDIyLjYwNDM5ODczIEM1Ljg1NzU3MzA0IDI2LjA5OTY0MTIxIDUuODY0NjYxNTEgMjkuNTk0ODU5MzkgNS44NzU5NzY1NiAzMy4wOTAwODc4OSBDNS44ODg4OTY4NSAzNy4xMDYyMDM1OCA1Ljg5Mzc2OTUxIDQxLjEyMjI5MzY0IDUuODk4MTkzMzYgNDUuMTM4NDI3NzMgQzUuOTAzMzU0NjQgNDYuMzk2Nzg0MzYgNS45MDg1MTU5MyA0Ny42NTUxNDA5OSA1LjkxMzgzMzYyIDQ4Ljk1MTYyOTY0IEM1LjkxMzkwOTE1IDUwLjExMjY4MjE5IDUuOTEzOTg0NjggNTEuMjczNzM0NzQgNS45MTQwNjI1IDUyLjQ2OTk3MDcgQzUuOTE2MjgzMTEgNTMuNDk1ODkzMjUgNS45MTg1MDM3MiA1NC41MjE4MTU4IDUuOTIwNzkxNjMgNTUuNTc4ODI2OSBDNS44MDA1MzcxMSA1OC4wMjEyNDAyMyA1LjgwMDUzNzExIDU4LjAyMTI0MDIzIDQuODAwNTM3MTEgNjAuMDIxMjQwMjMgQzMuOTMxNzA4OTggNTkuODkxMDQ0OTIgMy4wNjI4ODA4NiA1OS43NjA4NDk2MSAyLjE2NzcyNDYxIDU5LjYyNjcwODk4IEMtNS4yMzI2OTM3NCA1OC40MjU0NjcyNiAtNS4yMzI2OTM3NCA1OC40MjU0NjcyNiAtMTEuODg2OTYyODkgNjEuMDIxMjQwMjMgQy0xNy4zOTkwMzQ0NCA2OC4xNzIwMzU3NSAtMTYuNjE0NDA4ODIgNzYuNzg5NjMzNTQgLTE2LjgyNDQ2Mjg5IDg1LjQ1ODc0MDIzIEMtMTYuODYzMTM0NzcgODYuNzYyNjI2OTUgLTE2LjkwMTgwNjY0IDg4LjA2NjUxMzY3IC0xNi45NDE2NTAzOSA4OS40MDk5MTIxMSBDLTE3LjAzNTUyOTkgOTIuNjEzNTUwMjMgLTE3LjEyMTIxNDQzIDk1LjgxNzE4ODU1IC0xNy4xOTk0NjI4OSA5OS4wMjEyNDAyMyBDLTE2LjY0NDg0Mzc1IDk4LjgwMzk1MjY0IC0xNi4wOTAyMjQ2MSA5OC41ODY2NjUwNCAtMTUuNTE4Nzk4ODMgOTguMzYyNzkyOTcgQy0xMi45OTk5NjM5NCA5Ny4zODMzMzM4NiAtMTAuNDc0OTQ3MjUgOTYuNDIwOTE2NzkgLTcuOTQ5NDYyODkgOTUuNDU4NzQwMjMgQy03LjA3Njc2NzU4IDk1LjExNjQ5NDE0IC02LjIwNDA3MjI3IDk0Ljc3NDI0ODA1IC01LjMwNDkzMTY0IDk0LjQyMTYzMDg2IEMtNC40NjA1OTU3IDk0LjEwMjU4Nzg5IC0zLjYxNjI1OTc3IDkzLjc4MzU0NDkyIC0yLjc0NjMzNzg5IDkzLjQ1NDgzMzk4IEMtMS45NzEyODkwNiA5My4xNTYzMzU0NSAtMS4xOTYyNDAyMyA5Mi44NTc4MzY5MSAtMC4zOTc3MDUwOCA5Mi41NTAyOTI5NyBDMS44MDA1MzcxMSA5Mi4wMjEyNDAyMyAxLjgwMDUzNzExIDkyLjAyMTI0MDIzIDUuODAwNTM3MTEgOTMuMDIxMjQwMjMgQzUuODAwNTM3MTEgMTA5Ljg1MTI0MDIzIDUuODAwNTM3MTEgMTI2LjY4MTI0MDIzIDUuODAwNTM3MTEgMTQ0LjAyMTI0MDIzIEMtNC41MTY1MzYwNiAxNDguNjA2NjA2MDkgLTQuNTE2NTM2MDYgMTQ4LjYwNjYwNjA5IC05LjA3NDQ2Mjg5IDE1MC4yNzEyNDAyMyBDLTkuOTc5Mzg0NzcgMTUwLjYwNjM5NjQ4IC0xMC44ODQzMDY2NCAxNTAuOTQxNTUyNzMgLTExLjgxNjY1MDM5IDE1MS4yODY4NjUyMyBDLTE0LjE5OTQ2Mjg5IDE1Mi4wMjEyNDAyMyAtMTQuMTk5NDYyODkgMTUyLjAyMTI0MDIzIC0xNy4xOTk0NjI4OSAxNTIuMDIxMjQwMjMgQy0xNy4xOTk0NjI4OSAxOTEuMjkxMjQwMjMgLTE3LjE5OTQ2Mjg5IDIzMC41NjEyNDAyMyAtMTcuMTk5NDYyODkgMjcxLjAyMTI0MDIzIEMtMjIuMTQ5NDYyODkgMjcyLjY3MTI0MDIzIC0yNy4wOTk0NjI4OSAyNzQuMzIxMjQwMjMgLTMyLjE5OTQ2Mjg5IDI3Ni4wMjEyNDAyMyBDLTM0LjY5MzEyODQyIDI3Ni45MDA2NTAyNSAtMzcuMTgzMDYyMzQgMjc3Ljc5MDk2NTAyIC0zOS42NjQzMDY2NCAyNzguNzA0ODMzOTggQy00MS41MDE0NjI0IDI3OS4zODAwMjA3NSAtNDEuNTAxNDYyNCAyNzkuMzgwMDIwNzUgLTQzLjM3NTczMjQyIDI4MC4wNjg4NDc2NiBDLTQ0LjI5OTI5NTM1IDI4MC40MTAxNzIyNyAtNDQuMjk5Mjk1MzUgMjgwLjQxMDE3MjI3IC00NS4yNDE1MTYxMSAyODAuNzU4MzkyMzMgQy00Ny4xODg2NTY3OSAyODEuNDc3ODQwNTkgLTQ5LjEzNzA2MTE2IDI4Mi4xOTM3ODE5OCAtNTEuMDg1NjkzMzYgMjgyLjkwOTE3OTY5IEMtNTYuNTg3MTczNzkgMjg0LjkzMTYzMjM0IC02Mi4wODM2ODU5MSAyODYuOTY0ODYwODYgLTY3LjU1NDkzMTY0IDI4OS4wNjgxMTUyMyBDLTY4LjI5Njg2NzY4IDI4OS4zNTI0MzQwOCAtNjkuMDM4ODAzNzEgMjg5LjYzNjc1MjkzIC02OS44MDMyMjI2NiAyODkuOTI5Njg3NSBDLTcxLjY1OTIwMTg1IDI5MC42NDUwNDMxNyAtNzMuNTExNTUxODkgMjkxLjM2OTc5NjA4IC03NS4zNjM1MjUzOSAyOTIuMDk1NDU4OTggQy03OC4xOTk0NjI4OSAyOTMuMDIxMjQwMjMgLTc4LjE5OTQ2Mjg5IDI5My4wMjEyNDAyMyAtODIuMTk5NDYyODkgMjkzLjAyMTI0MDIzIEMtODIuMjY5Njg4IDI2NS42NzM0OTQ0NiAtODIuMzIyNTE3MDggMjM4LjMyNTc2MjMgLTgyLjM1NDg5OTQxIDIxMC45Nzc5NDQzNyBDLTgyLjM3MDMzNzgxIDE5OC4yNzg1NTk3NyAtODIuMzkxMzY5MjYgMTg1LjU3OTIzMTM1IC04Mi40MjU3ODEyNSAxNzIuODc5ODgyODEgQy04Mi40NTU3NzY0OCAxNjEuODA1MTY1MTkgLTgyLjQ3NTA1OTg2IDE1MC43MzA0ODgyNyAtODIuNDgxNzI4MzcgMTM5LjY1NTczMTE0IEMtODIuNDg1NjIzNTIgMTMzLjc5NzE2NTA4IC04Mi40OTQ3MTQwOCAxMjcuOTM4NzE1NDMgLTgyLjUxNjY1MzA2IDEyMi4wODAxODY4NCBDLTgyLjUzNzE3ODQzIDExNi41NTM4MDcyOCAtODIuNTQzMjY0NTcgMTExLjAyNzU5MDkgLTgyLjUzODc4NTkzIDEwNS41MDExNzY4MyBDLTgyLjUzOTYwNDAxIDEwMy40ODQ1NDkwNSAtODIuNTQ1NDczMTkgMTAxLjQ2NzkxNTIgLTgyLjU1NzA3OTMyIDk5LjQ1MTMyMDY1IEMtODIuNzA2MTM5ODcgNzIuMTg5NjY4NTggLTc3Ljc3NjI2MjA2IDQ1LjM0MzgyMjIzIC01OC4xOTk0NjI4OSAyNS4wMjEyNDAyMyBDLTQyLjk3NjUyMzY3IDEwLjMyNDc0MjcyIC0yMS40MTE5MDIwNyAtMC4wNzg0MDU0NyAwIDAgWiAiCiAgICAgZmlsbD0iI0VBMjAyNSIKICAgICB0cmFuc2Zvcm09InRyYW5zbGF0ZSgzNTkuMTk5NDYyODkwNjI1LDUzLjk3ODc1OTc2NTYyNSkiCiAgICAgaWQ9InBhdGg0MDkiIC8+CiAgPHBhdGgKICAgICBkPSJNMCAwIEMzLjUzMTc4NTM4IDAuNTE2Njc3ODcgNi43NjUwNTY5OCAxLjUzNzMyMDk0IDEwLjExMzI4MTI1IDIuNzUgQzExLjEwMjQ3NTU5IDMuMTA2ODI4NjEgMTIuMDkxNjY5OTIgMy40NjM2NTcyMyAxMy4xMTA4Mzk4NCAzLjgzMTI5ODgzIEMxNC4xNjczODc3IDQuMjE2OTcwMjEgMTUuMjIzOTM1NTUgNC42MDI2NDE2IDE2LjMxMjUgNSBDMTcuNDEwMjk3ODUgNS4zOTc5MTc0OCAxOC41MDgwOTU3IDUuNzk1ODM0OTYgMTkuNjM5MTYwMTYgNi4yMDU4MTA1NSBDMjkuMzAzNzM4ODQgOS43MjAxNDAwNyAzOC45MzQxNDg4OCAxMy4zMjQxNTk1IDQ4LjU1NDY4NzUgMTYuOTU3MDMxMjUgQzU0LjAyMjY2NDM3IDE5LjAwODUwMzIxIDU5LjUxMTQ2ODk2IDIxLjAwNDE3MDUzIDY1IDIzIEM2NSA3OS4xIDY1IDEzNS4yIDY1IDE5MyBDNjAuMzE5MjI3NCAxOTIuMzMxMzE4MiA1Ny4xMjEwNDA3OCAxOTEuODczNDU2MzkgNTIuOTAyMzQzNzUgMTkwLjMyMDMxMjUgQzUxLjk0OTg4NzcgMTg5Ljk3MzU1NDY5IDUwLjk5NzQzMTY0IDE4OS42MjY3OTY4NyA1MC4wMTYxMTMyOCAxODkuMjY5NTMxMjUgQzQ5LjAwMDE3MDkgMTg4Ljg5MTgzNTk0IDQ3Ljk4NDIyODUyIDE4OC41MTQxNDA2MiA0Ni45Mzc1IDE4OC4xMjUgQzQ1Ljg2OTk5NTEyIDE4Ny43MzQ0MTQwNiA0NC44MDI0OTAyMyAxODcuMzQzODI4MTIgNDMuNzAyNjM2NzIgMTg2Ljk0MTQwNjI1IEM0MS4zODM0ODc1MiAxODYuMDkxOTA1OTMgMzkuMDY1NDk4MTcgMTg1LjIzOTIzNDEgMzYuNzQ4NTM1MTYgMTg0LjM4Mzc4OTA2IEMzMi43NjU2Nzg2MyAxODIuOTEzNDk5MTggMjguNzc5NzYxOTcgMTgxLjQ1MTc1ODI2IDI0Ljc5Mjk2ODc1IDE3OS45OTIxODc1IEMyMC43NDkwOTU3OSAxNzguNTExNTA3NTkgMTYuNzA1NDUxNSAxNzcuMDMwMjQxODIgMTIuNjYzODE4MzYgMTc1LjU0MzQ1NzAzIEMxMS40NDcwMjM5MyAxNzUuMDk1OTkxMjEgMTAuMjMwMjI5NDkgMTc0LjY0ODUyNTM5IDguOTc2NTYyNSAxNzQuMTg3NSBDNy4zNTM1NTIyNSAxNzMuNTkwMDE5NTMgNy4zNTM1NTIyNSAxNzMuNTkwMDE5NTMgNS42OTc3NTM5MSAxNzIuOTgwNDY4NzUgQzMuODA3OTgwNDEgMTcyLjI5MzY1MTUyIDEuOTA3NTI4NjYgMTcxLjYzNTg0Mjg5IDAgMTcxIEMtMS40NDQ2NjM3NSAxNjguMTEwNjcyNDkgLTEuMTI1OTk4MyAxNjUuNjE3ODcwNjEgLTEuMTI2OTgzNjQgMTYyLjM4ODI5MDQxIEMtMS4xMjg1NDM2MyAxNjEuNzAxMjUwMzIgLTEuMTMwMTAzNjIgMTYxLjAxNDIxMDI0IC0xLjEzMTcxMDg5IDE2MC4zMDYzNTA3NyBDLTEuMTM1NzE0NzcgMTU3Ljk5MzE5MzQ1IC0xLjEzMjUzMzYyIDE1NS42ODAxMDEyMiAtMS4xMjkzOTQ1MyAxNTMuMzY2OTQzMzYgQy0xLjEzMDc0ODgzIDE1MS43MTMxMTkxMSAtMS4xMzI1Mjg5MiAxNTAuMDU5Mjk1MTcgLTEuMTM0NzA0NTkgMTQ4LjQwNTQ3MTggQy0xLjEzOTI3NTE2IDE0My45MDU2NTkxMSAtMS4xMzc0OTA5OSAxMzkuNDA1ODY5MjcgLTEuMTM0MzI1NSAxMzQuOTA2MDU2MTcgQy0xLjEzMTgwMDM5IDEzMC4yMDU5NzA2IC0xLjEzNDEzOTgzIDEyNS41MDU4ODcwMyAtMS4xMzU3MTE2NyAxMjAuODA1ODAxMzkgQy0xLjEzNzUzMjc0IDExMi45MTI3NjcgLTEuMTM1MTI4NSAxMDUuMDE5NzQxOTYgLTEuMTMwMzcxMDkgOTcuMTI2NzA4OTggQy0xLjEyNDkyNjcxIDg3Ljk4ODA5NjU1IC0xLjEyNjY5MjY2IDc4Ljg0OTUwNjQyIC0xLjEzMjE5NzUgNjkuNzEwODk0NTMgQy0xLjEzNjcyODE2IDYxLjg3NzM1NTgzIC0xLjEzNzM3OTQ3IDU0LjA0MzgyMzg3IC0xLjEzNDc1ODgzIDQ2LjIxMDI4NDI5IEMtMS4xMzMxOTYwNCA0MS41MjYwMjQgLTEuMTMzMDAyMzkgMzYuODQxNzc0MiAtMS4xMzYyOTUzMiAzMi4xNTc1MTQ1NyBDLTEuMTM5MTczNDEgMjcuNzU1NjUzNTEgLTEuMTM3MTk5NSAyMy4zNTM4MjEzNSAtMS4xMzE0MDEwNiAxOC45NTE5NjM0MiBDLTEuMTMwMDczMjEgMTcuMzMxNzYyMTcgLTEuMTMwNDY4IDE1LjcxMTU1ODUgLTEuMTMyNjYzNzMgMTQuMDkxMzU4MTggQy0xLjEzNTM3NDIxIDExLjg4OTExNDA0IC0xLjEzMTk5NTQyIDkuNjg2OTY0MDEgLTEuMTI2OTgzNjQgNy40ODQ3MjU5NSBDLTEuMTI2NjA2NjIgNi4yNDkzNTU2MSAtMS4xMjYyMjk1OSA1LjAxMzk4NTI3IC0xLjEyNTg0MTE0IDMuNzQxMTc5NDcgQy0xIDEgLTEgMSAwIDAgWiAiCiAgICAgZmlsbD0iIzBFN0JBNiIKICAgICB0cmFuc2Zvcm09InRyYW5zbGF0ZSgyMDEsMTUzKSIKICAgICBpZD0icGF0aDQxMSIgLz4KICA8cGF0aAogICAgIGQ9Ik0wIDAgQzAgNTYuMSAwIDExMi4yIDAgMTcwIEMtMTAuNzY3Njg2OTQgMTc0LjYxNDcyMjk4IC0yMS40NjU0MzEwOSAxNzguODk2MDAxMTIgLTMyLjYwOTM3NSAxODIuNSBDLTM5LjQ0OTA0NjEyIDE4NC43Nzc3MDg2NiAtNDYuMTYwMjIxNTggMTg3LjQzOTQ0NTUxIC01Mi44NzY3MDg5OCAxOTAuMDUzOTU1MDggQy01My44NzAwMTIyMSAxOTAuNDM0NDcwMjEgLTU0Ljg2MzMxNTQzIDE5MC44MTQ5ODUzNSAtNTUuODg2NzE4NzUgMTkxLjIwNzAzMTI1IEMtNTYuNzc1NzY5MDQgMTkxLjU1MjI1ODMgLTU3LjY2NDgxOTM0IDE5MS44OTc0ODUzNSAtNTguNTgwODEwNTUgMTkyLjI1MzE3MzgzIEMtNjEgMTkzIC02MSAxOTMgLTY1IDE5MyBDLTY1IDEzNi45IC02NSA4MC44IC02NSAyMyBDLTUzLjc2OTQ1MTI3IDE4LjUwNzc4MDUxIC01My43Njk0NTEyNyAxOC41MDc3ODA1MSAtNDguMTk5MjE4NzUgMTYuNDg0Mzc1IEMtNDYuOTg0MTE2MjEgMTYuMDQxMzQwMzMgLTQ1Ljc2OTAxMzY3IDE1LjU5ODMwNTY2IC00NC41MTcwODk4NCAxNS4xNDE4NDU3IEMtNDMuMjQwNTgxMzIgMTQuNjc3ODM4MiAtNDEuOTY0MDUwOTYgMTQuMjEzODkwNzYgLTQwLjY4NzUgMTMuNzUgQy0zMy4yNzU0MjA1NiAxMS4wNTI3MTI5NCAtMjUuODY2MzM5OTggOC4zNTUxMzM0NSAtMTguNTExNzE4NzUgNS41MDM5MDYyNSBDLTE3LjU0OTgzNjQzIDUuMTMxMDQ0OTIgLTE2LjU4Nzk1NDEgNC43NTgxODM1OSAtMTUuNTk2OTIzODMgNC4zNzQwMjM0NCBDLTEzLjgyNzUxNjg2IDMuNjgzOTcyMTggLTEyLjA2MDI4NDIgMi45ODgzMTAyIC0xMC4yOTU2NTQzIDIuMjg2MTMyODEgQy05LjUxNDg4NTI1IDEuOTgxNTkxOCAtOC43MzQxMTYyMSAxLjY3NzA1MDc4IC03LjkyOTY4NzUgMS4zNjMyODEyNSBDLTcuMjYxNzkxOTkgMS4wOTgxMzcyMSAtNi41OTM4OTY0OCAwLjgzMjk5MzE2IC01LjkwNTc2MTcyIDAuNTU5ODE0NDUgQy00IDAgLTQgMCAwIDAgWiAiCiAgICAgZmlsbD0iI0VBMjAyNSIKICAgICB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxODcsMTUzKSIKICAgICBpZD0icGF0aDQxMyIgLz4KICA8cGF0aAogICAgIGQ9Ik0wIDAgQzYuNzQ3OTk1MyAxLjEyNDY2NTg4IDYuNzQ3OTk1MyAxLjEyNDY2NTg4IDkuNzkyOTY4NzUgMi4yNzczNDM3NSBDMTAuODQxNzAxNjYgMi42NjkxMzgxOCAxMC44NDE3MDE2NiAyLjY2OTEzODE4IDExLjkxMTYyMTA5IDMuMDY4ODQ3NjYgQzEyLjY2MjY2MTEzIDMuMzU1NTAyOTMgMTMuNDEzNzAxMTcgMy42NDIxNTgyIDE0LjE4NzUgMy45Mzc1IEMxNS44NzEwMjI2MiA0LjU2OTIgMTcuNTU0NjIxMDQgNS4yMDA2OTgwMyAxOS4yMzgyODEyNSA1LjgzMjAzMTI1IEMyMC4xNTMwMzIyMyA2LjE3NzAxNjYgMjEuMDY3NzgzMiA2LjUyMjAwMTk1IDIyLjAxMDI1MzkxIDYuODc3NDQxNDEgQzI1LjI2NzAyMjg3IDguMTAwMjU4OTUgMjguNTI5Mjg2NDcgOS4zMDc0NzcyNSAzMS43OTI5Njg3NSAxMC41MTE3MTg3NSBDMzIuOTY1MTI5MzkgMTAuOTQ0Mjc5NzkgMzQuMTM3MjkwMDQgMTEuMzc2ODQwODIgMzUuMzQ0OTcwNyAxMS44MjI1MDk3NyBDMzcuMDkyMzM1MjEgMTIuNDY3MjQyNDMgMzcuMDkyMzM1MjEgMTIuNDY3MjQyNDMgMzguODc1IDEzLjEyNSBDNDcuNjExMDQyNjYgMTYuMzQ4NjQzNzQgNTYuMzA3ODYyMTggMTkuNjU2ODcwMDcgNjUgMjMgQzY1IDc5LjEgNjUgMTM1LjIgNjUgMTkzIEM1OS44NTQyMDMxOSAxOTIuMjY0ODg2MTcgNTYuMjI2MzU3NTkgMTkxLjU1MTEyNDQgNTEuNSAxODkuODEyNSBDNTAuMjc1MzkwNjIgMTg5LjM2MjYxNzE5IDQ5LjA1MDc4MTI1IDE4OC45MTI3MzQzOCA0Ny43ODkwNjI1IDE4OC40NDkyMTg3NSBDNDMuNTExNTQ1ODIgMTg2LjgzMDA3Njc0IDM5LjI3ODM4NzA4IDE4NS4xMDM1MTczMSAzNS4wNDI0ODA0NyAxODMuMzc4OTA2MjUgQzIzLjU1MjMwNzY1IDE3OC43NTMzMzczMiAxMS43NDU0Nzg0NCAxNzQuOTE1MTU5NDggMCAxNzEgQzAgMTE0LjU3IDAgNTguMTQgMCAwIFogIgogICAgIGZpbGw9IiMwRTdCQTYiCiAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNDIsMTUzKSIKICAgICBpZD0icGF0aDQxNSIgLz4KICA8cGF0aAogICAgIGQ9Ik0wIDAgQzUuNzA1ODkzMTIgNS4wOTc3ODIwNiA4LjYxNDAyMDIzIDEwLjgyNTcwMDIyIDkuMzE2NDA2MjUgMTguNDIxODc1IEM5Ljg0Nzc1NTI4IDM1LjIxOTM2MDMzIDMuMjAxMjc2MDQgNDguNzg0MTE1NjIgLTggNjEgQy0xOC41OTgxOTQ2OSA3MS4wMDUwMTIxNSAtMzAuNDY0ODEwOSA3NS41MzEzMDgzMyAtNDQuODEyNSA3NS4yNzM0Mzc1IEMtNTEuNjA1MjM4NTYgNzQuOTcwOTM5IC01NS42NTQ1NzEwOSA3Mi42NTA0NDU0OCAtNjAuMzEyNSA2Ny44MTI1IEMtNjYuMzI0NzcwNDkgNjAuMDYzNzE1NDEgLTY2Ljc5MzgyOTQzIDUxLjUyNTk1MzIxIC02NiA0MiBDLTY0LjQ0ODM5NDQ2IDMwLjk4NDk5ODUzIC01OS4zNDk2NzA2OCAyMS4zMTU1NDExNiAtNTIgMTMgQy01MS4zNCAxMyAtNTAuNjggMTMgLTUwIDEzIEMtNDkuNzUxMjEwOTQgMTIuNDEwODk4NDQgLTQ5LjUwMjQyMTg4IDExLjgyMTc5Njg4IC00OS4yNDYwOTM3NSAxMS4yMTQ4NDM3NSBDLTQ0LjcxMDMyODA5IDMuMTUyODQwMjEgLTMzLjg2NDcxNzY2IC0xLjIwODQ5ODEgLTI1LjQyOTY4NzUgLTMuNzg1MTU2MjUgQy0xNi41Mjk3OTE3NCAtNS44OTE1NTc5MSAtNy42MjUxMDM4MiAtNS40MTEzNjQgMCAwIFogIgogICAgIGZpbGw9IiNFQTIwMjUiCiAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTgzLDc4KSIKICAgICBpZD0icGF0aDQxNyIgLz4KICA8cGF0aAogICAgIGQ9Ik0wIDAgQzE0LjU1NTIxOTQ1IDguNjMxMzQ2OTIgMjQuNTMwMTYzNzIgMjEuMzk0OTc5MDYgMjkuMjkyOTY4NzUgMzcuNTkzNzUgQzMxLjY1OTM0NTE0IDQ3LjA1OTI1NTU3IDMxLjA3Nzg3NzM3IDU2Ljk5NjkwODYgMjYuMjkyOTY4NzUgNjUuNTkzNzUgQzIyLjI5NDk3OTk4IDcwLjI0Mjc2ODI1IDE3LjY0NTY5ODg4IDc0LjEwMDI4OTU0IDExLjM2OTg3MzA1IDc0LjgxMTc2NzU4IEMtMy44OTAwNDEzNyA3NS42NDgyODMxNSAtMTMuODc2OTk3OTUgNzIuNjI1MDY0NzggLTI1LjcwNzAzMTI1IDYyLjU5Mzc1IEMtMzYuNTc5MDkzNjYgNTIuMTMxOTU0MSAtNDQuNTU0ODAzMjkgMzkuNTIxOTUyNDUgLTQ1LjE4MDE3NTc4IDI0LjE0NjI0MDIzIEMtNDUuMjgwNDIwNTIgMTUuNzg0OTE3OTIgLTQ0LjY2MDU2NzU5IDguOTQyNjM5OTggLTM4Ljg3MTA5Mzc1IDIuNTc0MjE4NzUgQy0yOC4xNTk2MDU4MyAtNy41MDExNDYzMiAtMTIuNDkyOTczODcgLTYuNDg5ODU2NTYgMCAwIFogIgogICAgIGZpbGw9IiMwRTdCQTYiCiAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMjQwLjcwNzAzMTI1LDc4LjQwNjI1KSIKICAgICBpZD0icGF0aDQxOSIgLz4KICA8cGF0aAogICAgIGQ9Ik0wIDAgQzExLjM2NTkxMTMyIDguNjY0MTc4MyAyMS4yMjI5MzYwNyAyMi4yNzgyMTI5MiAyMy40MDYyNSAzNi42Nzk2ODc1IEMyNC4zMTM1MjYxNyA0NC43ODMzMTMyOSAyNC4xMTk0MjAzOSA1MS45MTgxNTMzMyAyMC4zMTI1IDU5LjI1IEMxNS4xMjUwNTc1MiA2NS40MTg4NTA1MSAxMC4zMzI2ODA1NSA2OS40NjU1MzM4NSAyLjEzNjcxODc1IDcwLjQ3NjU2MjUgQy0xMS43NjQwMjc5NCA3MS4xNjY1MDM2OCAtMjIuMTU0OTI0NTEgNjcuMDYxNjgzMjMgLTMyLjkzNzUgNTguMzEyNSBDLTM4LjE5MTgzNzY4IDUzLjE3ODcyMDc0IC00Mi4yMDMyMTg4OSA0Ny4yNDIyOTAwMiAtNDYgNDEgQy00Ni41NTMwMDc4MSA0MC4xMTA1NDY4NyAtNDcuMTA2MDE1NjIgMzkuMjIxMDkzNzUgLTQ3LjY3NTc4MTI1IDM4LjMwNDY4NzUgQy01MS4xODA5NDA3IDMxLjUzMTMzNzEyIC01MS41MzUxODQ0NyAyNC44MDI2MzExMiAtNTEuNjg3NSAxNy4zMTI1IEMtNTEuNzE5MTYyNiAxNi4zMzgxMjk4OCAtNTEuNzUwODI1MiAxNS4zNjM3NTk3NyAtNTEuNzgzNDQ3MjcgMTQuMzU5ODYzMjggQy01MS43MTg2NDkyNSA1Ljc5NjMzMTY1IC00OC41MzIyODQxOSAwLjUzMjI4NDE5IC00Mi41NjI1IC01LjQzNzUgQy0yOC45MzUzNTcxNSAtMTMuNzQ2NzMzNDUgLTEyLjA5MDAzMzM5IC04LjUxNzEwMDIgMCAwIFogIgogICAgIGZpbGw9IiMwRTdCQTYiCiAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODksODMpIgogICAgIGlkPSJwYXRoNDIxIiAvPgo8L3N2Zz4K';
+function iiifMarkHtml(url, extraClass) {
+    return '<span class="iiif-mark' + (extraClass ? ' ' + extraClass : '') + '" data-manifest="' + escapeHtml(url || '') + '"><img src="' + IIIF_ICON_SRC + '" alt="IIIF"></span>';
+}
+function iiifTitleMark(url) {
+    return isIiifUrl(url) ? iiifMarkHtml(url, 'iiif-mark-inline') : '';
+}
+function iiifCopyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+    }
+    return new Promise((res, rej) => {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        ok ? res() : rej(new Error('copy failed'));
+    });
+}
+document.addEventListener('click', function (e) {
+    const mk = e.target && e.target.closest ? e.target.closest('.iiif-mark') : null;
+    if (!mk) return;
+    e.preventDefault(); e.stopPropagation();
+    const u = mk.getAttribute('data-manifest');
+    if (!u) return;
+    iiifCopyText(u)
+        .then(() => showNotification('IIIFマニフェストのURLをコピーしました'))
+        .catch(() => showNotification('コピーできませんでした。URL: ' + u));
+}, true);
 /* 一覧サムネイルがIIIF Manifestの場合、1コマ目のサムネイル画像に差し替える */
 /* IIIF資料の目印：枠（div）に付ける */
-function iiifMarkContainer(id) {
+function iiifMarkContainer(id, url) {
     const box = document.getElementById(id);
     if (!box || box.querySelector(':scope > .iiif-mark')) return;
-    box.insertAdjacentHTML('beforeend', '<span class="iiif-mark">IIIF</span>');
+    box.insertAdjacentHTML('beforeend', iiifMarkHtml(url));
 }
 /* IIIF資料の目印：画像（img）に付ける。画像を包んで、その角に付ける */
-function iiifWrapMark(el) {
+function iiifWrapMark(el, url) {
     if (!el || !el.parentNode) return;
     if (el.parentElement && el.parentElement.classList.contains('iiif-thumb-wrap')) return;
     const w = document.createElement('span');
     w.className = 'iiif-thumb-wrap';
     el.parentNode.insertBefore(w, el);
     w.appendChild(el);
-    w.insertAdjacentHTML('beforeend', '<span class="iiif-mark">IIIF</span>');
+    w.insertAdjacentHTML('beforeend', iiifMarkHtml(url));
 }
 async function iiifFillListThumb(imgId, manifestUrl) {
     try {
@@ -8899,8 +8982,8 @@ async function iiifFillListThumb(imgId, manifestUrl) {
         const url = mf.canvases[0] && mf.canvases[0].thumb;
         const el = document.getElementById(imgId);
         if (el && url) el.src = url;
-        iiifWrapMark(el);
-    } catch (e) { iiifWrapMark(document.getElementById(imgId)); /* 失敗時はimgのonerrorがプレースホルダを出す */ }
+        iiifWrapMark(el, manifestUrl);
+    } catch (e) { iiifWrapMark(document.getElementById(imgId), manifestUrl); /* 失敗時はimgのonerrorがプレースホルダを出す */ }
 }
 /* レイヤ選択一覧の「詳細」ボタンから、名称で該当する古地図データを開く */
 function openMapDetailModalById(id) {
@@ -9492,7 +9575,7 @@ function renderBookList() {
                 <div class="media-spinner" style="font-size:1.2rem;"><i class="fa-solid fa-spinner fa-spin"></i></div>
             </div>
             <div class="dlc-body">
-                <div class="dlc-title">${escapeHtml(b.title)}</div>
+                <div class="dlc-title">${escapeHtml(b.title)}${iiifTitleMark(b.url)}</div>
                 <div class="dlc-meta">${escapeHtml(b.creator) || '著者不明'} ／ 全${escapeHtml(b.totalPages) || '－'}ページ</div>
                 <span class="dlc-year">刊行年：${escapeHtml(b.yearWest) || escapeHtml(b.yearJpn) || '不明'}</span>
                 ${hitsHtml}
@@ -9792,7 +9875,7 @@ function renderDocList() {
                 <div class="media-spinner" style="font-size:1.2rem;"><i class="fa-solid fa-spinner fa-spin"></i></div>
             </div>
             <div class="dlc-body">
-                <div class="dlc-title">${escapeHtml(d.subject)}</div>
+                <div class="dlc-title">${escapeHtml(d.subject)}${iiifTitleMark(d.pdfUrl)}</div>
                 <div class="dlc-meta">${escapeHtml(d.main)} ／ ${escapeHtml(d.mid)} ／ ${escapeHtml(d.sub)}</div>
                 <span class="dlc-year">作成年：${escapeHtml(d.yearWest) || escapeHtml(d.yearJpn) || '不明'}</span>
                 ${(d.matchedTextHits && d.matchedTextHits.length) ? `
@@ -10108,6 +10191,7 @@ function relFill(containerId, itemsProvider) {
 
 /* 1件のデータ（古写真以外）に関連するもの：①扇に入る古写真 ②同じ地番キーを持つ他のデータ */
 function relatedForRecord(record, type) {
+    ensureChibanMap();
     const book = (type === 'book') ? record.book : null;
     const en = relEntryFor(type, record, book);
     const sameKey = [];
@@ -11484,13 +11568,13 @@ async function iiifFillThumb(row, containerId, manifestUrl, kind) {
             const box = document.getElementById(containerId);
             if (!box) return;
             box.innerHTML = ''; box.classList.add('loaded'); box.appendChild(img);
-            iiifMarkContainer(containerId);
+            iiifMarkContainer(containerId, manifestUrl);
         };
-        img.onerror = () => { const box = document.getElementById(containerId); if (box) { box.innerHTML = failIcon; iiifMarkContainer(containerId); } };
+        img.onerror = () => { const box = document.getElementById(containerId); if (box) { box.innerHTML = failIcon; iiifMarkContainer(containerId, manifestUrl); } };
         img.src = url;
     } catch (e) {
         const box = document.getElementById(containerId);
-        if (box) { box.innerHTML = failIcon; iiifMarkContainer(containerId); }
+        if (box) { box.innerHTML = failIcon; iiifMarkContainer(containerId, manifestUrl); }
     }
 }
 
@@ -11514,7 +11598,7 @@ async function initDocIiif(row, manifestUrl) {
     scroll.innerHTML = `
         <div class="iiif-wrap">
             <div class="iiif-osd" id="iiif-osd"></div>
-            <span class="iiif-mark iiif-mark-viewer">IIIF</span>
+            ${iiifMarkHtml(manifestUrl, "iiif-mark-viewer")}
             <div class="iiif-tools">
                 <button type="button" title="拡大" onclick="iiifZoomBy(1.6)"><i class="fa-solid fa-plus"></i></button>
                 <button type="button" title="縮小" onclick="iiifZoomBy(1/1.6)"><i class="fa-solid fa-minus"></i></button>
@@ -11929,7 +12013,7 @@ function renderGalleryHTML(uid, items, altName) {
              onload="this.closest('.media-loading-wrap').classList.add('loaded')"
              onerror="this.closest('.media-loading-wrap').classList.add('loaded');this.src='https://placehold.co/800x600/999/fff?text=No+Image'">`;
     if (items[0].type === 'iiif') html += `<div class="gallery-zoom-badge"><i class="fa-solid fa-magnifying-glass-plus"></i> 拡大表示</div>`;
-    if (items.some(it => it.type === 'iiif')) html += `<span class="iiif-mark">IIIF</span>`;
+    { const ii = items.find(it => it.type === 'iiif'); if (ii) html += iiifMarkHtml(ii.url); }
     if (items.length > 1) {
         html += `<button class="carousel-nav-btn prev" style="width:40px;height:40px;" onclick='changeGalleryImage2("${uid}", -1, ${itemsJson})'><i class="fa-solid fa-chevron-left"></i></button>
         <button class="carousel-nav-btn next" style="width:40px;height:40px;" onclick='changeGalleryImage2("${uid}", 1, ${itemsJson})'><i class="fa-solid fa-chevron-right"></i></button>
@@ -11957,6 +12041,9 @@ function changeGalleryImage2(uid, step, items) {
 
 /* ---------- フルスクリーン表示（IIIFなら深いズーム、通常画像なら従来どおりCSSズーム） ---------- */
 let fsItems = null, fsItemIndex = 0, fsOsd = null;
+window.fsIiifZoom = function (f) { if (!fsOsd) return; const vp = fsOsd.viewport; vp.zoomBy(f); vp.applyConstraints(); };
+window.fsIiifHome = function () { if (fsOsd) fsOsd.viewport.goHome(); };
+window.fsIiifRotate = function (deg) { if (!fsOsd) return; const vp = fsOsd.viewport; vp.setRotation((vp.getRotation() + deg + 360) % 360); };
 
 function openFullScreenGallery(items, startIndex) {
     fsGalleryImages = null; /* 従来モードは使わない */
@@ -11974,8 +12061,10 @@ function fsShowItem(idx) {
     const osdBox = document.getElementById('fs-iiif-osd');
     if (fsOsd) { try { fsOsd.destroy(); } catch (e) {} fsOsd = null; }
     let fsMark = document.getElementById('fs-iiif-mark');
-    if (!fsMark) { fsMark = document.createElement('span'); fsMark.id = 'fs-iiif-mark'; fsMark.className = 'iiif-mark iiif-mark-viewer'; fsMark.textContent = 'IIIF'; document.getElementById('full-screen-overlay').appendChild(fsMark); }
+    if (!fsMark) { fsMark = document.createElement('span'); fsMark.id = 'fs-iiif-mark'; fsMark.className = 'iiif-mark iiif-mark-viewer'; fsMark.innerHTML = '<img src="' + IIIF_ICON_SRC + '" alt="IIIF">'; document.getElementById('full-screen-overlay').appendChild(fsMark); }
+    fsMark.setAttribute('data-manifest', item.type === 'iiif' ? (item.url || '') : '');
     fsMark.style.display = item.type === 'iiif' ? '' : 'none';
+    document.getElementById('fs-iiif-tools').style.display = item.type === 'iiif' ? '' : 'none';
     if (item.type === 'iiif') {
         img.style.display = 'none';
         osdBox.style.display = 'block';
@@ -12490,6 +12579,7 @@ function openFullScreenImage(imgUrl, imagesArray, startIndex) {
     const overlay = document.getElementById('full-screen-overlay');
     const fullImg = document.getElementById('full-screen-img');
     fullImg.style.display = '';
+    document.getElementById('fs-iiif-tools').style.display = 'none';
     fsGalleryImages = (imagesArray && imagesArray.length > 1) ? imagesArray : null;
     fsGalleryIndex = startIndex || 0;
     fullImg.src = imgUrl;
@@ -12516,6 +12606,7 @@ function closeFullScreenImage() {
     fsItems = null;
     document.getElementById('full-screen-img').style.display = '';
     document.getElementById('fs-iiif-osd').style.display = 'none';
+    document.getElementById('fs-iiif-tools').style.display = 'none';
 }
 function updateImageTransform() {
     document.getElementById('full-screen-img').style.transform = `translate(${translateX}px, ${translateY}px) scale(${zoomScale})`;
@@ -12966,7 +13057,7 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
         nature:   { label: '自然系',       legacy: 'nature',   pin: false, poly: true,  hasPin: true,  hasPoly: true, mode: 'chk-nature-mode-polygon' },
         building: { label: '歴史的建造物', legacy: 'building', pin: false, poly: true,  hasPin: true,  hasPoly: true, mode: 'chk-building-mode-polygon' },
         doc:      { label: '文書',         legacy: 'doc',      pin: false, poly: false, hasPin: false, hasPoly: true },
-        book:     { label: '図書',         legacy: 'book',     pin: true,  poly: true,  hasPin: true,  hasPoly: true }
+        book:     { label: '図書',         legacy: 'book',     pin: false, poly: false, hasPin: true,  hasPoly: true }
     };
     const BY_LABEL = {};
     Object.keys(KINDS).forEach(k => { BY_LABEL[KINDS[k].label] = k; });
@@ -13909,6 +14000,34 @@ function miniMapShowExtras(record, type, relItems) {
     const rel = (relItems || []).filter(it => !(it.type === type && String(it.id) === String(record.id)));
     miniMapPlotExtras(fam.concat(rel));
 }
+</script>
+<script>
+(function () {
+    let pop = null, cur = null;
+    function ensure() {
+        if (!pop) { pop = document.createElement('div'); pop.id = 'help-pop'; document.body.appendChild(pop); }
+        return pop;
+    }
+    window.toggleHelpPop = function (el) {
+        const p = ensure();
+        if (cur === el && p.classList.contains('show')) { p.classList.remove('show'); cur = null; return; }
+        cur = el;
+        p.textContent = el.getAttribute('data-help') || '';
+        p.classList.add('show');
+        const r = el.getBoundingClientRect();
+        const w = p.offsetWidth, h = p.offsetHeight;
+        const left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+        let top = r.bottom + 8;
+        if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
+        p.style.left = left + 'px';
+        p.style.top = top + 'px';
+    };
+    document.addEventListener('click', function (e) {
+        if (pop && pop.classList.contains('show') && !e.target.closest('.help-q') && !pop.contains(e.target)) {
+            pop.classList.remove('show'); cur = null;
+        }
+    });
+})();
 </script>
 </body>
 </html>
