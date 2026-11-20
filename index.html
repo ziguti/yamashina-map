@@ -583,7 +583,7 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
 .iiif-side-label.vertical { writing-mode: vertical-rl; }
 .viewer-page-badge { position: absolute; top: 10px; left: 10px; z-index: 50; pointer-events: none; background: rgba(26,17,11,0.78); color: #f3ead6; font-family: var(--font-sans); font-size: 0.8rem; letter-spacing: 0.08em; padding: 4px 10px; border: 1px solid rgba(168,135,76,0.5); font-variant-numeric: tabular-nums; }
 /* IIIF対応資料の目印（一覧・ギャラリー・ビュアーの角に付く青いラベル） */
-.iiif-mark { position: absolute; top: 6px; right: 6px; z-index: 20; background: #0b4f8a; color: #fff; font-family: var(--font-sans); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 2px; pointer-events: none; line-height: 1.2; box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+.iiif-mark { position: absolute; top: 6px; right: 6px; z-index: 20; width: 32px; height: 32px; padding: 0; background: #fff url("data:image/png;base64,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") center / contain no-repeat; color: transparent; font-size: 0; line-height: 0; border-radius: 2px; pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
 .iiif-mark-viewer { top: auto; bottom: 10px; left: 10px; right: auto; }
 .iiif-thumb-wrap { position: relative; display: block; flex-shrink: 0; }
 .doc-list-card .dlc-thumb { position: relative; }
@@ -896,6 +896,9 @@ body.mdp-resizing #map-detail-panel { transition: none !important; }
 }
 .pagination-btn.active { background: var(--primary-brown); color: #f3ead6; border-color: var(--primary-brown); }
 .pagination-btn:hover:not(.active) { border-color: var(--accent-gold); color: var(--accent-gold); }
+.pagination-ellipsis { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; color: var(--text-muted); font-family: var(--font-sans); font-size: 0.88rem; user-select: none; }
+.hit-count-bar { font-family: var(--font-sans); font-size: 0.9rem; color: var(--text-dark); margin: 0 0 12px; padding: 0 2px; }
+.hit-count-bar strong { color: var(--primary-brown); font-size: 1.05rem; }
 
 .result-map-section { margin-top: 48px; }
 .result-map-section h3 { font-family: var(--font-display); font-size: 1.4rem; font-weight: 500; letter-spacing: 0.08em; color: var(--primary-brown); margin-bottom: 16px; }
@@ -1569,6 +1572,11 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
                 <label><input type="checkbox" id="chk-doc-pins" checked onchange="toggleMapPins('doc')"> 文書・史料データを表示</label>
                 <div class="hier-tree-container" id="doc-hierarchy-tree"><p style="font-size:0.75rem;color:#999;">パネルを開くと表示されます...</p></div>
             </div>
+
+            <div class="spot-group-title"><i class="fa-solid fa-book"></i> 図書</div>
+            <div class="spot-section">
+                <label><input type="checkbox" id="chk-book-pins" checked onchange="toggleMapPins('book')"> 図書データを表示</label>
+            </div>
             <div class="spot-results-block" id="spot-results-block">
                 <h4><i class="fa-solid fa-list-ul"></i> 検索結果一覧 <span id="spot-results-count"></span></h4>
                 <div id="spot-results"></div>
@@ -1638,7 +1646,7 @@ body.input-dimmed .dim-fx:not(.dim-exempt) { filter: blur(9px) saturate(0.75); }
                 <button class="carousel-nav-btn next" onclick="moveCarousel(1)"><i class="fa-solid fa-chevron-right"></i></button>
                 <div class="carousel-dots" id="carousel-dots"><div class="carousel-dot active" onclick="setCarouselSlide(0)"></div><div class="carousel-dot" onclick="setCarouselSlide(1)"></div><div class="carousel-dot" onclick="setCarouselSlide(2)"></div><div class="carousel-dot" onclick="setCarouselSlide(3)"></div><div class="carousel-dot" onclick="setCarouselSlide(4)"></div></div>
             </div>
-            <div class="portal-omni-search animate-on-scroll"><i class="fa-solid fa-magnifying-glass"></i><input id="portal-omni-input" type="text" placeholder="古写真・古地図・史料・石造物を横断して検索…" onkeydown="if(event.key==='Enter')portalOmniGo()"><button onclick="portalOmniGo()"><i class="fa-solid fa-arrow-right"></i> 検索</button></div>
+            <div class="portal-omni-search animate-on-scroll"><i class="fa-solid fa-magnifying-glass"></i><input id="portal-omni-input" type="text" placeholder="古写真・古地図・史料・図書・石造物を横断して検索…" onkeydown="if(event.key==='Enter')portalOmniGo()"><button onclick="portalOmniGo()"><i class="fa-solid fa-arrow-right"></i> 検索</button></div>
 
             <div class="portal-description animate-on-scroll">
                 <p><strong>山科歴史デジタルアーカイブ</strong>は、京都府京都市山科区に伝わる古地図・古写真・史料・歴史的建造物・自然環境・石造物などを、地理情報システム（GIS）と3Dモデリング技術を用いて体系的に保存・公開するプラットフォームです。明治期以降の地籍図のジオリファレンス（歪み補正・座標付与）を行い、時代ごとの歴史地図をメインマップ上にオーバーレイ表示するとともに、失われた建築物や石造物を3Dモデルとしてデジタル復元し、誰もが自由に空間的な視点から山科の歴史を探索できることを目指しています。</p>
@@ -2382,7 +2390,7 @@ function clearPageCache(pageId) {
         pagedFilteredData = [];
         const list = document.getElementById('photo-list');
         if (list) list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-magnifying-glass"></i>検索条件を指定し、「検索する」ボタンを押してください。</div>';
-        const pg = document.getElementById('pagination-container'); if (pg) pg.innerHTML = '';
+        const pg = document.getElementById('pagination-container'); if (pg) { pg.innerHTML = ''; setHitCount(pg, null); }
         const rm = document.getElementById('search-result-map-container'); if (rm) rm.style.display = 'none';
     } else if (pageId === 'td') {
         clearInputs(['td-search-all','td-search-name','td-search-inscription','td-search-id','td-search-category','td-search-date','td-search-material','td-search-condition','td-search-info','td-search-era','td-search-year-start','td-search-year-end']);
@@ -3541,13 +3549,8 @@ const GLGeoHub = {
         const gl = GLMaster.gl;
         if (!gl || !gl.getLayer('geo-fill') || gl.isMoving()) { this._setHoverNid(null); return; }
         if (PinHub._find && PinHub._find(pt.x, pt.y)) { this._setHoverNid(null); return; }     /* ピンの上ではピンを優先 */
-        let nid = null;
-        const fs = gl.queryRenderedFeatures(pt, { layers: ['geo-fill'] });
-        for (let i = 0; i < fs.length; i++) {
-            const it = this._byId[fs[i].properties._g];
-            if (it && this.items.has(it) && it.listens && it.listens('click')) { nid = it._nid; break; }
-        }
-        this._setHoverNid(nid);
+        const top = this._topOf(gl.queryRenderedFeatures(pt, { layers: ['geo-fill'] }), true);
+        this._setHoverNid(top ? top._nid : null);
     },
     _setState: function (nid, st) {
         const gl = GLMaster.gl;
@@ -3625,17 +3628,27 @@ const GLGeoHub = {
         const gl = (typeof GLMaster !== 'undefined') && GLMaster.gl;
         if (!gl || !gl.getLayer('geo-fill')) return null;
         const fs = gl.queryRenderedFeatures(gl.project([latlng.lng, latlng.lat]), { layers: ['geo-fill'] });
+        return this._topOf(fs, true);
+    },
+    /* 重なったポリゴンのうち、一番上に描かれている（＝地番キーが最も少ない）データを返す。clickOnly のときはクリックに反応するものだけ */
+    _topOf: function (fs, clickOnly) {
+        let best = null;
         for (let i = 0; i < fs.length; i++) {
             const it = this._byId[fs[i].properties._g];
-            if (it && this.items.has(it) && it.listens && it.listens('click')) return it;
+            if (!it || !this.items.has(it)) continue;
+            if (clickOnly && !(it.listens && it.listens('click'))) continue;
+            if (!best || (it._z || 0) > (best._z || 0)) best = it;
         }
-        return null;
+        return best;
     },
     _sync: function () {
         const gl = GLMaster.gl;
         try { this._ensure(gl); } catch (e) { gl.once('load', () => this._sync()); return; }
+        /* 重なり順：地番キーの多いデータを下、少ないデータを上に描く（同じ地番キーどうしの競合は、キーの少ない方が上になる） */
+        const order = Array.from(this.items).sort((a, b) => (b._keyCount || 0) - (a._keyCount || 0));
+        order.forEach((it, i) => { it._z = i; });
         const feats = [];
-        this.items.forEach(it => it._features(feats));
+        order.forEach(it => it._features(feats));
         gl.getSource('geo-all').setData({ type: 'FeatureCollection', features: feats });
         const lf = [];
         this.items.forEach(it => {
@@ -3652,13 +3665,11 @@ const GLGeoHub = {
         if (window._measure && window._measure.active) return;   /* 計測中は地番・データのポリゴンのクリックを無視する */
         if (PinHub._find && PinHub._find(e.point.x, e.point.y)) { this.setSelected(null); return; }   /* ピンの上のクリックはピンが処理する */
         const fs = GLMaster.gl.queryRenderedFeatures(e.point, { layers: ['geo-fill'] });
-        for (let i = 0; i < fs.length; i++) {
-            const it = this._byId[fs[i].properties._g];
-            if (it && this.items.has(it)) {
-                if (it.listens && it.listens('click')) this.setSelected(it._nid); else this.setSelected(null);
-                it.fire('click', { latlng: L.latLng(e.lngLat.lat, e.lngLat.lng) });
-                return;
-            }
+        const it = this._topOf(fs, true);
+        if (it) {
+            this.setSelected(it._nid);
+            it.fire('click', { latlng: L.latLng(e.lngLat.lat, e.lngLat.lng) });
+            return;
         }
         this.setSelected(null);      /* 何もないところをクリックしたら、選択を外す */
     },
@@ -4477,6 +4488,8 @@ function toggleMapPins(kind) {
         document.getElementById('chk-building-pins').checked ? map.addLayer(buildingLayerGroup) : map.removeLayer(buildingLayerGroup);
     } else if (kind === 'doc') {
         document.getElementById('chk-doc-pins').checked ? map.addLayer(docLayerGroup) : map.removeLayer(docLayerGroup);
+    } else if (kind === 'book') {
+        document.getElementById('chk-book-pins').checked ? map.addLayer(bookLayerGroup) : map.removeLayer(bookLayerGroup);
     }
 }
 </script>
@@ -4951,12 +4964,12 @@ function renderTDPolygons(filteredModels) {
    ■26 自然系マップ表示
    ===================================================================== */
 /* 消失データのポリゴン表示：塗りは種別の色のまま、輪郭だけ色・太さ・破線を変えて区別する（ピンの見た目は従来どおり） */
-const LOST_OUTLINE = { color: '#ff8f00', weight: 2.5, dashArray: [4, 3] };
+const LOST_OUTLINE = { weight: 2.5, dashArray: [4, 3] };   /* 輪郭の色はポリゴン本来の色（種別の色）を使う */
 function polyStyleFor(row, getter) {
     const st = getter(row) || {};
     if ((row.status || '') !== '消失') return { color: st.color, fillColor: st.fillColor, fillOpacity: 0.35, weight: 1.5 };
     const base = getter(Object.assign({}, row, { status: '' })) || st;
-    return { color: LOST_OUTLINE.color, fillColor: base.fillColor, fillOpacity: 0.35, weight: LOST_OUTLINE.weight, dashArray: LOST_OUTLINE.dashArray };
+    return { color: base.color, fillColor: base.fillColor, fillOpacity: 0.35, weight: LOST_OUTLINE.weight, dashArray: LOST_OUTLINE.dashArray };
 }
 function getNatureStyle(row) {
     const status = row.status || '';
@@ -5331,6 +5344,7 @@ function makeChibanDataLayer(rawKeys, opts, labelText) {
     if (labelText) o.label = { text: String(labelText), anchors: g.anchors, lines: g.lines };
     const lay = makeGeo({ type: 'FeatureCollection', features: g.features }, o);
     lay._baseStyle = o.style;
+    lay._keyCount = parseChibanKeyList(rawKeys).length;   /* 重なりの優先順位に使う（地番キーが少ないほど上） */
     return lay;
 }
 
@@ -6007,9 +6021,10 @@ function renderDocMapLayers(searchQuery) {
     const hFilter = window._spotHierarchyFilterIds.doc;
     const shown = [];
     (window._spotShown = window._spotShown || {}).doc = shown;
-    if (!spotViewMode('doc').poly) return;
+    const drawPoly = spotViewMode('doc').poly;
     docData.filter(row => (!q || _allText(row).includes(q)) && (!hFilter || hFilter.has(String(row.id)))).forEach(row => {
         if (!row.chibanKey) return;
+        if (!drawPoly) { shown.push(row); return; }   /* ポリゴンがオフのときも一覧・詳細には残す */
         const layer = makeChibanDataLayer(row.chibanKey, { style: { color: '#1a2a4a', fillColor: '#1a2a4a', fillOpacity: 0.35, weight: 1.5 } }, row.subject || row.sub || row.id);
         if (!layer) return;
         layer._rowKey = 'doc:' + row.id; layer.on('click', () => openDocDetailPanel(row));
@@ -6027,6 +6042,7 @@ function renderBookMapLayers(searchQuery) {
     const shown = [];
     (window._spotShown = window._spotShown || {}).book = shown;
     const q = (searchQuery || '').trim().toLowerCase();
+    const vm = spotViewMode('book');
     bookData.forEach(b => {
         b.rows.forEach(row => {
             if (!row.chibanKey && !(row.coords && row.coords[0])) return;
@@ -6036,7 +6052,7 @@ function renderBookMapLayers(searchQuery) {
             }
             const mergedRow = Object.assign({}, row, { book: b });
             let drawn = false;
-            if (row.chibanKey) {
+            if (vm.poly && row.chibanKey) {
                 const layer = makeChibanDataLayer(row.chibanKey, { style: { color: TYPE_COLORS.book, fillColor: TYPE_COLORS.book, fillOpacity: 0.35, weight: 1.5 } }, row.entryLabel || row.h3 || row.h2 || row.h1 || b.title);
                 if (layer) {
                     layer._rowKey = 'book:' + mergedRow.id; layer.on('click', () => openDataDetailPanel(mergedRow, 'book'));
@@ -6044,7 +6060,7 @@ function renderBookMapLayers(searchQuery) {
                     drawn = true;
                 }
             }
-            if (!drawn && row.coords && row.coords[0]) {
+            if (!drawn && vm.pin && row.coords && row.coords[0]) {
                 const marker = makePin(row.coords, stySpec(TYPE_COLORS.book, 'book'), row.entryLabel || row.h3 || row.h2 || row.h1 || b.title);
                 marker._rowKey = 'book:' + mergedRow.id; marker.on('click', () => openDataDetailPanel(mergedRow, 'book'));
                 marker.addTo(bookLayerGroup);
@@ -8686,7 +8702,7 @@ function executeOmniSearch() {
     if (dbChecks.photo) omniResults.push(...archiveData.filter(p => match(p.title) || match(p.desc) || match(p.explanation)).map(p => ({ type: 'photo', id: p.id, title: p.title, thumb: p.img })));
     if (dbChecks.map) omniResults.push(...mapData.filter(m => match(m.name) || match(m.desc) || match(m.creator)).map(m => ({ type: 'map', id: m.id, title: m.name, thumb: (m.fullImgs && m.fullImgs[0]) || m.previewImg })));
     if (dbChecks.doc) omniResults.push(...docData.filter(d => match(d.subject) || match(d.desc) || match(d.creator)).map(d => ({ type: 'doc', id: d.id, title: d.subject, thumb: null })));
-    if (dbChecks.book) omniResults.push(...bookData.filter(b => match(b.title) || match(b.titleKana) || match(b.creator) || match(b.publisher) || match(b.desc)).map(b => ({ type: 'book', id: b.id, title: b.title, thumb: null })));
+    if (dbChecks.book) omniResults.push(...bookData.filter(b => match(_allText(b)) || (b.rows || []).some(r => match(_allText(r)))).map(b => ({ type: 'book', id: b.id, title: b.title, thumb: null })));
     if (dbChecks.td) omniResults.push(...models.filter(m => match(m.name) || match(m.info)).map(m => ({ type: 'td', id: m.id, title: m.name, thumb: m.thumbnail })));
     if (dbChecks.nature) omniResults.push(...natureData.filter(n => match(n.name) || match(n.info)).map(n => ({ type: 'nature', id: n.id, title: n.name, thumb: n.thumbnail })));
     if (dbChecks.oldroad) omniResults.push(...oldRoadData.filter(o => match(o.name) || match(o.info)).map(o => ({ type: 'oldroad', id: o.id, title: o.name, thumb: o.thumbnail })));
@@ -8774,7 +8790,7 @@ function renderPhotosPage() {
     const list = document.getElementById('photo-list');
     if (pagedFilteredData.length === 0) {
         list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-image"></i>該当する古写真が見つかりません。</div>';
-        document.getElementById('pagination-container').innerHTML = '';
+        renderGenericPagination(document.getElementById('pagination-container'), 0, 1, () => {});
         return;
     }
     const startIdx = (currentPage - 1) * itemsPerPage;
@@ -8840,7 +8856,7 @@ function renderMapDbGallery() {
     const pager = document.getElementById('mapdb-pagination-container');
     if (pagedFilteredMapData.length === 0) {
         container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-map"></i>該当する古地図が見つかりませんでした。</div>';
-        pager.innerHTML = ''; return;
+        renderGenericPagination(pager, 0, 1, () => {}); return;
     }
     const start = (currentMapDbPage - 1) * galleryItemsPerPage;
     container.innerHTML = pagedFilteredMapData.slice(start, start + galleryItemsPerPage).map((m, i) => {
@@ -9080,12 +9096,25 @@ function ensurePagerTop(pager) {
     pager._topPager = top;
     return top;
 }
+/* 検索結果の上に「ヒット件数」を出す（DBごとに一覧の直前へ置く）。n が null のときは消す */
+function setHitCount(pager, n) {
+    if (!pager || pager.id === 'spot-results-pager') return;
+    const id = pager.id + '-hitcount';
+    let bar = document.getElementById(id);
+    if (n == null) { if (bar) bar.remove(); return; }
+    if (!bar) { bar = document.createElement('div'); bar.id = id; bar.className = 'hit-count-bar'; }
+    bar.innerHTML = 'ヒット件数：<strong>' + n + '</strong>件';
+    const anchor = pager._topPager || pager;
+    if (anchor.parentNode && bar.nextElementSibling !== anchor) anchor.parentNode.insertBefore(bar, anchor);
+}
+
 function renderGenericPagination(container, totalItems, currentPageNum, onClick, perPage) {
     if (!container) return;
     ensurePagerTop(container);
     container._onPage = onClick;
     container.innerHTML = '';
     const totalPages = Math.ceil(totalItems / (perPage || galleryItemsPerPage));
+    setHitCount(container, totalItems);
     if (totalPages <= 1) return;
     const cur = Math.min(Math.max(1, currentPageNum), totalPages);
     /* 先頭・前へ・次へ・末尾の矢印（端にいるときは押せないように無効にする） */
@@ -9101,13 +9130,26 @@ function renderGenericPagination(container, totalItems, currentPageNum, onClick,
     };
     arrow('first', 'fa-angles-left', '最初のページ', cur > 1 ? 1 : null);
     arrow('prev', 'fa-chevron-left', '前のページ', cur > 1 ? cur - 1 : null);
+    /* ページ番号は「先頭・末尾・現在の前後1ページ」だけ出し、間が飛ぶところは「・・」で省略する */
+    const nums = [];
     for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || Math.abs(i - cur) <= 1) nums.push(i);
+    }
+    let prevNum = 0;
+    nums.forEach(i => {
+        if (i - prevNum > 1) {
+            const dots = document.createElement('span');
+            dots.className = 'pagination-ellipsis';
+            dots.textContent = '・・';
+            container.appendChild(dots);
+        }
         const btn = document.createElement('button');
         btn.className = `pagination-btn ${i === cur ? 'active' : ''}`;
         btn.innerText = i;
         btn.dataset.page = i;
         container.appendChild(btn);
-    }
+        prevNum = i;
+    });
     arrow('next', 'fa-chevron-right', '次のページ', cur < totalPages ? cur + 1 : null);
     arrow('last', 'fa-angles-right', '最後のページ', cur < totalPages ? totalPages : null);
 }
@@ -9169,7 +9211,7 @@ function filterNatureDB() {
 function renderNatureGalleryCards() {
     const container = document.getElementById('nature-gallery-container');
     const pager = document.getElementById('nature-pagination-container');
-    if (pagedFilteredNatureData.length === 0) { container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><i class="fa-solid fa-leaf"></i>該当するデータが見つかりませんでした。</div>'; pager.innerHTML = ''; return; }
+    if (pagedFilteredNatureData.length === 0) { container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><i class="fa-solid fa-leaf"></i>該当するデータが見つかりませんでした。</div>'; renderGenericPagination(pager, 0, 1, () => {}); return; }
     const start = (currentNaturePage - 1) * galleryItemsPerPage;
     container.innerHTML = pagedFilteredNatureData.slice(start, start + galleryItemsPerPage).map(r => `
         <div class="gallery-card" onclick='onChibanCardClick("nature", ${JSON.stringify(String(r.id))})'>
@@ -9203,7 +9245,7 @@ function filterOldRoadDB() {
 function renderOldRoadGalleryCards() {
     const container = document.getElementById('oldroad-gallery-container');
     const pager = document.getElementById('oldroad-pagination-container');
-    if (pagedFilteredOldRoadData.length === 0) { container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><i class="fa-solid fa-route"></i>該当するデータが見つかりませんでした。</div>'; pager.innerHTML = ''; return; }
+    if (pagedFilteredOldRoadData.length === 0) { container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><i class="fa-solid fa-route"></i>該当するデータが見つかりませんでした。</div>'; renderGenericPagination(pager, 0, 1, () => {}); return; }
     const start = (currentOldRoadPage - 1) * galleryItemsPerPage;
     container.innerHTML = pagedFilteredOldRoadData.slice(start, start + galleryItemsPerPage).map(r => `
         <div class="gallery-card" onclick='onChibanCardClick("oldroad", ${JSON.stringify(String(r.id))})'>
@@ -9242,7 +9284,7 @@ function filterBuildingDB() {
 function renderBuildingGalleryCards() {
     const container = document.getElementById('building-gallery-container');
     const pager = document.getElementById('building-pagination-container');
-    if (pagedFilteredBuildingData.length === 0) { container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><i class="fa-solid fa-landmark"></i>該当するデータが見つかりませんでした。</div>'; pager.innerHTML = ''; return; }
+    if (pagedFilteredBuildingData.length === 0) { container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><i class="fa-solid fa-landmark"></i>該当するデータが見つかりませんでした。</div>'; renderGenericPagination(pager, 0, 1, () => {}); return; }
     const start = (currentBuildingPage - 1) * galleryItemsPerPage;
     container.innerHTML = pagedFilteredBuildingData.slice(start, start + galleryItemsPerPage).map(r => `
         <div class="gallery-card" onclick='onChibanCardClick("building", ${JSON.stringify(String(r.id))})'>
@@ -9423,7 +9465,7 @@ function getBookSearchIndex(b) {
 function renderBookList() {
     const container = document.getElementById('book-list-container');
     const pager = document.getElementById('book-pagination-container');
-    if (pagedFilteredBookData.length === 0) { container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-book"></i>該当する図書が見つかりませんでした。</div>'; pager.innerHTML = ''; return; }
+    if (pagedFilteredBookData.length === 0) { container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-book"></i>該当する図書が見つかりませんでした。</div>'; renderGenericPagination(pager, 0, 1, () => {}); return; }
     const start = (currentBookPage - 1) * galleryItemsPerPage;
     const pageItems = pagedFilteredBookData.slice(start, start + galleryItemsPerPage);
     container.innerHTML = pageItems.map((b, idx) => {
@@ -9741,7 +9783,7 @@ function openDocDetailModalAtPage(docId, page) {
 function renderDocList() {
     const container = document.getElementById('doc-list-container');
     const pager = document.getElementById('doc-pagination-container');
-    if (pagedFilteredDocData.length === 0) { container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-scroll"></i>該当する史料が見つかりませんでした。</div>'; pager.innerHTML = ''; return; }
+    if (pagedFilteredDocData.length === 0) { container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-scroll"></i>該当する史料が見つかりませんでした。</div>'; renderGenericPagination(pager, 0, 1, () => {}); return; }
     const start = (currentDocPage - 1) * galleryItemsPerPage;
     const pageItems = pagedFilteredDocData.slice(start, start + galleryItemsPerPage);
     container.innerHTML = pageItems.map((d, idx) => `
@@ -12923,7 +12965,8 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
         oldroad:  { label: '古道',         legacy: 'oldroad',  pin: false, poly: true,  hasPin: true,  hasPoly: true, mode: 'chk-oldroad-mode-polygon' },
         nature:   { label: '自然系',       legacy: 'nature',   pin: false, poly: true,  hasPin: true,  hasPoly: true, mode: 'chk-nature-mode-polygon' },
         building: { label: '歴史的建造物', legacy: 'building', pin: false, poly: true,  hasPin: true,  hasPoly: true, mode: 'chk-building-mode-polygon' },
-        doc:      { label: '文書',         legacy: 'doc',      pin: false, poly: true,  hasPin: false, hasPoly: true }
+        doc:      { label: '文書',         legacy: 'doc',      pin: false, poly: false, hasPin: false, hasPoly: true },
+        book:     { label: '図書',         legacy: 'book',     pin: true,  poly: true,  hasPin: true,  hasPoly: true }
     };
     const BY_LABEL = {};
     Object.keys(KINDS).forEach(k => { BY_LABEL[KINDS[k].label] = k; });
@@ -12967,7 +13010,7 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
     });
     /* 旧来の「ピンを表示」「ポリゴンで表示」のチェックは、上のチェックに置き換えた（中身は内部で同期して使い続ける）ので隠す */
     ['chk-photo-pins', 'chk-3d-pins', 'chk-td-mode-polygon', 'chk-oldroad-pins', 'chk-oldroad-mode-polygon', 'chk-nature-pins',
-     'chk-nature-mode-polygon', 'chk-building-pins', 'chk-building-mode-polygon', 'chk-doc-pins'].forEach(id => {
+     'chk-nature-mode-polygon', 'chk-building-pins', 'chk-building-mode-polygon', 'chk-doc-pins', 'chk-book-pins'].forEach(id => {
         const el = $(id), lb = el && el.closest('label');
         if (lb) lb.style.display = 'none';
     });
@@ -12981,8 +13024,8 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
         const b = boxes(kind), c = KINDS[kind];
         if (!b.pin && !b.poly) {     /* パネルの用意前は、従来の設定を使う */
             const m = c && c.mode && $(c.mode);
-            const poly = m ? m.checked : kind === 'doc';
-            return { pin: !poly && kind !== 'doc', poly: poly };
+            if (m) return { pin: !m.checked && kind !== 'doc', poly: m.checked };
+            return { pin: c ? c.pin : false, poly: c ? c.poly : false };
         }
         return { pin: !!(b.pin && b.pin.checked && !b.pin.disabled), poly: !!(b.poly && b.poly.checked && !b.poly.disabled) };
     };
@@ -13163,7 +13206,7 @@ window.onload = () => { initMap(); loadPhotoData(); load3DData(); loadPortalConf
         ORDER.forEach(kind => {
             const rows = shown[kind];
             if (!rows || !rows.length) return;
-            if (KINDS[kind]) { const v = window.spotViewMode(kind); if (!v.pin && !v.poly) return; }   /* 非表示にしている種類は載せない */
+            if (KINDS[kind] && kind !== 'doc') { const v = window.spotViewMode(kind); if (!v.pin && !v.poly) return; }   /* 非表示にしている種類は載せない（文書は一覧に残す） */
             kindCount[kind] = rows.length;
             rows.forEach(row => flat.push({ kind: kind, row: row }));
         });
